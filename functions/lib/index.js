@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.health = exports.api = void 0;
+exports.health = exports.analyzeDiagnostic = exports.api = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firebase_functions_1 = require("firebase-functions");
 const google_auth_library_1 = require("google-auth-library");
@@ -115,6 +115,113 @@ exports.api = (0, https_1.onRequest)({
         res.status(500).json({
             error: "Internal server error",
             message: error instanceof Error ? error.message : "Unknown error"
+        });
+    }
+});
+/**
+ * Analyze diagnostic data using Firebase Vertex AI
+ * Replaces Supabase Edge Function with Firestore
+ */
+exports.analyzeDiagnostic = (0, https_1.onRequest)({
+    cors: true,
+    region: "us-central1",
+    memory: "2GiB",
+    timeoutSeconds: 540
+}, async (req, res) => {
+    var _a, _b, _c, _d, _e;
+    firebase_functions_1.logger.info('=== DIAGNOSTIC ANALYSIS FUNCTION STARTED ===');
+    try {
+        const { submissionId, diagnosticData } = req.body;
+        firebase_functions_1.logger.info('Received diagnostic analysis request:', { submissionId, hasData: !!diagnosticData });
+        if (!submissionId || !diagnosticData) {
+            throw new Error('submissionId and diagnosticData are required');
+        }
+        // Initialize Vertex AI via REST API
+        const projectId = process.env.GOOGLE_CLOUD_PROJECT || 'diagnostic-pro-prod';
+        const location = 'us-central1';
+        // Create Google Auth client for Vertex AI
+        const authClient = new google_auth_library_1.GoogleAuth({
+            scopes: ['https://www.googleapis.com/auth/cloud-platform']
+        });
+        firebase_functions_1.logger.info('Vertex AI initialized, proceeding with analysis...');
+        // Prepare comprehensive diagnostic prompt (same 12-section structure)
+        const prompt = `You are DiagnosticPro's MASTER TECHNICIAN. Use ALL the diagnostic data provided to give the most accurate analysis possible.
+
+CUSTOMER DATA PROVIDED:
+- Vehicle: ${diagnosticData.make || 'Not specified'} ${diagnosticData.model || 'Not specified'} ${diagnosticData.year || 'Not specified'}
+- Equipment Type: ${diagnosticData.equipmentType || 'Not specified'}
+- Problem: ${diagnosticData.problemDescription || 'None provided'}
+- Error Codes: ${diagnosticData.errorCodes || 'None provided'}
+- Shop Quote: ${diagnosticData.shopQuoteAmount ? `$${diagnosticData.shopQuoteAmount}` : 'Not provided'}
+
+📋 COMPREHENSIVE ANALYSIS (12 sections):
+🎯 1. PRIMARY DIAGNOSIS - Root cause analysis
+🔍 2. DIFFERENTIAL DIAGNOSIS - Alternative causes
+✅ 3. DIAGNOSTIC VERIFICATION - Required tests
+❓ 4. SHOP INTERROGATION - Questions to ask
+💸 5. COST BREAKDOWN - Fair pricing analysis
+🚩 6. RIPOFF DETECTION - Warning signs
+⚖️ 7. AUTHORIZATION GUIDE - Approve/reject/second opinion
+🔧 8. TECHNICAL EDUCATION - How systems work
+📦 9. OEM PARTS STRATEGY - Specific part numbers
+💬 10. NEGOTIATION TACTICS - Price comparisons
+🔍 11. QUALITY VERIFICATION - Post-repair tests
+🕵️ 12. INSIDER INTELLIGENCE - Known issues
+
+BE RUTHLESSLY SPECIFIC. PROTECT THE CUSTOMER'S WALLET.`;
+        const fullPrompt = `You are DiagnosticPro's MASTER TECHNICIAN with 30+ years experience. Your $29.99 analysis must be ruthlessly protective of customer wallets and expose incompetent shops.
+
+${prompt}`;
+        firebase_functions_1.logger.info('Calling Vertex AI REST API...');
+        // Get access token
+        const accessToken = await authClient.getAccessToken();
+        // Call Vertex AI Gemini API
+        const vertexResponse = await fetch(`https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.5-flash:generateContent`, {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                contents: [{
+                        role: 'user',
+                        parts: [{ text: fullPrompt }]
+                    }],
+                generationConfig: {
+                    maxOutputTokens: 8192,
+                    temperature: 0.7
+                }
+            })
+        });
+        if (!vertexResponse.ok) {
+            const errorText = await vertexResponse.text();
+            throw new Error(`Vertex AI API error: ${vertexResponse.status} - ${errorText}`);
+        }
+        const vertexResult = await vertexResponse.json();
+        const analysis = (_e = (_d = (_c = (_b = (_a = vertexResult.candidates) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.content) === null || _c === void 0 ? void 0 : _c.parts) === null || _d === void 0 ? void 0 : _d[0]) === null || _e === void 0 ? void 0 : _e.text;
+        if (!analysis) {
+            throw new Error('No analysis generated from Vertex AI');
+        }
+        firebase_functions_1.logger.info('Analysis generated successfully, length:', analysis.length);
+        // Save to Firestore (orders collection)
+        const db = admin.firestore();
+        await db.collection('orders').doc(submissionId).update({
+            analysisCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+            analysis: analysis,
+            processingStatus: 'completed'
+        });
+        firebase_functions_1.logger.info('Analysis saved to Firestore for submission:', submissionId);
+        res.json({
+            success: true,
+            analysis,
+            submissionId
+        });
+    }
+    catch (error) {
+        firebase_functions_1.logger.error('Error in analyze-diagnostic:', error);
+        res.status(500).json({
+            error: error instanceof Error ? error.message : 'Unknown error',
+            details: 'Check Cloud Function logs for more information'
         });
     }
 });

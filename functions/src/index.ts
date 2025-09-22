@@ -2,8 +2,6 @@ import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { GoogleAuth } from "google-auth-library";
 import * as admin from "firebase-admin";
-import { initializeApp as initializeClientApp } from "firebase/app";
-import { getAI, getGenerativeModel } from "firebase/ai";
 
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
@@ -123,21 +121,16 @@ export const analyzeDiagnostic = onRequest(
         throw new Error('submissionId and diagnosticData are required');
       }
 
-      // Initialize Firebase AI for Vertex AI
-      const firebaseConfig = {
-        projectId: process.env.GOOGLE_CLOUD_PROJECT || 'diagnostic-pro-prod',
-        apiKey: process.env.FIREBASE_API_KEY,
-      };
+      // Initialize Vertex AI via REST API
+      const projectId = process.env.GOOGLE_CLOUD_PROJECT || 'diagnostic-pro-prod';
+      const location = 'us-central1';
 
-      if (!firebaseConfig.apiKey) {
-        throw new Error('FIREBASE_API_KEY environment variable is required');
-      }
+      // Create Google Auth client for Vertex AI
+      const authClient = new GoogleAuth({
+        scopes: ['https://www.googleapis.com/auth/cloud-platform']
+      });
 
-      const clientApp = initializeClientApp(firebaseConfig);
-      const ai = getAI(clientApp);
-      const model = getGenerativeModel(ai, { model: 'gemini-2.5-flash' });
-
-      logger.info('Firebase Vertex AI initialized, proceeding with analysis...');
+      logger.info('Vertex AI initialized, proceeding with analysis...');
 
       // Prepare comprehensive diagnostic prompt (same 12-section structure)
       const prompt = `You are DiagnosticPro's MASTER TECHNICIAN. Use ALL the diagnostic data provided to give the most accurate analysis possible.
@@ -169,11 +162,40 @@ BE RUTHLESSLY SPECIFIC. PROTECT THE CUSTOMER'S WALLET.`;
 
 ${prompt}`;
 
-      logger.info('Calling Firebase Vertex AI...');
+      logger.info('Calling Vertex AI REST API...');
 
-      // Generate analysis
-      const result = await model.generateContent(fullPrompt);
-      const analysis = result.response.text();
+      // Get access token
+      const accessToken = await authClient.getAccessToken();
+
+      // Call Vertex AI Gemini API
+      const vertexResponse = await fetch(
+        `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/gemini-2.5-flash:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents: [{
+              role: 'user',
+              parts: [{ text: fullPrompt }]
+            }],
+            generationConfig: {
+              maxOutputTokens: 8192,
+              temperature: 0.7
+            }
+          })
+        }
+      );
+
+      if (!vertexResponse.ok) {
+        const errorText = await vertexResponse.text();
+        throw new Error(`Vertex AI API error: ${vertexResponse.status} - ${errorText}`);
+      }
+
+      const vertexResult = await vertexResponse.json();
+      const analysis = vertexResult.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (!analysis) {
         throw new Error('No analysis generated from Vertex AI');
@@ -200,7 +222,7 @@ ${prompt}`;
     } catch (error) {
       logger.error('Error in analyze-diagnostic:', error);
       res.status(500).json({
-        error: error.message,
+        error: error instanceof Error ? error.message : 'Unknown error',
         details: 'Check Cloud Function logs for more information'
       });
     }
