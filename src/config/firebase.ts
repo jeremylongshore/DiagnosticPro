@@ -3,13 +3,13 @@ import { getFirestore } from 'firebase/firestore';
 import { getAuth } from 'firebase/auth';
 
 const firebaseConfig = {
-  projectId: "diagnostic-pro-prod",
-  appId: "1:298932670545:web:d710527356371228556870",
-  storageBucket: "diagnostic-pro-prod.firebasestorage.app",
-  apiKey: "AIzaSyBmuntVKosh_EGz5yxQLlIoNXlxwYE6tMg",
-  authDomain: "diagnostic-pro-prod.firebaseapp.com",
-  messagingSenderId: "298932670545",
-  measurementId: "G-VQW6LFYQPS"
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "diagnostic-pro-prod",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "1:298932670545:web:d710527356371228556870",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "diagnostic-pro-prod.firebasestorage.app",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "AIzaSyBmuntVKosh_EGz5yxQLlIoNXlxwYE6tMg",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "diagnostic-pro-prod.firebaseapp.com",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "298932670545",
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID || "G-VQW6LFYQPS"
 };
 
 // Initialize Firebase
