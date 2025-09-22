@@ -1,0 +1,12 @@
+{
+  "name": "simple-proxy",
+  "version": "1.0.0",
+  "main": "index.js",
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.3.0",
+    "google-auth-library": "^9.14.1"
+  },
+  "engines": {
+    "node": "20"
+  }
+}

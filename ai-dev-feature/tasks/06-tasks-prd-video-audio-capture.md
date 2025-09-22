@@ -1,0 +1,259 @@
+# Task List: Video with Audio Capture
+
+Based on PRD: `prd-video-audio-capture.md`
+
+## Relevant Files
+
+- `src/components/VideoCapture/VideoRecorder.tsx` - Main video recording component with synchronized audio
+- `src/components/VideoCapture/VideoRecorder.test.tsx` - Comprehensive tests for video recorder
+- `src/components/VideoCapture/VideoPreview.tsx` - Real-time video preview with audio level monitoring
+- `src/components/VideoCapture/VideoPreview.test.tsx` - Tests for video preview functionality
+- `src/components/VideoCapture/RecordingControls.tsx` - Professional recording controls (Loom-style)
+- `src/components/VideoCapture/RecordingControls.test.tsx` - Tests for recording controls
+- `src/components/VideoCapture/VideoPlayback.tsx` - Video playback with scrubbing and audio controls
+- `src/components/VideoCapture/VideoPlayback.test.tsx` - Tests for video playback component
+- `src/components/VideoCapture/QualityIndicator.tsx` - Real-time quality feedback component
+- `src/components/VideoCapture/QualityIndicator.test.tsx` - Tests for quality indicators
+- `src/hooks/useVideoRecorder.ts` - Advanced video recording state management hook
+- `src/hooks/useVideoRecorder.test.ts` - Tests for video recorder hook
+- `src/hooks/useVideoQuality.ts` - Real-time video quality monitoring hook
+- `src/hooks/useVideoQuality.test.ts` - Tests for video quality hook
+- `src/hooks/useMediaSync.ts` - Audio-video synchronization management hook
+- `src/hooks/useMediaSync.test.ts` - Tests for media synchronization
+- `src/services/video-quality-analyzer.service.js` - AI-powered video quality analysis
+- `src/services/video-quality-analyzer.service.test.js` - Tests for video quality analysis
+- `src/services/video-processor.service.js` - Video processing and audio extraction
+- `src/services/video-processor.service.test.js` - Tests for video processing service
+- `src/services/video-storage.service.js` - Advanced video storage with compression
+- `src/services/video-storage.service.test.js` - Tests for video storage service
+- `src/services/video-transcription.service.js` - Video audio track transcription
+- `src/services/video-transcription.service.test.js` - Tests for video transcription
+- `src/utils/media-permissions.utils.js` - Dual camera/microphone permission handling
+- `src/utils/media-permissions.utils.test.js` - Tests for media permissions
+- `src/utils/video-compression.utils.js` - Advanced video compression utilities
+- `src/utils/video-compression.utils.test.js` - Tests for video compression
+- `src/utils/media-constraints.utils.js` - Video/audio constraint optimization
+- `src/utils/media-constraints.utils.test.js` - Tests for media constraints
+- `supabase/functions/process-video-upload/index.ts` - Edge function for video processing
+- `supabase/functions/process-video-upload/index.test.ts` - Tests for video upload processing
+- `supabase/functions/extract-video-audio/index.ts` - Edge function for audio extraction
+- `supabase/functions/extract-video-audio/index.test.ts` - Tests for audio extraction
+- `config/video-recording.config.js` - Professional video recording configuration
+- `config/video-compression.config.js` - Video compression optimization settings
+- `docs/video-capture-architecture.md` - Complete video capture system documentation
+
+### Notes
+
+- Video capture represents industry-leading diagnostic capability - extremely granular implementation required
+- Synchronize video and audio streams with professional-grade timing accuracy
+- Implement cutting-edge quality validation that exceeds industry standards
+- Follow Loom-style professional recording interface patterns for user familiarity
+- Leverage all established infrastructure (storage, AI APIs, security) for seamless integration
+- Focus on competitive advantage through superior video diagnostic analysis capabilities
+- Run comprehensive tests with `npm test` targeting all video capture functionality
+
+## Tasks
+
+- [ ] 1.0 Advanced Camera and Microphone Access Management
+  - [ ] 1.1 Implement dual MediaDevices.getUserMedia() calls for video and audio streams
+  - [ ] 1.2 Create sophisticated permission request flow for both camera and microphone
+  - [ ] 1.3 Design graceful degradation when either video or audio permissions are denied
+  - [ ] 1.4 Implement comprehensive device capability detection and optimization
+    - [ ] 1.4.1 Detect available video resolutions and frame rates
+    - [ ] 1.4.2 Analyze microphone quality and noise cancellation capabilities
+    - [ ] 1.4.3 Assess device processing power for real-time video handling
+    - [ ] 1.4.4 Detect battery level and power management for mobile devices
+  - [ ] 1.5 Create advanced stream management with precise synchronization
+  - [ ] 1.6 Implement robust error handling for device conflicts and stream failures
+  - [ ] 1.7 Add comprehensive resource cleanup and memory management
+  - [ ] 1.8 Design fallback strategies for various device limitation scenarios
+
+- [ ] 2.0 Professional Video Recording Interface Development
+  - [ ] 2.1 Create full-screen video recording interface with professional controls
+    - [ ] 2.1.1 Implement large, responsive record/stop button with visual feedback
+    - [ ] 2.1.2 Add professional pause/resume functionality during recording
+    - [ ] 2.1.3 Create real-time recording duration display with time limits
+    - [ ] 2.1.4 Design recording status indicator with clear visual states
+  - [ ] 2.2 Implement HD/4K video capture with automatic quality optimization
+    - [ ] 2.2.1 Configure video constraints for maximum diagnostic quality
+    - [ ] 2.2.2 Implement adaptive quality based on device capabilities
+    - [ ] 2.2.3 Add real-time quality monitoring and adjustment
+  - [ ] 2.3 Design synchronized audio level monitoring during video recording
+    - [ ] 2.3.1 Create real-time audio waveform visualization
+    - [ ] 2.3.2 Implement audio level meters with clipping detection
+    - [ ] 2.3.3 Add audio-video synchronization indicators
+  - [ ] 2.4 Create professional video preview with live monitoring capabilities
+  - [ ] 2.5 Implement mobile-responsive interface optimized for diagnostic recording
+  - [ ] 2.6 Add camera switching interface (disabled during recording per requirements)
+  - [ ] 2.7 Design recording workspace with intuitive controls and feedback
+
+- [ ] 3.0 Real-Time Video and Audio Quality Validation
+  - [ ] 3.1 Implement AI-powered real-time video quality analysis
+    - [ ] 3.1.1 Create lighting condition analysis and feedback
+    - [ ] 3.1.2 Implement focus and sharpness detection algorithms
+    - [ ] 3.1.3 Add framing and composition validation for diagnostic content
+    - [ ] 3.1.4 Create motion blur and stability analysis
+  - [ ] 3.2 Develop synchronized audio quality validation
+    - [ ] 3.2.1 Implement real-time noise detection and background interference analysis
+    - [ ] 3.2.2 Create audio clarity and volume level monitoring
+    - [ ] 3.2.3 Add echo and distortion detection
+    - [ ] 3.2.4 Implement speech-to-audio ratio analysis for diagnostic narration
+  - [ ] 3.3 Create comprehensive quality feedback system
+    - [ ] 3.3.1 Design real-time quality indicators with specific improvement suggestions
+    - [ ] 3.3.2 Implement quality threshold enforcement before recording acceptance
+    - [ ] 3.3.3 Create user guidance system for optimal recording conditions
+  - [ ] 3.4 Add quality confidence scoring for both video and audio tracks
+  - [ ] 3.5 Implement automatic retake prompts for insufficient quality
+  - [ ] 3.6 Create quality analytics and reporting for continuous improvement
+  - [ ] 3.7 Design quality validation integration with AI analysis pipeline
+
+- [ ] 4.0 Multi-Modal Video Session Management
+  - [ ] 4.1 Implement sophisticated multiple video recording session management
+    - [ ] 4.1.1 Create video session workspace with multiple clip organization
+    - [ ] 4.1.2 Add video clip naming and categorization system
+    - [ ] 4.1.3 Implement session progress tracking and completion indicators
+  - [ ] 4.2 Design intelligent file size and time management
+    - [ ] 4.2.1 Create individual clip time limits (5-10 minutes per requirements)
+    - [ ] 4.2.2 Implement total session duration tracking and warnings
+    - [ ] 4.2.3 Add cumulative file size monitoring with optimization suggestions
+    - [ ] 4.2.4 Create automatic session splitting for large diagnostic processes
+  - [ ] 4.3 Create comprehensive video clip management interface
+    - [ ] 4.3.1 Implement video gallery with thumbnail previews
+    - [ ] 4.3.2 Add clip deletion and replacement functionality
+    - [ ] 4.3.3 Create clip reordering and organization capabilities
+    - [ ] 4.3.4 Design clip merging and splitting tools for advanced users
+  - [ ] 4.4 Add video clip metadata and tagging system
+  - [ ] 4.5 Implement video session backup and recovery mechanisms
+  - [ ] 4.6 Create session sharing and collaboration features for technical teams
+  - [ ] 4.7 Design video session export and archival capabilities
+
+- [ ] 5.0 Video Processing and Audio Extraction Pipeline
+  - [ ] 5.1 Implement professional video processing pipeline
+    - [ ] 5.1.1 Create automatic video format standardization and optimization
+    - [ ] 5.1.2 Add video compression with diagnostic quality preservation
+    - [ ] 5.1.3 Implement video enhancement for poor lighting conditions
+    - [ ] 5.1.4 Create automatic video stabilization for handheld recordings
+  - [ ] 5.2 Develop advanced audio extraction and processing
+    - [ ] 5.2.1 Implement high-quality audio track extraction from video files
+    - [ ] 5.2.2 Create automatic speech-to-text transcription for video audio
+    - [ ] 5.2.3 Add audio enhancement and noise reduction processing
+    - [ ] 5.2.4 Implement audio-video synchronization verification and correction
+  - [ ] 5.3 Create multi-modal AI analysis integration
+    - [ ] 5.3.1 Implement simultaneous visual and audio analysis
+    - [ ] 5.3.2 Create correlation analysis between visual problems and audio descriptions
+    - [ ] 5.3.3 Add temporal analysis linking audio commentary to video timestamps
+    - [ ] 5.3.4 Implement diagnostic pattern recognition across video and audio data
+  - [ ] 5.4 Add video content categorization and indexing
+  - [ ] 5.5 Implement video processing queue management and prioritization
+  - [ ] 5.6 Create processing status tracking and user notifications
+  - [ ] 5.7 Design video processing analytics and optimization reporting
+
+- [ ] 6.0 Advanced Video Storage and Compression
+  - [ ] 6.1 Implement enterprise-grade video storage architecture
+    - [ ] 6.1.1 Create optimized Google Cloud Storage bucket structure for video files
+    - [ ] 6.1.2 Implement tiered storage strategy (hot, warm, cold) based on usage patterns
+    - [ ] 6.1.3 Add CDN integration for optimal video delivery and streaming
+    - [ ] 6.1.4 Create video backup and disaster recovery procedures
+  - [ ] 6.2 Develop advanced video compression and optimization
+    - [ ] 6.2.1 Implement intelligent compression algorithms preserving diagnostic quality
+    - [ ] 6.2.2 Create adaptive bitrate optimization based on content analysis
+    - [ ] 6.2.3 Add multi-resolution encoding for different viewing scenarios
+    - [ ] 6.2.4 Implement progressive upload for large video files
+  - [ ] 6.3 Create comprehensive video metadata management
+    - [ ] 6.3.1 Extract and store detailed video metadata (resolution, frame rate, codec)
+    - [ ] 6.3.2 Add diagnostic-specific metadata tagging for BigQuery integration
+    - [ ] 6.3.3 Implement video content indexing for search and retrieval
+    - [ ] 6.3.4 Create video analytics and usage tracking
+  - [ ] 6.4 Add secure video URL generation and access control
+  - [ ] 6.5 Implement video streaming capabilities for large file playback
+  - [ ] 6.6 Create video archival and lifecycle management policies
+  - [ ] 6.7 Design video storage cost optimization and monitoring
+
+- [ ] 7.0 Comprehensive Diagnostic Integration
+  - [ ] 7.1 Integrate video capture deeply into diagnostic workflow
+    - [ ] 7.1.1 Embed video recording seamlessly into DiagnosticForm component
+    - [ ] 7.1.2 Create contextual video recording prompts based on equipment type
+    - [ ] 7.1.3 Add guided video recording workflows for optimal diagnostic capture
+    - [ ] 7.1.4 Implement video recording validation before payment processing
+  - [ ] 7.2 Enhance AI analysis with multi-modal video data
+    - [ ] 7.2.1 Integrate video visual analysis with existing GPT-4 diagnostic analysis
+    - [ ] 7.2.2 Create comprehensive analysis combining video, audio, images, and text
+    - [ ] 7.2.3 Implement temporal diagnostic analysis using video timeline data
+    - [ ] 7.2.4 Add equipment-specific video analysis patterns and recognition
+  - [ ] 7.3 Update payment and processing workflow for video diagnostics
+    - [ ] 7.3.1 Modify $4.99 payment flow to account for video processing complexity
+    - [ ] 7.3.2 Add video processing status to customer communication
+    - [ ] 7.3.3 Create premium video diagnostic pricing tiers if needed
+  - [ ] 7.4 Enhance diagnostic reporting with video integration
+    - [ ] 7.4.1 Include video analysis results in diagnostic reports
+    - [ ] 7.4.2 Add video clip references and timestamps to diagnostic findings
+    - [ ] 7.4.3 Create video highlight reels for key diagnostic moments
+  - [ ] 7.5 Implement video-enhanced customer communication
+  - [ ] 7.6 Create video diagnostic analytics and success metrics
+  - [ ] 7.7 Design video diagnostic quality assurance and review processes
+
+- [ ] 8.0 Enterprise Security and Privacy Implementation
+  - [ ] 8.1 Implement comprehensive video security architecture
+    - [ ] 8.1.1 Create end-to-end encryption for video transmission and storage
+    - [ ] 8.1.2 Add advanced authentication and authorization for video access
+    - [ ] 8.1.3 Implement video watermarking and tamper detection
+    - [ ] 8.1.4 Create secure video sharing with time-limited access tokens
+  - [ ] 8.2 Develop privacy protection framework
+    - [ ] 8.2.1 Add automatic detection and blurring of personal information in videos
+    - [ ] 8.2.2 Implement consent management for video recording and processing
+    - [ ] 8.2.3 Create privacy-compliant video retention and deletion policies
+    - [ ] 8.2.4 Add GDPR/CCPA compliance measures for video data
+  - [ ] 8.3 Create comprehensive audit and compliance framework
+    - [ ] 8.3.1 Implement detailed audit logging for all video operations
+    - [ ] 8.3.2 Add video access tracking and forensic capabilities
+    - [ ] 8.3.3 Create compliance reporting and regulatory documentation
+  - [ ] 8.4 Add advanced threat protection and monitoring
+  - [ ] 8.5 Implement secure video deletion and data sanitization
+  - [ ] 8.6 Create incident response procedures for video security breaches
+  - [ ] 8.7 Design security training and documentation for video handling
+
+- [ ] 9.0 Extensive Testing and Quality Assurance
+  - [ ] 9.1 Create comprehensive cross-platform video testing framework
+    - [ ] 9.1.1 Test video recording across all major browsers and versions
+    - [ ] 9.1.2 Implement mobile device testing for iOS and Android platforms
+    - [ ] 9.1.3 Add testing for various camera qualities and configurations
+    - [ ] 9.1.4 Create network condition testing (slow, unstable connections)
+  - [ ] 9.2 Develop advanced video quality validation testing
+    - [ ] 9.2.1 Test AI quality analysis with various lighting and environmental conditions
+    - [ ] 9.2.2 Validate audio-video synchronization across different scenarios
+    - [ ] 9.2.3 Test video compression quality preservation
+    - [ ] 9.2.4 Validate real-time quality feedback accuracy
+  - [ ] 9.3 Implement comprehensive integration testing
+    - [ ] 9.3.1 Test complete video diagnostic workflow from recording to analysis
+    - [ ] 9.3.2 Validate video storage and retrieval functionality
+    - [ ] 9.3.3 Test video processing pipeline performance and reliability
+    - [ ] 9.3.4 Validate multi-modal AI analysis integration
+  - [ ] 9.4 Create performance and scalability testing
+    - [ ] 9.4.1 Test video recording performance under high system load
+    - [ ] 9.4.2 Validate large file upload and processing capabilities
+    - [ ] 9.4.3 Test concurrent video recording sessions
+    - [ ] 9.4.4 Performance test video compression and optimization algorithms
+  - [ ] 9.5 Add security and privacy testing
+  - [ ] 9.6 Create user acceptance testing for video diagnostic workflows
+  - [ ] 9.7 Implement automated testing and continuous quality monitoring
+
+- [ ] 10.0 Performance Optimization and Industry Leadership Documentation
+  - [ ] 10.1 Implement cutting-edge video performance optimization
+    - [ ] 10.1.1 Optimize real-time video processing for minimal latency
+    - [ ] 10.1.2 Implement advanced memory management for large video files
+    - [ ] 10.1.3 Create battery usage optimization for mobile video recording
+    - [ ] 10.1.4 Add GPU acceleration for video processing where available
+  - [ ] 10.2 Develop industry-leading video diagnostic capabilities
+    - [ ] 10.2.1 Create advanced video analysis algorithms for equipment diagnostics
+    - [ ] 10.2.2 Implement machine learning models for video diagnostic pattern recognition
+    - [ ] 10.2.3 Add predictive analysis based on video diagnostic data
+    - [ ] 10.2.4 Create competitive benchmarking and performance metrics
+  - [ ] 10.3 Create comprehensive documentation and training materials
+    - [ ] 10.3.1 Document complete video capture architecture and implementation
+    - [ ] 10.3.2 Create developer training materials for video diagnostic features
+    - [ ] 10.3.3 Add troubleshooting guides for complex video recording scenarios
+    - [ ] 10.3.4 Create user documentation for optimal video diagnostic recording
+  - [ ] 10.4 Implement video analytics and business intelligence
+  - [ ] 10.5 Create video diagnostic success metrics and KPI tracking
+  - [ ] 10.6 Design continuous improvement framework for video capabilities
+  - [ ] 10.7 Add competitive analysis and market positioning documentation

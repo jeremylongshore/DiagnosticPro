@@ -1,0 +1,17 @@
+# Ignore artifacts
+dist
+build
+coverage
+node_modules
+
+# Ignore files
+*.min.js
+*.min.css
+package-lock.json
+bun.lockb
+
+# Ignore specific directories
+.git
+.vscode
+.idea
+supabase/functions/*/index.ts

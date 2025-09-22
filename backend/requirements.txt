@@ -1,0 +1,10 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+google-cloud-storage==2.10.0
+google-cloud-firestore==2.13.1
+firebase-admin==6.2.0
+stripe==12.5.1
+python-dotenv==1.1.1
+reportlab==4.4.4
+google-cloud-aiplatform==1.38.0
+google-api-core==2.15.0

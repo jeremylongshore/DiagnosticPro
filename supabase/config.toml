@@ -1,0 +1,13 @@
+project_id = "jjxvrxehmawuyxltrvql"
+
+[functions.stripe-webhook]
+verify_jwt = false
+
+[functions.send-diagnostic-email]
+verify_jwt = false
+
+[functions.analyze-diagnostic]
+verify_jwt = false
+
+[functions.send-slack-notification]
+verify_jwt = false
