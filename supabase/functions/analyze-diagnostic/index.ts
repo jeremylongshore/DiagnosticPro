@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { initializeApp } from "https://esm.sh/firebase@10.14.1/app";
+import { getAI, getGenerativeModel, GoogleAIBackend } from "https://esm.sh/firebase@10.14.1/ai";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -16,13 +18,22 @@ serve(async (req) => {
     const { submissionId, diagnosticData } = await req.json();
     console.log('Received diagnostic analysis request:', { submissionId, hasData: !!diagnosticData });
     
-    // Get OpenAI API key from environment
-    const openAIKey = Deno.env.get('OPENAI_API_KEY');
-    if (!openAIKey) {
-      console.error('OPENAI_API_KEY not found in environment variables');
-      throw new Error('OPENAI_API_KEY is not configured in Edge Function secrets');
+    // Initialize Firebase with Vertex AI
+    const firebaseConfig = {
+      projectId: Deno.env.get('GOOGLE_CLOUD_PROJECT') || 'diagnostic-pro-prod',
+      apiKey: Deno.env.get('FIREBASE_API_KEY'),
+    };
+
+    if (!firebaseConfig.apiKey) {
+      console.error('FIREBASE_API_KEY not found in environment variables');
+      throw new Error('FIREBASE_API_KEY is not configured in Edge Function secrets');
     }
-    console.log('OpenAI API key found, proceeding with analysis...');
+
+    const firebaseApp = initializeApp(firebaseConfig);
+    const ai = getAI(firebaseApp, { backend: new GoogleAIBackend() });
+    const model = getGenerativeModel(ai, { model: "gemini-2.5-flash" });
+
+    console.log('Firebase Vertex AI initialized, proceeding with analysis...');
 
     // Prepare the comprehensive diagnostic prompt for $29.99 analysis
     const prompt = `You are DiagnosticPro's MASTER TECHNICIAN. Use ALL the diagnostic data provided to give the most accurate analysis possible. Reference specific error codes, mileage patterns, and equipment type in your diagnosis.
@@ -112,50 +123,22 @@ CUSTOMER DATA PROVIDED:
 
 BE RUTHLESSLY SPECIFIC. PROTECT THE CUSTOMER'S WALLET. DEMAND TECHNICAL PRECISION.`;
 
-    console.log('Calling OpenAI API with diagnostic data...');
+    console.log('Calling Firebase Vertex AI with diagnostic data...');
 
-    // Call OpenAI API with correct parameters for GPT-4.1 model
-    const openAIResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${openAIKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'gpt-4.1-2025-04-14',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are DiagnosticPro\'s MASTER TECHNICIAN with 30+ years of experience across all equipment types. You have access to all service manuals, TSBs, and insider knowledge. You are ruthless in protecting customers from ripoffs and incompetent shops. Your analysis must be worth every penny of the $29.99 they paid. Always provide EXACT specifications, part numbers, and actionable intelligence. You call out shops that try to parts-cannon or overcharge customers.'
-          },
-          {
-            role: 'user',
-            content: prompt
-          }
-        ],
-        // Use max_completion_tokens for GPT-4.1+ models, not max_tokens
-        max_completion_tokens: 3000,
-        // Temperature not supported in GPT-4.1+ models
-      }),
-    });
+    // Create the full prompt with system context
+    const fullPrompt = `You are DiagnosticPro's MASTER TECHNICIAN with 30+ years of experience across all equipment types. You have access to all service manuals, TSBs, and insider knowledge. You are ruthless in protecting customers from ripoffs and incompetent shops. Your analysis must be worth every penny of the $29.99 they paid. Always provide EXACT specifications, part numbers, and actionable intelligence. You call out shops that try to parts-cannon or overcharge customers.
 
-    if (!openAIResponse.ok) {
-      const errorText = await openAIResponse.text();
-      console.error('OpenAI API error details:', {
-        status: openAIResponse.status,
-        statusText: openAIResponse.statusText,
-        error: errorText
-      });
-      throw new Error(`OpenAI API error: ${openAIResponse.status} - ${errorText}`);
-    }
+${prompt}`;
 
-    console.log('OpenAI API response received successfully');
-    
-    const aiResult = await openAIResponse.json();
-    const analysis = aiResult.choices[0]?.message?.content;
+    // Call Firebase Vertex AI Gemini model
+    const result = await model.generateContent(fullPrompt);
+    const response = result.response;
+    const analysis = response.text();
+
+    console.log('Firebase Vertex AI response received successfully');
 
     if (!analysis) {
-      console.error('No analysis content in OpenAI response:', aiResult);
+      console.error('No analysis content in Vertex AI response:', result);
       throw new Error('No analysis generated');
     }
 
