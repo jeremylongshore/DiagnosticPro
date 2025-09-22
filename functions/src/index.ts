@@ -2,6 +2,8 @@ import { onRequest } from "firebase-functions/v2/https";
 import { logger } from "firebase-functions";
 import { GoogleAuth } from "google-auth-library";
 import * as admin from "firebase-admin";
+import { initializeApp as initializeClientApp } from "firebase/app";
+import { getAI, getGenerativeModel } from "firebase/ai";
 
 // Initialize Firebase Admin SDK
 if (!admin.apps.length) {
@@ -94,6 +96,112 @@ export const api = onRequest(
       res.status(500).json({
         error: "Internal server error",
         message: error instanceof Error ? error.message : "Unknown error"
+      });
+    }
+  }
+);
+
+/**
+ * Analyze diagnostic data using Firebase Vertex AI
+ * Replaces Supabase Edge Function with Firestore
+ */
+export const analyzeDiagnostic = onRequest(
+  {
+    cors: true,
+    region: "us-central1",
+    memory: "2GiB",
+    timeoutSeconds: 540
+  },
+  async (req, res) => {
+    logger.info('=== DIAGNOSTIC ANALYSIS FUNCTION STARTED ===');
+
+    try {
+      const { submissionId, diagnosticData } = req.body;
+      logger.info('Received diagnostic analysis request:', { submissionId, hasData: !!diagnosticData });
+
+      if (!submissionId || !diagnosticData) {
+        throw new Error('submissionId and diagnosticData are required');
+      }
+
+      // Initialize Firebase AI for Vertex AI
+      const firebaseConfig = {
+        projectId: process.env.GOOGLE_CLOUD_PROJECT || 'diagnostic-pro-prod',
+        apiKey: process.env.FIREBASE_API_KEY,
+      };
+
+      if (!firebaseConfig.apiKey) {
+        throw new Error('FIREBASE_API_KEY environment variable is required');
+      }
+
+      const clientApp = initializeClientApp(firebaseConfig);
+      const ai = getAI(clientApp);
+      const model = getGenerativeModel(ai, { model: 'gemini-2.5-flash' });
+
+      logger.info('Firebase Vertex AI initialized, proceeding with analysis...');
+
+      // Prepare comprehensive diagnostic prompt (same 12-section structure)
+      const prompt = `You are DiagnosticPro's MASTER TECHNICIAN. Use ALL the diagnostic data provided to give the most accurate analysis possible.
+
+CUSTOMER DATA PROVIDED:
+- Vehicle: ${diagnosticData.make || 'Not specified'} ${diagnosticData.model || 'Not specified'} ${diagnosticData.year || 'Not specified'}
+- Equipment Type: ${diagnosticData.equipmentType || 'Not specified'}
+- Problem: ${diagnosticData.problemDescription || 'None provided'}
+- Error Codes: ${diagnosticData.errorCodes || 'None provided'}
+- Shop Quote: ${diagnosticData.shopQuoteAmount ? `$${diagnosticData.shopQuoteAmount}` : 'Not provided'}
+
+📋 COMPREHENSIVE ANALYSIS (12 sections):
+🎯 1. PRIMARY DIAGNOSIS - Root cause analysis
+🔍 2. DIFFERENTIAL DIAGNOSIS - Alternative causes
+✅ 3. DIAGNOSTIC VERIFICATION - Required tests
+❓ 4. SHOP INTERROGATION - Questions to ask
+💸 5. COST BREAKDOWN - Fair pricing analysis
+🚩 6. RIPOFF DETECTION - Warning signs
+⚖️ 7. AUTHORIZATION GUIDE - Approve/reject/second opinion
+🔧 8. TECHNICAL EDUCATION - How systems work
+📦 9. OEM PARTS STRATEGY - Specific part numbers
+💬 10. NEGOTIATION TACTICS - Price comparisons
+🔍 11. QUALITY VERIFICATION - Post-repair tests
+🕵️ 12. INSIDER INTELLIGENCE - Known issues
+
+BE RUTHLESSLY SPECIFIC. PROTECT THE CUSTOMER'S WALLET.`;
+
+      const fullPrompt = `You are DiagnosticPro's MASTER TECHNICIAN with 30+ years experience. Your $29.99 analysis must be ruthlessly protective of customer wallets and expose incompetent shops.
+
+${prompt}`;
+
+      logger.info('Calling Firebase Vertex AI...');
+
+      // Generate analysis
+      const result = await model.generateContent(fullPrompt);
+      const analysis = result.response.text();
+
+      if (!analysis) {
+        throw new Error('No analysis generated from Vertex AI');
+      }
+
+      logger.info('Analysis generated successfully, length:', analysis.length);
+
+      // Save to Firestore (orders collection)
+      const db = admin.firestore();
+      await db.collection('orders').doc(submissionId).update({
+        analysisCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+        analysis: analysis,
+        processingStatus: 'completed'
+      });
+
+      logger.info('Analysis saved to Firestore for submission:', submissionId);
+
+      res.json({
+        success: true,
+        analysis,
+        submissionId
+      });
+
+    } catch (error) {
+      logger.error('Error in analyze-diagnostic:', error);
+      res.status(500).json({
+        error: error.message,
+        details: 'Check Cloud Function logs for more information'
       });
     }
   }

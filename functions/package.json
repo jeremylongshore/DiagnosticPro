@@ -1,9 +1,28 @@
 {
-  "name": "functions-proxy",
+  "name": "diagnosticpro-functions",
+  "description": "DiagnosticPro Firebase Cloud Functions with Firestore",
   "private": true,
   "type": "module",
   "engines": { "node": ">=20" },
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "serve": "npm run build && firebase emulators:start --only functions",
+    "shell": "npm run build && firebase functions:shell",
+    "start": "npm run shell",
+    "deploy": "firebase deploy --only functions",
+    "logs": "firebase functions:log"
+  },
+  "main": "lib/index.js",
   "dependencies": {
-    "@google-cloud/functions-framework": "^3.4.0"
+    "@google-cloud/functions-framework": "^3.4.0",
+    "firebase-admin": "^12.6.0",
+    "firebase-functions": "^5.1.1",
+    "firebase": "^10.14.1",
+    "google-auth-library": "^9.14.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.3",
+    "@types/node": "^22.5.5"
   }
 }
