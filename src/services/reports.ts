@@ -24,59 +24,78 @@ export async function getReportUrl(id: string): Promise<{ url: string }> {
 }
 
 /**
- * Download report by getting signed URL and navigating to it (Cloud Run API)
+ * Download report by getting signed URL from Firestore and navigating to it
  */
 export async function downloadReport(id: string): Promise<void> {
-  // Prefer signed URL then navigate
-  const { url } = await getReportUrl(id);
-  window.location.href = url; // triggers browser download from GCS
+  try {
+    // Get download URL directly from Firestore
+    const { db } = await import('../config/firebase');
+    const { doc, getDoc } = await import('firebase/firestore');
+
+    const docRef = doc(db, 'diagnosticSubmissions', id);
+    const docSnap = await getDoc(docRef);
+
+    if (!docSnap.exists()) {
+      throw new Error('Diagnostic submission not found');
+    }
+
+    const data = docSnap.data();
+
+    if (!data.downloadUrl) {
+      throw new Error('Download URL not available - report may still be processing');
+    }
+
+    // Navigate to signed URL to trigger download
+    window.location.href = data.downloadUrl;
+  } catch (error) {
+    console.error('Error downloading report:', error);
+    throw error;
+  }
 }
 
 /**
- * Get diagnostic status for polling
+ * Get diagnostic status for polling - Firebase Firestore version
  */
-export async function getDiagnosticStatus(diagnosticId: string): Promise<ApiResponse<DiagnosticStatus>> {
-  if (!apiClient.isUsingNewApi()) {
-    // Legacy fallback - check submission status
-    try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-      );
+export async function getDiagnosticStatus(diagnosticId: string): Promise<{ data: DiagnosticStatus | null; status: number; error?: string }> {
+  try {
+    // Use Firebase Firestore directly
+    const { db } = await import('../config/firebase');
+    const { doc, getDoc } = await import('firebase/firestore');
 
-      const { data, error } = await supabase
-        .from('diagnostic_submissions')
-        .select('*')
-        .eq('id', diagnosticId)
-        .single();
+    const docRef = doc(db, 'diagnosticSubmissions', diagnosticId);
+    const docSnap = await getDoc(docRef);
 
-      if (error) throw error;
-
-      // Map Supabase fields to new format
-      return {
-        data: {
-          id: data.id,
-          status: data.analysis_status === 'completed' ? 'ready' :
-                 data.analysis_status === 'processing' ? 'processing' :
-                 data.analysis_status === 'failed' ? 'failed' : 'pending',
-          gcsPath: undefined, // Not available in legacy
-          createdAt: data.created_at,
-          updatedAt: data.updated_at
-        },
-        status: 200
-      };
-    } catch (error) {
+    if (!docSnap.exists()) {
       return {
         data: null,
-        status: 500,
-        error: `Failed to get diagnostic status: ${error instanceof Error ? error.message : 'Unknown error'}`
+        status: 404,
+        error: 'Diagnostic submission not found'
       };
     }
-  }
 
-  // Use FastAPI diagnostics endpoint
-  return apiClient.get<DiagnosticStatus>(`/diagnostics/${diagnosticId}`);
+    const data = docSnap.data();
+
+    // Map Firestore fields to DiagnosticStatus format
+    return {
+      data: {
+        id: diagnosticId,
+        status: data.analysisStatus === 'completed' ? 'ready' :
+               data.analysisStatus === 'processing' ? 'processing' :
+               data.analysisStatus === 'failed' ? 'failed' : 'pending',
+        gcsPath: data.reportPath,
+        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
+        updatedAt: data.analysisCompletedAt?.toDate?.()?.toISOString() || data.updatedAt
+      },
+      status: 200
+    };
+  } catch (error) {
+    console.error('Error getting diagnostic status from Firestore:', error);
+    return {
+      data: null,
+      status: 500,
+      error: `Failed to get diagnostic status: ${error instanceof Error ? error.message : 'Unknown error'}`
+    };
+  }
 }
 
 /**

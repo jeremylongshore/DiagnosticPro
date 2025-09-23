@@ -1,0 +1,4 @@
+{ "name":"analyze-run","private":true,
+  "type":"module",
+  "scripts":{"start":"node server.js"},
+  "dependencies":{"express":"^4.19.2"} }

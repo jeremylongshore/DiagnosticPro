@@ -1,0 +1,9 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /reports/{file} {
+      allow read: if false; // use signed URLs
+      allow write: if false; // server via Admin SDK ignores rules
+    }
+  }
+}

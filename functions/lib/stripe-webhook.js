@@ -47,7 +47,6 @@ exports.stripeWebhook = (0, https_1.onRequest)({
     memory: '1GiB',
     timeoutSeconds: 60
 }, async (req, res) => {
-    var _a, _b, _c, _d, _e;
     firebase_functions_1.logger.info('=== STRIPE WEBHOOK RECEIVED ===');
     // Initialize Stripe
     const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY || '', {
@@ -110,11 +109,11 @@ exports.stripeWebhook = (0, https_1.onRequest)({
             const prompt = `You are DiagnosticPro's MASTER TECHNICIAN. Use ALL the diagnostic data provided to give the most accurate analysis possible.
 
 CUSTOMER DATA PROVIDED:
-- Vehicle: ${(submissionData === null || submissionData === void 0 ? void 0 : submissionData.make) || 'Not specified'} ${(submissionData === null || submissionData === void 0 ? void 0 : submissionData.model) || 'Not specified'} ${(submissionData === null || submissionData === void 0 ? void 0 : submissionData.year) || 'Not specified'}
-- Equipment Type: ${(submissionData === null || submissionData === void 0 ? void 0 : submissionData.equipmentType) || 'Not specified'}
-- Problem: ${(submissionData === null || submissionData === void 0 ? void 0 : submissionData.problemDescription) || 'None provided'}
-- Error Codes: ${(submissionData === null || submissionData === void 0 ? void 0 : submissionData.errorCodes) || 'None provided'}
-- Shop Quote: ${(submissionData === null || submissionData === void 0 ? void 0 : submissionData.shopQuoteAmount) ? `$${submissionData.shopQuoteAmount}` : 'Not provided'}
+- Vehicle: ${submissionData?.make || 'Not specified'} ${submissionData?.model || 'Not specified'} ${submissionData?.year || 'Not specified'}
+- Equipment Type: ${submissionData?.equipmentType || 'Not specified'}
+- Problem: ${submissionData?.problemDescription || 'None provided'}
+- Error Codes: ${submissionData?.errorCodes || 'None provided'}
+- Shop Quote: ${submissionData?.shopQuoteAmount ? `$${submissionData.shopQuoteAmount}` : 'Not provided'}
 
 📋 COMPREHENSIVE ANALYSIS (12 sections):
 🎯 1. PRIMARY DIAGNOSIS - Root cause analysis
@@ -158,18 +157,46 @@ ${prompt}`;
                 throw new Error(`Vertex AI API error: ${vertexResponse.status} - ${errorText}`);
             }
             const vertexResult = await vertexResponse.json();
-            const analysis = (_e = (_d = (_c = (_b = (_a = vertexResult.candidates) === null || _a === void 0 ? void 0 : _a[0]) === null || _b === void 0 ? void 0 : _b.content) === null || _c === void 0 ? void 0 : _c.parts) === null || _d === void 0 ? void 0 : _d[0]) === null || _e === void 0 ? void 0 : _e.text;
+            const analysis = vertexResult.candidates?.[0]?.content?.parts?.[0]?.text;
             if (!analysis) {
                 throw new Error('No analysis generated from Vertex AI');
             }
             firebase_functions_1.logger.info('Analysis generated successfully, length:', analysis.length);
-            // Save analysis to Firestore
+            // Generate PDF report and upload to Cloud Storage
+            const { generatePDFReport } = require('./utils/pdf-generator');
+            const pdfBuffer = await generatePDFReport({
+                submissionData,
+                analysis,
+                submissionId
+            });
+            // Upload to Cloud Storage
+            const bucket = admin.storage().bucket();
+            const fileName = `reports/${submissionId}/diagnostic-report.pdf`;
+            const file = bucket.file(fileName);
+            await file.save(pdfBuffer, {
+                metadata: {
+                    contentType: 'application/pdf',
+                    metadata: {
+                        submissionId: submissionId,
+                        createdAt: new Date().toISOString()
+                    }
+                }
+            });
+            // Generate signed download URL (valid for 7 days)
+            const [downloadUrl] = await file.getSignedUrl({
+                action: 'read',
+                expires: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+            });
+            firebase_functions_1.logger.info('PDF report uploaded to Cloud Storage:', fileName);
+            // Save analysis and download URL to Firestore
             await db.collection('diagnosticSubmissions').doc(submissionId).update({
                 analysisStatus: 'completed',
                 analysis: analysis,
+                downloadUrl: downloadUrl,
+                reportPath: fileName,
                 analysisCompletedAt: admin.firestore.FieldValue.serverTimestamp()
             });
-            firebase_functions_1.logger.info('Analysis saved successfully to Firestore');
+            firebase_functions_1.logger.info('Analysis saved successfully to Firestore with download URL');
             res.status(200).json({
                 success: true,
                 message: 'Payment processed and analysis started',
@@ -186,4 +213,3 @@ ${prompt}`;
         res.status(200).json({ received: true });
     }
 });
-//# sourceMappingURL=stripe-webhook.js.map

@@ -157,14 +157,47 @@ ${prompt}`;
 
         logger.info('Analysis generated successfully, length:', analysis.length);
 
-        // Save analysis to Firestore
+        // Generate PDF report and upload to Cloud Storage
+        const { generatePDFReport } = require('./utils/pdf-generator');
+        const pdfBuffer = await generatePDFReport({
+          submissionData,
+          analysis,
+          submissionId
+        });
+
+        // Upload to Cloud Storage
+        const bucket = admin.storage().bucket();
+        const fileName = `reports/${submissionId}/diagnostic-report.pdf`;
+        const file = bucket.file(fileName);
+
+        await file.save(pdfBuffer, {
+          metadata: {
+            contentType: 'application/pdf',
+            metadata: {
+              submissionId: submissionId,
+              createdAt: new Date().toISOString()
+            }
+          }
+        });
+
+        // Generate signed download URL (valid for 7 days)
+        const [downloadUrl] = await file.getSignedUrl({
+          action: 'read',
+          expires: Date.now() + 7 * 24 * 60 * 60 * 1000 // 7 days
+        });
+
+        logger.info('PDF report uploaded to Cloud Storage:', fileName);
+
+        // Save analysis and download URL to Firestore
         await db.collection('diagnosticSubmissions').doc(submissionId).update({
           analysisStatus: 'completed',
           analysis: analysis,
+          downloadUrl: downloadUrl,
+          reportPath: fileName,
           analysisCompletedAt: admin.firestore.FieldValue.serverTimestamp()
         });
 
-        logger.info('Analysis saved successfully to Firestore');
+        logger.info('Analysis saved successfully to Firestore with download URL');
 
         res.status(200).json({
           success: true,
