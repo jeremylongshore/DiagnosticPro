@@ -3,8 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Brain, Edit, CreditCard } from "lucide-react";
-import { submitDiagnostic } from "@/services/diagnostics";
-import { createDiagnosticCheckout } from "@/services/payments";
+import { startAnalysis } from "@/services/diagnostics";
+import { doc, setDoc } from "firebase/firestore";
+import { db } from "@/config/firebase";
 import { useToast } from "@/components/ui/use-toast";
 import type { FormData } from "./DiagnosticForm";
 
@@ -38,13 +39,65 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
   const { toast } = useToast();
   const paymentSectionRef = useRef<HTMLDivElement>(null);
 
+  // Handle payment success and trigger analysis
+  const handlePaymentSuccess = async () => {
+    if (!submissionId) return;
+
+    try {
+      console.log("Payment successful, starting analysis for:", submissionId);
+
+      // Convert form data to the format expected by the analysis function
+      const diagnosticData = {
+        make: formData.make,
+        model: formData.model,
+        year: formData.year,
+        equipmentType: formData.equipmentType,
+        problemDescription: formData.problemDescription,
+        errorCodes: formData.errorCodes,
+        symptoms: formData.symptoms,
+        urgencyLevel: formData.urgencyLevel,
+        shopQuoteAmount: formData.shopQuoteAmount,
+        // Add other relevant fields
+      };
+
+      // Start the analysis using Firebase Cloud Function
+      const analysisResult = await startAnalysis(submissionId, diagnosticData);
+
+      if (analysisResult.success) {
+        toast({
+          title: "Analysis Complete!",
+          description: "Your diagnostic report is ready. Redirecting to download...",
+        });
+
+        // Update payment status in Firestore
+        await setDoc(doc(db, 'diagnosticSubmissions', submissionId), {
+          paymentStatus: 'completed',
+          analysisStatus: 'completed',
+          analysisCompletedAt: new Date()
+        }, { merge: true });
+
+        // Trigger success callback to parent component
+        onPaymentSuccess();
+      } else {
+        throw new Error(analysisResult.error || 'Analysis failed');
+      }
+    } catch (error) {
+      console.error("Error during analysis:", error);
+      toast({
+        title: "Analysis Error",
+        description: error instanceof Error ? error.message : "Failed to analyze diagnostic data",
+        variant: "destructive",
+      });
+    }
+  };
+
   // Save diagnostic data when component mounts
   useEffect(() => {
     const saveData = async () => {
       try {
         setIsProcessing(true);
 
-        console.log("Starting diagnostic data save...", {
+        console.log("Starting diagnostic data save to Firestore...", {
           hasFullName: !!formData.fullName,
           hasEmail: !!formData.email,
           equipmentType: formData.equipmentType,
@@ -55,7 +108,10 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
           throw new Error("Missing required fields: name, email, or equipment type");
         }
 
-        // Prepare data for submission using new API service
+        // Generate a unique submission ID
+        const submissionId = `diag_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+        // Prepare data for Firestore
         const submissionData = {
           equipmentType: formData.equipmentType,
           make: formData.make || '',
@@ -67,7 +123,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
           symptoms: formData.symptoms || [],
           whenStarted: formData.whenStarted || '',
           frequency: formData.frequency || '',
-          urgencyLevel: formData.urgencyLevel || "Normal",
+          urgencyLevel: formData.urgencyLevel || "normal",
           locationEnvironment: formData.locationEnvironment || '',
           usagePattern: formData.usagePattern || '',
           problemDescription: formData.problemDescription || '',
@@ -79,38 +135,20 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
           fullName: formData.fullName,
           email: formData.email,
           phone: formData.phone || '',
+          createdAt: new Date(),
+          paymentStatus: 'pending',
+          analysisStatus: 'pending'
         };
 
-        console.log("Submitting data via new API service...");
+        console.log("Saving data to Firestore...");
 
-        // Save the diagnostic data using new API
-        const submissionResponse = await submitDiagnostic(submissionData);
+        // Save to Firestore diagnosticSubmissions collection
+        await setDoc(doc(db, 'diagnosticSubmissions', submissionId), submissionData);
 
-        if (!submissionResponse.data) {
-          throw new Error("No data returned from submission - please try again");
-        }
-
-        console.log("Data saved successfully, submission ID:", submissionResponse.data.id);
+        console.log("Data saved successfully to Firestore, submission ID:", submissionId);
 
         // Store the submission ID for payment processing
-        setSubmissionId(submissionResponse.data.id);
-
-        // Create checkout session for payment with diagnostic correlation
-        console.log("Creating checkout session for diagnostic:", submissionResponse.data.id);
-
-        const checkoutResponse = await createDiagnosticCheckout(submissionResponse.data.id);
-
-        if (!checkoutResponse.data?.url) {
-          throw new Error("Failed to create checkout session");
-        }
-
-        console.log("Checkout session created, redirecting to Stripe...");
-
-        // Redirect to Stripe checkout
-        window.location.href = checkoutResponse.data.url;
-
-        // Note: Slack notifications will be handled by the backend service
-
+        setSubmissionId(submissionId);
         setIsDataSaved(true);
         setSaveError(null);
 
@@ -318,7 +356,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
                       Try Again
                     </Button>
                   </div>
-                ) : isDataSaved && orderId ? (
+                ) : isDataSaved && submissionId ? (
                   <div className="space-y-4">
                     {paymentInitiated ? (
                       <div className="text-muted-foreground">
@@ -326,15 +364,27 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
                         <p className="text-sm">Please complete your payment in the Stripe window.</p>
                       </div>
                     ) : (
-                      <div
-                        onClick={() => setPaymentInitiated(true)}
-                        className="inline-block"
-                      >
-                        <stripe-buy-button
-                          buy-button-id="buy_btn_1S5ZTNJfyCDmId8XKqA35yLv"
-                          publishable-key="pk_live_51RgbAkJfyCDmId8XfY0H7dLS8v2mjL6887WNfScroA9v6ggvcPbXSQUjrLkY2dVZh26QdbcS3nXegFKnf6C6RMEb00po2qC8Fg"
-                          client-reference-id={submissionId}
-                        />
+                      <div className="space-y-4">
+                        <div
+                          onClick={() => setPaymentInitiated(true)}
+                          className="inline-block"
+                        >
+                          <stripe-buy-button
+                            buy-button-id="buy_btn_1S5ZTNJfyCDmId8XKqA35yLv"
+                            publishable-key="pk_live_51RgbAkJfyCDmId8XfY0H7dLS8v2mjL6887WNfScroA9v6ggvcPbXSQUjrLkY2dVZh26QdbcS3nXegFKnf6C6RMEb00po2qC8Fg"
+                            client-reference-id={submissionId}
+                          />
+                        </div>
+                        <div className="text-center">
+                          <Button
+                            onClick={handlePaymentSuccess}
+                            variant="outline"
+                            size="sm"
+                            className="text-xs"
+                          >
+                            Manual Analysis Trigger (For Testing)
+                          </Button>
+                        </div>
                       </div>
                     )}
                   </div>

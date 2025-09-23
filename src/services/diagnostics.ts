@@ -150,30 +150,52 @@ export async function getDiagnosticLegacy(
  * Start diagnostic analysis
  */
 export async function startAnalysis(
-  submissionId: string
+  submissionId: string,
+  diagnosticData?: any
 ): Promise<ApiResponse<DiagnosticAnalysis>> {
   if (!apiClient.isUsingNewApi()) {
-    // Fallback to legacy Supabase function
+    // Use Firebase Cloud Function instead of Supabase
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-      );
+      const { httpsCallable } = await import('firebase/functions');
+      const { functions } = await import('../config/firebase');
 
-      const { data, error } = await supabase.functions.invoke('analyze-diagnostic', {
-        body: { submissionId },
+      const analyzeDiagnostic = httpsCallable(functions, 'analyzeDiagnostic');
+      const result = await analyzeDiagnostic({
+        submissionId,
+        diagnosticData: diagnosticData || {}
       });
 
-      if (error) {
-        return { error: error.message, status: 400 };
+      if (result.data && typeof result.data === 'object' && 'success' in result.data) {
+        const response = result.data as any;
+        if (response.success) {
+          return {
+            data: {
+              id: submissionId,
+              submissionId,
+              analysisResult: response.analysis,
+              confidence: 0.95,
+              recommendations: [],
+              createdAt: new Date().toISOString(),
+              reportStatus: 'ready'
+            } as DiagnosticAnalysis,
+            success: true
+          };
+        } else {
+          return {
+            error: response.error || 'Analysis failed',
+            success: false
+          };
+        }
       }
 
-      return { data, status: 200 };
+      return {
+        error: 'Invalid response from analysis function',
+        success: false
+      };
     } catch (error) {
       return {
-        error: error instanceof Error ? error.message : 'Legacy analysis failed',
-        status: 500,
+        error: error instanceof Error ? error.message : 'Firebase analysis failed',
+        success: false
       };
     }
   }
