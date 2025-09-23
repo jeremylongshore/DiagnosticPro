@@ -33,7 +33,7 @@ var __importStar = (this && this.__importStar) || (function () {
     };
 })();
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.health = exports.analyzeDiagnostic = exports.api = void 0;
+exports.stripeWebhook = exports.health = exports.analyzeDiagnostic = exports.api = void 0;
 const https_1 = require("firebase-functions/v2/https");
 const firebase_functions_1 = require("firebase-functions");
 const google_auth_library_1 = require("google-auth-library");
@@ -236,4 +236,7 @@ exports.health = (0, https_1.onRequest)({ region: "us-central1" }, async (req, r
         timestamp: new Date().toISOString()
     });
 });
+// Export Stripe webhook
+var stripe_webhook_1 = require("./stripe-webhook");
+Object.defineProperty(exports, "stripeWebhook", { enumerable: true, get: function () { return stripe_webhook_1.stripeWebhook; } });
 //# sourceMappingURL=index.js.map

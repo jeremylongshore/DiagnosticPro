@@ -243,3 +243,6 @@ export const health = onRequest(
     });
   }
 );
+
+// Export Stripe webhook
+export { stripeWebhook } from './stripe-webhook';
