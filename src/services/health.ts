@@ -1,7 +1,10 @@
 /**
  * Health service - API health checks and status monitoring
+ * Migrated from Supabase to Firebase/Firestore
  */
 import { apiClient, type ApiResponse } from './api';
+import { checkFirestoreHealth } from './firestore';
+import { isFirebaseConfigured } from '@/integrations/firebase';
 
 export interface HealthStatus {
   status: 'healthy' | 'unhealthy' | 'degraded';
@@ -12,8 +15,9 @@ export interface HealthStatus {
     ai?: 'healthy' | 'unhealthy';
     storage?: 'healthy' | 'unhealthy';
     payments?: 'healthy' | 'unhealthy';
+    firebase?: 'healthy' | 'unhealthy';
   };
-  api_type: 'legacy' | 'new';
+  api_type: 'firestore' | 'cloud_functions';
 }
 
 /**
@@ -21,23 +25,19 @@ export interface HealthStatus {
  */
 export async function checkHealth(): Promise<ApiResponse<HealthStatus>> {
   if (!apiClient.isUsingNewApi()) {
-    // Legacy health check - just check if Supabase is reachable
+    // Firestore health check
     try {
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        import.meta.env.VITE_SUPABASE_URL,
-        import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
-      );
-
-      // Simple query to test connection
-      const { error } = await supabase.from('diagnostic_submissions').select('id').limit(1);
+      const firestoreHealthy = await checkFirestoreHealth();
+      const firebaseConfigured = isFirebaseConfigured();
 
       const status: HealthStatus = {
-        status: error ? 'unhealthy' : 'healthy',
+        status: firestoreHealthy && firebaseConfigured ? 'healthy' : 'unhealthy',
         timestamp: new Date().toISOString(),
-        api_type: 'legacy',
+        api_type: 'firestore',
+        version: 'firebase-v1',
         services: {
-          database: error ? 'unhealthy' : 'healthy',
+          database: firestoreHealthy ? 'healthy' : 'unhealthy',
+          firebase: firebaseConfigured ? 'healthy' : 'unhealthy',
         },
       };
 
@@ -47,14 +47,15 @@ export async function checkHealth(): Promise<ApiResponse<HealthStatus>> {
         data: {
           status: 'unhealthy',
           timestamp: new Date().toISOString(),
-          api_type: 'legacy',
+          api_type: 'firestore',
+          version: 'error',
         },
         status: 200,
       };
     }
   }
 
-  // Use new FastAPI health endpoint
+  // Use Cloud Functions health endpoint
   return apiClient.get<HealthStatus>('/healthz');
 }
 

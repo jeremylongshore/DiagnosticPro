@@ -1,15 +1,26 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Public can create a submission from the form
-    match /submissions/{id} {
-      allow create: if true;
-      allow read, update, delete: if false;
+    // Diagnostic submissions - public can create, server can read/update
+    match /diagnosticSubmissions/{id} {
+      allow create: if true; // Public form submissions
+      allow read, update: if false; // Only server via Admin SDK
+      allow delete: if false; // Never delete submissions
     }
-    // Only server writes results; no direct reads
+
+    // Orders - server only operations
+    match /orders/{id} {
+      allow read, write: if false; // Only server via Admin SDK
+    }
+
+    // Email logs - server only operations
+    match /emailLogs/{id} {
+      allow read, write: if false; // Only server via Admin SDK
+    }
+
+    // Analysis results - server only operations
     match /analysis/{id} {
-      allow read: if false;
-      allow write: if false; // server via Admin SDK ignores rules
+      allow read, write: if false; // Only server via Admin SDK
     }
   }
 }

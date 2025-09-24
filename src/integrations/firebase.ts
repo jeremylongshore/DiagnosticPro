@@ -1,6 +1,6 @@
 /**
  * Firebase configuration and authentication
- * Simple email/password auth for new backend
+ * Complete Firebase setup with Firestore integration
  */
 import { initializeApp, getApps } from 'firebase/app';
 import {
@@ -11,18 +11,44 @@ import {
   onAuthStateChanged,
   User
 } from 'firebase/auth';
+import {
+  getFirestore,
+  connectFirestoreEmulator,
+  Firestore
+} from 'firebase/firestore';
+import {
+  getStorage,
+  connectStorageEmulator
+} from 'firebase/storage';
 
 // Firebase config
 const firebaseConfig = {
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'diagnosticpro-cloud-run',
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || 'REPLACE_WITH_FIREBASE_KEY',
-  authDomain: `${import.meta.env.VITE_FIREBASE_PROJECT_ID || 'diagnosticpro-cloud-run'}.firebaseapp.com`,
-  appId: '1:123456789:web:abcdef123456',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
 };
 
 // Initialize Firebase (singleton)
 const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 const auth = getAuth(app);
+const firestore = getFirestore(app);
+const storage = getStorage(app);
+
+// Connect to emulators in development
+if (import.meta.env.DEV && !auth.emulatorConfig) {
+  // Only connect if not already connected
+  try {
+    connectFirestoreEmulator(firestore, 'localhost', 8080);
+    connectStorageEmulator(storage, 'localhost', 9199);
+  } catch (error) {
+    // Emulators already connected or not available
+    console.log('Firebase emulators not connected:', error);
+  }
+}
 
 /**
  * Sign in with email and password
@@ -101,6 +127,6 @@ export function isFirebaseConfigured(): boolean {
   return !!(projectId && apiKey && apiKey !== 'REPLACE_WITH_FIREBASE_KEY');
 }
 
-// Export auth instance for direct use if needed
-export { auth };
-export type { User };
+// Export Firebase instances for direct use
+export { auth, firestore, storage };
+export type { User, Firestore };

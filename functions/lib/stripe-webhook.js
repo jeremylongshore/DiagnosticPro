@@ -50,7 +50,7 @@ exports.stripeWebhook = (0, https_1.onRequest)({
     firebase_functions_1.logger.info('=== STRIPE WEBHOOK RECEIVED ===');
     // Initialize Stripe
     const stripe = new stripe_1.default(process.env.STRIPE_SECRET_KEY || '', {
-        apiVersion: '2025-02-24.acacia'
+        apiVersion: '2025-08-27.basil'
     });
     const sig = req.headers['stripe-signature'];
     const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
