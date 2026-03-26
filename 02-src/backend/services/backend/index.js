@@ -81,7 +81,8 @@ function parseFullAnalysis(fullAnalysis = '') {
   ];
 
   const sections = {};
-  const rawSections = normalized.split(/\n(?=\**\d{1,2}\.\s)/);
+  // Match lines starting with: "## 1.", "### 1.", "**1.", "1." (with optional leading markdown)
+  const rawSections = normalized.split(/\n(?=#{1,4}\s*\**\d{1,2}\.\s|\**\d{1,2}\.\s)/);
 
   const headingMap = new Map();
   for (const chunk of rawSections) {
@@ -95,6 +96,7 @@ function parseFullAnalysis(fullAnalysis = '') {
     }
 
     const headingNormalized = headingLine
+      .replace(/^#{1,4}\s*/, '') // Strip markdown heading markers (##, ###, etc.)
       .replace(/^\**/, '')
       .replace(/\**$/, '')
       .trim();
