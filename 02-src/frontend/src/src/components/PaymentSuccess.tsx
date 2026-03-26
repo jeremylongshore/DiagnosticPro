@@ -40,8 +40,8 @@ const PaymentSuccess = () => {
   }, []);
 
   const fetchSubmissionIdFromSession = async (sessionId: string) => {
-    const API_BASE = 'https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev';
-    const API_KEY = 'REDACTED_API_KEY';
+    const API_BASE = import.meta.env.VITE_API_GATEWAY_URL || 'https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev';
+    const API_KEY = import.meta.env.VITE_API_KEY || 'REDACTED_API_KEY';
     const MAX_RETRIES = 3;
     const RETRY_DELAY = 2000; // 2 seconds
 
@@ -105,8 +105,8 @@ const PaymentSuccess = () => {
   };
 
   const startAutoDownload = async (submissionId: string) => {
-    const API_BASE = 'https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev';
-    const API_KEY = 'REDACTED_API_KEY';
+    const API_BASE = import.meta.env.VITE_API_GATEWAY_URL || 'https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev';
+    const API_KEY = import.meta.env.VITE_API_KEY || 'REDACTED_API_KEY';
     const MAX_ATTEMPTS = 30;
 
     setStatus('polling');
