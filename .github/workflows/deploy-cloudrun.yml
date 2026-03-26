@@ -80,6 +80,10 @@ jobs:
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
           VITE_WHOP_APP_ID: app_NyelCJC762qXb6
           VITE_WHOP_REDIRECT_URI: https://diagnosticpro.io/auth/callback
+          VITE_API_GATEWAY_URL: https://diagnosticpro-vertex-ai-backend-qonjb7tvha-uc.a.run.app
+          VITE_API_KEY: ${{ secrets.VITE_API_KEY }}
+          VITE_USE_NEW_API: 'true'
+          VITE_API_BASE: https://diagnosticpro-vertex-ai-backend-qonjb7tvha-uc.a.run.app
 
       - name: Copy firebase.json to frontend
         run: cp 06-infrastructure/firebase/firebase.json 02-src/frontend/firebase.json
