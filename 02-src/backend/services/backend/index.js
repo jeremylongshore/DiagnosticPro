@@ -1319,7 +1319,7 @@ async function callVertexAI(payload) {
   });
 
   const model = vertex.getGenerativeModel({
-    model: process.env.VAI_MODEL || 'gemini-2.0-flash-exp'
+    model: process.env.VAI_MODEL || 'gemini-2.5-flash'
   });
 
   // DiagnosticPro Proprietary 15-Section Analysis Framework v2.0
@@ -1904,7 +1904,7 @@ app.post('/api/whop/analyze', checkWhopMember, async (req, res) => {
     await firestore.collection('analysis').doc(submissionId).set({
       updatedAt: new Date().toISOString(),
       status: 'queued',
-      model: 'gemini-2.0-flash-exp',
+      model: 'gemini-2.5-flash',
       reqId: req.reqId,
       paidVia: 'whop_membership'
     });
