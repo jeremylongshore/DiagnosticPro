@@ -208,14 +208,19 @@ class TypographyManager {
     this.contentWidth = this.pageWidth - TYPOGRAPHY_CONFIG.margins.page.left - TYPOGRAPHY_CONFIG.margins.page.right;
     this.currentPage = 1;
     this.autoPageCount = 0;
+
+    // Sync our Y tracking when pdfkit auto-paginates
+    doc.on('pageAdded', () => {
+      this.autoPageCount++;
+      this.currentPage++;
+      this.currentY = TYPOGRAPHY_CONFIG.margins.page.top;
+    });
   }
 
   checkPageBreak(requiredHeight = 50) {
     if (this.currentY + requiredHeight > this.pageHeight) {
       this.doc.addPage();
-      this.currentPage++;
-      this.currentY = TYPOGRAPHY_CONFIG.margins.page.top;
-      console.log(`📄 Page ${this.currentPage} added by TypographyManager (height check)`);
+      // Note: currentPage and currentY are updated by the pageAdded listener
       return true;
     }
     return false;
@@ -223,9 +228,6 @@ class TypographyManager {
 
   renderHeading1(text) {
     const config = TYPOGRAPHY_CONFIG.fonts.heading1;
-
-    // Check for orphan prevention
-    this.checkPageBreak(config.size + config.spacing.before + config.spacing.after + 30);
 
     this.currentY += config.spacing.before;
 
@@ -243,9 +245,6 @@ class TypographyManager {
 
   renderHeading2(text) {
     const config = TYPOGRAPHY_CONFIG.fonts.heading2;
-
-    // Check for orphan prevention
-    this.checkPageBreak(config.size + config.spacing.before + config.spacing.after + 20);
 
     this.currentY += config.spacing.before;
 
@@ -265,23 +264,13 @@ class TypographyManager {
     if (!text || !text.trim()) return;
 
     const config = TYPOGRAPHY_CONFIG.fonts.body;
+    const lineGap = config.lineHeight * config.size - config.size;
 
     // Clean excessive whitespace
     const cleaned = text.replace(/\n{3,}/g, '\n\n').trim();
 
-    // Calculate text height
-    const textHeight = this.doc
-      .font(config.font)
-      .fontSize(config.size)
-      .heightOfString(cleaned, {
-        width: this.contentWidth,
-        lineGap: config.lineHeight * config.size - config.size
-      });
-
-    // Check if we need a page break
-    this.checkPageBreak(textHeight + config.spacing.after);
-
-    // Render text
+    // Let pdfkit handle pagination natively — don't fight it with checkPageBreak
+    // The pageAdded listener syncs our currentY when pdfkit creates new pages
     this.doc
       .font(config.font)
       .fontSize(config.size)
@@ -289,10 +278,10 @@ class TypographyManager {
       .text(cleaned, TYPOGRAPHY_CONFIG.margins.page.left, this.currentY, {
         width: this.contentWidth,
         align: options.align || 'left',
-        lineGap: config.lineHeight * config.size - config.size,
-        continued: false // CRITICAL: Prevent auto-pagination
+        lineGap
       });
 
+    // Sync Y position after render (pdfkit may have auto-paginated)
     this.currentY = this.doc.y + config.spacing.after;
   }
 
@@ -308,37 +297,20 @@ class TypographyManager {
       const text = String(item).replace(/^[•\-*]\s*/, '').trim();
       if (!text) return;
 
-      // Calculate bullet position
-      const bulletX = TYPOGRAPHY_CONFIG.margins.page.left + bulletConfig.indent;
-      const textX = bulletX + margins.hanging;
-      const textWidth = this.contentWidth - bulletConfig.indent - margins.hanging;
+      // Render bullet as single combined string to avoid split across pages
+      const bulletText = `${bulletConfig.symbol}  ${text}`;
+      const textX = TYPOGRAPHY_CONFIG.margins.page.left + bulletConfig.indent;
+      const textWidth = this.contentWidth - bulletConfig.indent;
 
-      // Calculate text height
-      const textHeight = this.doc
-        .font(fontConfig.font)
-        .fontSize(fontConfig.size)
-        .heightOfString(text, {
-          width: textWidth,
-          lineGap: fontConfig.lineHeight * fontConfig.size - fontConfig.size
-        });
-
-      // Check for page break
-      this.checkPageBreak(textHeight + margins.between);
-
-      // Render bullet symbol
       this.doc
         .font(fontConfig.font)
         .fontSize(fontConfig.size)
         .fillColor('black')
-        .text(bulletConfig.symbol, bulletX, this.currentY);
-
-      // Render bullet text
-      this.doc.text(text, textX, this.currentY, {
-        width: textWidth,
-        lineGap: fontConfig.lineHeight * fontConfig.size - fontConfig.size,
-        align: 'left',
-        continued: false // CRITICAL: Prevent auto-pagination
-      });
+        .text(bulletText, textX, this.currentY, {
+          width: textWidth,
+          lineGap: fontConfig.lineHeight * fontConfig.size - fontConfig.size,
+          align: 'left'
+        });
 
       this.currentY = this.doc.y + margins.between;
     });
@@ -371,12 +343,37 @@ class TypographyManager {
   parseBullets(content) {
     if (!content) return [];
 
-    const lines = String(content).split('\n');
-    return lines
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .map(line => line.replace(/^[•\-*◦▪]\s*/, '').trim())
-      .filter(text => text.length > 0);
+    const text = String(content);
+
+    // Split on lines that start with bullet markers or numbered lists
+    // This preserves multi-line content within a single bullet
+    const bulletPattern = /^(?:[•\-*◦▪]|\d+\.)\s/m;
+    const lines = text.split('\n');
+    const bullets = [];
+    let current = '';
+
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) {
+        // Empty line — if we have accumulated content, keep it in current bullet
+        if (current) current += ' ';
+        continue;
+      }
+      if (bulletPattern.test(trimmed)) {
+        // New bullet starts — flush previous
+        if (current) bullets.push(current);
+        current = trimmed.replace(/^[•\-*◦▪]\s*/, '').replace(/^\d+\.\s*/, '').trim();
+      } else if (trimmed.startsWith('**') && current) {
+        // Bold sub-heading within content — append to current bullet
+        current += ' ' + trimmed.replace(/\*\*/g, '').trim();
+      } else {
+        // Continuation line — append to current bullet
+        current += (current ? ' ' : '') + trimmed;
+      }
+    }
+    if (current) bullets.push(current);
+
+    return bullets.filter(b => b.length > 0);
   }
 }
 
@@ -470,8 +467,14 @@ class PDFValidationSystem {
   cleanSectionContent(content) {
     if (!content) return '';
 
-    // Preserve arrays (bullet lists) — join with newlines before cleaning
-    let cleaned = Array.isArray(content) ? content.join('\n') : String(content);
+    // Preserve arrays — clean each item individually, return as array
+    if (Array.isArray(content)) {
+      return content
+        .map(item => String(item).replace(/\n{3,}/g, '\n\n').replace(/\s{50,}/g, ' ').trim())
+        .filter(item => item.length > 0);
+    }
+
+    let cleaned = String(content);
 
     // Remove excessive newlines
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n');
@@ -762,24 +765,24 @@ class DiagnosticPDFGenerator {
 
   addHeadersAndFooters() {
     const range = this.doc.bufferedPageRange();
+    const totalPages = range.count;
 
-    for (let i = range.start; i < range.start + range.count; i++) {
+    for (let i = range.start; i < range.start + totalPages; i++) {
       this.doc.switchToPage(i);
-      const prevX = this.doc.x;
-      const prevY = this.doc.y;
 
       this.doc.save();
 
-      // Header
+      // Header — lineBreak:false prevents pdfkit from auto-paginating
       this.doc
         .font('IBMMono')
         .fontSize(9)
         .fillColor('gray')
         .text('DiagnosticPro — Proprietary AI Diagnostic Report', 54, 30, {
-          align: 'center'
+          align: 'center',
+          lineBreak: false
         });
 
-      // Footer
+      // Footer disclaimer
       this.doc
         .fontSize(7)
         .text(
@@ -787,21 +790,18 @@ class DiagnosticPDFGenerator {
           54,
           this.doc.page.height - 50,
           {
-            width: this.doc.page.width - 108,
-            align: 'left'
+            lineBreak: false
           }
         );
 
       // Page number
       this.doc
         .fontSize(9)
-        .text(`Page ${i + 1}`, 54, this.doc.page.height - 30, {
-          align: 'right'
+        .text(`Page ${i + 1}`, this.doc.page.width - 126, this.doc.page.height - 30, {
+          lineBreak: false
         });
 
       this.doc.restore();
-      this.doc.x = prevX;
-      this.doc.y = prevY;
     }
   }
 
@@ -811,11 +811,13 @@ class DiagnosticPDFGenerator {
       'shopInterrogation',
       'costBreakdown',
       'ripoffDetection',
+      'technicalEducation',
       'oemPartsStrategy',
       'negotiationTactics',
       'likelyCausesRanked',
       'recommendations',
-      'sourceVerification'
+      'sourceVerification',
+      'nextStepsSummary'
     ];
 
     return bulletListSections.includes(key) ? 'bullet_list' : 'narrative';
