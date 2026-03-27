@@ -11,31 +11,35 @@ export interface DiagnosticStatus {
 }
 
 /**
- * Download report by getting signed URL from Firestore and navigating to it
+ * Download report by getting signed URL from Cloud Run backend
  */
 export async function downloadReport(id: string): Promise<void> {
-  try {
-    const { db } = await import('../config/firebase');
-    const { doc, getDoc } = await import('firebase/firestore');
-
-    const docRef = doc(db, 'diagnosticSubmissions', id);
-    const docSnap = await getDoc(docRef);
-
-    if (!docSnap.exists()) {
-      throw new Error('Diagnostic submission not found');
-    }
-
-    const data = docSnap.data();
-
-    if (!data.downloadUrl) {
-      throw new Error('Download URL not available - report may still be processing');
-    }
-
-    window.location.href = data.downloadUrl;
-  } catch (error) {
-    console.error('Error downloading report:', error);
-    throw error;
+  const apiBase = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE;
+  if (!apiBase) {
+    throw new Error('No API base configured');
   }
+
+  const response = await fetch(
+    `${apiBase}/reports/signed-url?submissionId=${encodeURIComponent(id)}`,
+    {
+      method: 'GET',
+      headers: {
+        'x-api-key': import.meta.env.VITE_API_KEY || ''
+      }
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error('Report not ready yet');
+  }
+
+  const data = await response.json();
+
+  if (!data.downloadUrl) {
+    throw new Error('Download URL not available - report may still be processing');
+  }
+
+  window.location.href = data.downloadUrl;
 }
 
 /**
@@ -59,15 +63,17 @@ export async function getDiagnosticStatus(diagnosticId: string): Promise<{ data:
 
     const data = docSnap.data();
 
+    // Cloud Run backend writes `status` field; legacy Functions wrote `analysisStatus`
+    const rawStatus = data.status || data.analysisStatus || 'pending';
+    const normalizedStatus = rawStatus === 'completed' ? 'ready' : rawStatus;
+
     return {
       data: {
         id: diagnosticId,
-        status: data.analysisStatus === 'completed' ? 'ready' :
-               data.analysisStatus === 'processing' ? 'processing' :
-               data.analysisStatus === 'failed' ? 'failed' : 'pending',
+        status: normalizedStatus as DiagnosticStatus['status'],
         gcsPath: data.reportPath,
         createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
-        updatedAt: data.analysisCompletedAt?.toDate?.()?.toISOString() || data.updatedAt
+        updatedAt: data.completedAt?.toDate?.()?.toISOString() || data.analysisCompletedAt?.toDate?.()?.toISOString() || data.updatedAt
       },
       status: 200
     };

@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const rateLimit = require('express-rate-limit');
 const { Firestore } = require('@google-cloud/firestore');
 const { Storage } = require('@google-cloud/storage');
 const { GoogleAuth } = require('google-auth-library');
@@ -221,8 +222,11 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'x-api-key', 'x-dp-reqid', 'Authorization', 'x-whop-token']
 }));
 
-// Handle preflight requests
-app.options('*', cors());
+// Rate limiters
+const submissionLimiter = rateLimit({ windowMs: 60000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many submissions, try again later', code: 'RATE_LIMITED' } });
+const analysisLimiter = rateLimit({ windowMs: 60000, max: 5, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many analysis requests, try again later', code: 'RATE_LIMITED' } });
+const generalLimiter = rateLimit({ windowMs: 60000, max: 60, standardHeaders: true, legacyHeaders: false });
+app.use(generalLimiter);
 
 // Health check endpoint
 app.get('/healthz', (req, res) => {
@@ -233,11 +237,15 @@ app.get('/healthz', (req, res) => {
   });
 });
 
+// Capture raw body for Stripe webhook signature verification
+// Must be registered BEFORE express.json() middleware
+app.post('/stripeWebhookForward', express.raw({ type: 'application/json' }), attachRequestId);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(attachRequestId);
 
 // ENDPOINT: Save submission BEFORE payment
-app.post('/saveSubmission', async (req, res) => {
+app.post('/saveSubmission', submissionLimiter, async (req, res) => {
   const phase = 'saveSubmission';
   let submissionId = null;
 
@@ -437,9 +445,9 @@ app.post('/analysisStatus', async (req, res) => {
 });
 
 // ENDPOINT: Manual analyze diagnostic (idempotent)
-app.post('/analyzeDiagnostic', async (req, res) => {
+app.post('/analyzeDiagnostic', analysisLimiter, async (req, res) => {
   try {
-    const { submissionId } = req.body;
+    const { submissionId, force } = req.body;
 
     const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId);
     const submissionDoc = await submissionRef.get();
@@ -450,8 +458,13 @@ app.post('/analyzeDiagnostic', async (req, res) => {
 
     const submissionData = submissionDoc.data();
 
-    // Check if already processing or ready
-    if (submissionData.status === 'processing' || submissionData.status === 'ready') {
+    // Allow re-trigger if force=true or stuck for >10 minutes
+    const stuckThreshold = 10 * 60 * 1000;
+    const isStuck = submissionData.status === 'processing' &&
+      submissionData.processingStartedAt &&
+      (Date.now() - new Date(submissionData.processingStartedAt).getTime()) > stuckThreshold;
+
+    if ((submissionData.status === 'processing' || submissionData.status === 'ready') && !force && !isStuck) {
       return res.json({ status: submissionData.status, message: 'Already processed' });
     }
 
@@ -974,15 +987,43 @@ app.post('/getDownloadUrl', async (req, res) => {
   }
 });
 
-// ENDPOINT: Stripe webhook forward (PRIVATE - called by webhook service)
+// ENDPOINT: Stripe webhook forward (signature-verified)
 app.post('/stripeWebhookForward', async (req, res) => {
   const phase = 'stripeWebhook';
   let submissionId = null;
   let eventId = null;
 
   try {
-    // Stripe sends event directly in body, not wrapped in {event: ...}
-    const event = req.body.event || req.body;
+    // Verify Stripe webhook signature
+    const sig = req.headers['stripe-signature'];
+    const webhookSecret = secrets.STRIPE_WEBHOOK_SECRET || process.env.STRIPE_WEBHOOK_SECRET;
+    let event;
+
+    if (sig && webhookSecret && stripeClient) {
+      try {
+        event = stripeClient.webhooks.constructEvent(req.body, sig, webhookSecret);
+      } catch (err) {
+        logStructured({
+          phase,
+          status: 'error',
+          reqId: req.reqId,
+          error: { code: 'SIGNATURE_VERIFICATION_FAILED', message: err.message }
+        });
+        return res.status(400).json({
+          error: 'Webhook signature verification failed',
+          code: 'SIGNATURE_VERIFICATION_FAILED'
+        });
+      }
+    } else {
+      // Fallback: parse body if no signature (dev/testing only)
+      event = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body.event || req.body);
+      logStructured({
+        phase,
+        status: 'warning',
+        reqId: req.reqId,
+        message: 'Webhook received without signature verification'
+      });
+    }
 
     if (!event || !event.id) {
       logStructured({

@@ -22,5 +22,10 @@ service cloud.firestore {
     match /analysis/{id} {
       allow read, write: if false; // Only server via Admin SDK
     }
+
+    // Whop user records - server only (contains tokens)
+    match /whopUsers/{id} {
+      allow read, write: if false; // Only server via Admin SDK
+    }
   }
 }
