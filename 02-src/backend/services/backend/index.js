@@ -1014,15 +1014,31 @@ app.post('/stripeWebhookForward', async (req, res) => {
           code: 'SIGNATURE_VERIFICATION_FAILED'
         });
       }
-    } else {
-      // Fallback: parse body if no signature (dev/testing only)
-      event = typeof req.body === 'string' ? JSON.parse(req.body) : (req.body.event || req.body);
+    } else if (process.env.NODE_ENV === 'production') {
+      // Reject unverified webhooks in production
       logStructured({
         phase,
-        status: 'warning',
+        status: 'error',
         reqId: req.reqId,
-        message: 'Webhook received without signature verification'
+        error: { code: 'SIGNATURE_VERIFICATION_DISABLED', message: 'Webhook secret not configured in production' }
       });
+      return res.status(500).json({
+        error: 'Webhook signature verification not configured',
+        code: 'SIGNATURE_VERIFICATION_DISABLED'
+      });
+    } else {
+      // Dev/testing fallback: parse raw Buffer body
+      try {
+        event = JSON.parse(req.body.toString());
+        logStructured({
+          phase,
+          status: 'warning',
+          reqId: req.reqId,
+          message: 'Webhook received without signature verification (DEV ONLY)'
+        });
+      } catch (parseErr) {
+        return res.status(400).json({ error: 'Invalid JSON body', code: 'INVALID_BODY' });
+      }
     }
 
     if (!event || !event.id) {
