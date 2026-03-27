@@ -5,6 +5,30 @@ All notable changes to DiagnosticPro will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.2.0] - 2026-03-27
+
+### Added
+- **Whop Membership Integration** - Hybrid monetization with $4.99 one-time + $29/mo PRO membership
+  - OAuth PKCE authentication flow
+  - Member verification and free diagnostic access
+  - Webhook handling for membership status changes
+- **Playwright E2E Test Suite** - 12 end-to-end tests covering critical user flows
+- **Gemini PR Review Workflow** - Automated code review via GitHub Actions
+- **GitHub Sponsors Funding** - Added funding.yml with GitHub Sponsors + Buy Me a Coffee
+- **CODE_OF_CONDUCT.md** - Contributor Covenant v2.1 for community standards
+
+### Fixed
+- **PDF Ghost Pages** - Eliminated pdfkit auto-pagination creating 104 pages instead of 18
+- **Security Audit** - Webhook signature verification, rate limiting, dead code removal
+- **Markdown Heading Parser** - Handle `##` headings from Gemini 2.5 Flash responses
+- **Gemini Model Upgrade** - Replaced deprecated `gemini-2.0-flash-exp` with `gemini-2.5-flash`
+- **Payment API Key Handling** - Read Stripe key from env vars instead of hardcoded placeholder
+- **Firebase Deployment** - Added missing env vars and Node 20 requirement for CLI
+- **CI Pipeline** - Resolved pre-existing test failures, aligned Jest config with v2.1.0
+
+### Changed
+- **Firebase Hosting Deploy** - Added to CI/CD workflow for automatic frontend deployment
+
 ## [2.1.0] - 2026-02-25
 
 ### Added

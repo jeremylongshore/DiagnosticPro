@@ -1,6 +1,6 @@
 {
   "name": "diagnostic-cloud-run-api",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "description": "DiagnosticPro $4.99 Universal Equipment Diagnostics API",
   "main": "index.js",
   "scripts": {
