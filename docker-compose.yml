@@ -1,5 +1,3 @@
-version: '3.8'
-
 # Self-hosted deployment for DiagnosticPro on the Intent Solutions VPS.
 # Listens only on 127.0.0.1 (Caddy reverse-proxies from outside).
 #
