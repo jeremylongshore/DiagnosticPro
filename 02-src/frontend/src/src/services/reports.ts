@@ -14,20 +14,17 @@ export interface DiagnosticStatus {
  * Download report by getting signed URL from Cloud Run backend
  */
 export async function downloadReport(id: string): Promise<void> {
-  const apiBase = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE;
-  if (!apiBase) {
-    throw new Error('No API base configured');
-  }
+  const { getEnv } = await import('../lib/env');
+  const apiBase = getEnv('VITE_API_GATEWAY_URL') || getEnv('VITE_API_BASE') || '';
+  const url = apiBase 
+    ? `${apiBase}/reports/signed-url?submissionId=${encodeURIComponent(id)}`
+    : `/reports/signed-url?submissionId=${encodeURIComponent(id)}`;
 
-  const response = await fetch(
-    `${apiBase}/reports/signed-url?submissionId=${encodeURIComponent(id)}`,
-    {
-      method: 'GET',
-      headers: {
-        'x-api-key': import.meta.env.VITE_API_KEY || ''
-      }
-    }
-  );
+  const headers: Record<string, string> = {};
+  const apiKey = getEnv('VITE_API_KEY');
+  if (apiKey) headers['x-api-key'] = apiKey;
+
+  const response = await fetch(url, { method: 'GET', headers });
 
   if (!response.ok) {
     throw new Error('Report not ready yet');
@@ -43,42 +40,41 @@ export async function downloadReport(id: string): Promise<void> {
 }
 
 /**
- * Get diagnostic status for polling - Firebase Firestore version
+ * Get diagnostic status for polling - now via backend API (no direct Firestore)
  */
 export async function getDiagnosticStatus(diagnosticId: string): Promise<{ data: DiagnosticStatus | null; status: number; error?: string }> {
   try {
-    const { db } = await import('../config/firebase');
-    const { doc, getDoc } = await import('firebase/firestore');
-
-    const docRef = doc(db, 'diagnosticSubmissions', diagnosticId);
-    const docSnap = await getDoc(docRef);
-
-    if (!docSnap.exists()) {
-      return {
-        data: null,
-        status: 404,
-        error: 'Diagnostic submission not found'
-      };
+    const { getEnv } = await import('../lib/env');
+    const apiBase = getEnv('VITE_API_GATEWAY_URL') || getEnv('VITE_API_BASE') || '';
+    if (!apiBase) {
+      throw new Error('No API base configured');
     }
 
-    const data = docSnap.data();
+    const response = await fetch(`${apiBase}/analysisStatus`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ submissionId: diagnosticId })
+    });
 
-    // Cloud Run backend writes `status` field; legacy Functions wrote `analysisStatus`
-    const rawStatus = data.status || data.analysisStatus || 'pending';
+    if (!response.ok) {
+      return { data: null, status: response.status, error: 'Submission not found' };
+    }
+
+    const result = await response.json();
+    const rawStatus = result.status || 'pending';
     const normalizedStatus = rawStatus === 'completed' ? 'ready' : rawStatus;
 
     return {
       data: {
         id: diagnosticId,
         status: normalizedStatus as DiagnosticStatus['status'],
-        gcsPath: data.reportPath,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
-        updatedAt: data.completedAt?.toDate?.()?.toISOString() || data.analysisCompletedAt?.toDate?.()?.toISOString() || data.updatedAt
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       },
       status: 200
     };
   } catch (error) {
-    console.error('Error getting diagnostic status from Firestore:', error);
+    console.error('Error getting diagnostic status from API:', error);
     return {
       data: null,
       status: 500,

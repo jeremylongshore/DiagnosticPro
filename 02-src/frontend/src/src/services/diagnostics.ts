@@ -2,7 +2,9 @@
  * Diagnostics service - handles diagnostic submissions and analysis
  */
 import { api } from './api';
-import { firestoreServices, DiagnosticSubmission } from './firestore';
+
+// Legacy type kept for compatibility (no longer used for writes)
+export interface DiagnosticSubmission { /* see backend SQLite schema */ }
 
 // Frontend form interface
 export interface DiagnosticFormData {
@@ -60,43 +62,51 @@ interface SubmissionResponse {
 }
 
 /**
- * Submit diagnostic form - primary entry point
+ * Submit diagnostic form - primary entry point (uses backend API, no direct Firestore)
  */
 export async function submitDiagnosticForm(data: DiagnosticFormData): Promise<SubmissionResponse> {
   try {
-    const submissionData: Omit<DiagnosticSubmission, 'id' | 'createdAt' | 'updatedAt'> = {
-      fullName: data.fullName,
-      email: data.email,
-      phone: data.phone,
-      equipmentType: data.equipmentType,
-      make: data.make,
-      model: data.model,
-      year: data.year,
-      serialNumber: data.serialNumber,
-      problemDescription: data.problemDescription,
-      symptoms: data.symptoms,
-      errorCodes: data.errorCodes,
-      whenStarted: data.whenStarted,
-      frequency: data.frequency,
-      urgencyLevel: data.urgencyLevel,
-      troubleshootingSteps: data.troubleshootingSteps,
-      previousRepairs: data.previousRepairs,
-      usagePattern: data.usagePattern,
-      locationEnvironment: data.locationEnvironment,
-      modifications: data.modifications,
-      mileageHours: data.mileageHours,
-      shopRecommendation: data.shopRecommendation,
-      shopQuoteAmount: data.shopQuoteAmount,
-      paymentStatus: 'pending',
-      analysisStatus: 'pending'
+    const apiBase = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE;
+    if (!apiBase) throw new Error('No API base configured');
+
+    const payload = {
+      equipmentType: data.equipmentType ?? "",
+      make: data.make ?? "",
+      model: data.model ?? "",
+      year: data.year ?? "",
+      mileageHours: data.mileageHours ?? "",
+      serialNumber: data.serialNumber ?? "",
+      errorCodes: data.errorCodes ?? "",
+      symptoms: Array.isArray(data.symptoms) ? data.symptoms : (data.symptoms ? [data.symptoms] : []),
+      whenStarted: data.whenStarted ?? "",
+      frequency: data.frequency ?? "",
+      urgencyLevel: data.urgencyLevel ?? "normal",
+      locationEnvironment: data.locationEnvironment ?? "",
+      usagePattern: data.usagePattern ?? "",
+      problemDescription: data.problemDescription ?? "",
+      previousRepairs: data.previousRepairs ?? "",
+      modifications: data.modifications ?? "",
+      troubleshootingSteps: data.troubleshootingSteps ?? "",
+      shopQuoteAmount: data.shopQuoteAmount ?? "",
+      shopRecommendation: data.shopRecommendation ?? "",
+      fullName: data.fullName ?? "",
+      email: data.email ?? "",
+      phone: data.phone ?? ""
     };
 
-    const result = await firestoreServices.diagnosticSubmissions.create(submissionData);
+    const response = await fetch(`${apiBase}/saveSubmission`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload, priceCents: 499 })
+    });
 
-    return {
-      success: true,
-      submissionId: result.id,
-    };
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(err || 'Failed to save submission');
+    }
+
+    const result = await response.json();
+    return { success: true, submissionId: result.submissionId };
   } catch (error) {
     console.error('Diagnostic submission error:', error);
     return {

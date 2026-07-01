@@ -15,6 +15,7 @@ setupWhopEmbed();
 const Index = React.lazy(() => import("./pages/Index"));
 const Terms = React.lazy(() => import("./pages/Terms"));
 const Privacy = React.lazy(() => import("./pages/Privacy"));
+const AcceptableUse = React.lazy(() => import("./pages/AcceptableUse"));
 const NotFound = React.lazy(() => import("./pages/NotFound"));
 const TestMonitor = React.lazy(() => import("./pages/TestMonitor"));
 const PaymentSuccess = React.lazy(() => import("./components/PaymentSuccess"));
@@ -52,6 +53,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
+              <Route path="/acceptable-use" element={<AcceptableUse />} />
               <Route path="/test-monitor" element={<TestMonitor />} />
               <Route path="/success" element={<PaymentSuccess />} />
               <Route path="/payment-success" element={<PaymentSuccess />} />

@@ -4,8 +4,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Brain, Edit, CheckCircle } from "lucide-react";
 import { startAnalysis } from "@/services/diagnostics";
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "@/config/firebase";
 import { useToast } from "@/components/ui/use-toast";
 import type { FormData } from "./DiagnosticForm";
 import { getWhopAuth, getWhopHeaders, verifyMembership } from "@/lib/whop-auth";
@@ -50,7 +48,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
         return;
       }
 
-      const apiBase = import.meta.env.VITE_API_GATEWAY_URL || 'https://diagnosticpro-vertex-ai-backend-qonjb7tvha-uc.a.run.app';
+      const apiBase = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE || '';
 
       const response = await fetch(`${apiBase}/api/whop/analyze`, {
         method: 'POST',
@@ -133,14 +131,8 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
           description: "Your diagnostic report is ready. Redirecting to download...",
         });
 
-        // Update payment status in Firestore
-        await setDoc(doc(db, 'diagnosticSubmissions', submissionId), {
-          paymentStatus: 'completed',
-          analysisStatus: 'completed',
-          analysisCompletedAt: new Date()
-        }, { merge: true });
-
         // Trigger success callback to parent component
+        // Backend handles status updates via SQLite
         onPaymentSuccess();
       } else {
         throw new Error(analysisResult.error || 'Analysis failed');
@@ -214,7 +206,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
         });
 
         // Call API Gateway endpoint
-        const apiGatewayUrl = import.meta.env.VITE_API_GATEWAY_URL || 'https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev';
+        const apiGatewayUrl = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE || '';
         const apiKey = import.meta.env.VITE_API_KEY || 'REDACTED_API_KEY';
 
         const response = await fetch(`${apiGatewayUrl}/saveSubmission`, {

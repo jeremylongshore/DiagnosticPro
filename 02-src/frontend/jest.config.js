@@ -13,6 +13,7 @@ export default {
       tsconfig: {
         jsx: 'react-jsx',
         module: 'esnext',
+        target: 'es2022',
         esModuleInterop: true,
         allowSyntheticDefaultImports: true,
         strict: false,
