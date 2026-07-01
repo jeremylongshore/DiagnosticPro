@@ -1,22 +1,24 @@
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-const { Firestore } = require('@google-cloud/firestore');
-const { Storage } = require('@google-cloud/storage');
-const { GoogleAuth } = require('google-auth-library');
 const stripe = require('stripe');
 const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
 // Using production-grade PDF generator with validation and proper pagination
 const { generateDiagnosticProPDF } = require('./reportPdfProduction.js');
-// Google Secret Manager integration
+// Secrets from the process env (materialized from SOPS at deploy time; no GCP)
 const { loadSecrets } = require('./config/secrets.js');
+// OpenAI-compatible client. Default provider is OpenAI gpt-4o; Groq/Ollama/any /v1 via env.
+const OpenAI = require('openai');
+
+// Self-hosted SQLite (replaces Firestore)
+const { getDb } = require('./db');
 
 // Structured logging function
 function logStructured(data) {
   console.log(JSON.stringify({
     timestamp: new Date().toISOString(),
-    service: 'diagnosticpro-vertex-ai-backend',
+    service: 'diagnosticpro-llm-backend',
     ...data
   }));
 }
@@ -56,7 +58,7 @@ function validateSubmissionPayload(payload) {
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Parse Gemini free-form analysis into sectioned structure the PDF generator expects
+// Parse LLM (DeepSeek etc.) free-form analysis into sectioned structure the PDF generator expects
 function parseFullAnalysis(fullAnalysis = '') {
   if (typeof fullAnalysis !== 'string' || !fullAnalysis.trim()) {
     return {};
@@ -196,18 +198,19 @@ function extractDiagnosticCodes(payload = {}) {
   return Array.from(codes);
 }
 
-// Validate required environment variables
-const REPORT_BUCKET = process.env.REPORT_BUCKET;
-if (!REPORT_BUCKET) {
-  throw new Error('REPORT_BUCKET environment variable is required');
-}
+// Self-hosted reports: local FS is primary. GCS is optional legacy fallback only.
+// Pure self-host: no REPORT_BUCKET requirement. Local FS only.
+const REPORT_BUCKET = process.env.REPORT_BUCKET; // legacy only
+const USE_GCS_REPORTS = false; // force local for perfect self-host
 
-// Initialize services (will be updated with secrets after loadSecrets())
-const firestore = new Firestore();
-const storage = new Storage();
-const reportsBucket = storage.bucket(REPORT_BUCKET);
+// GCS is fully removed for self-host. Local FS only.
+
+// Initialize other services
 let stripeClient; // Will be initialized after loading secrets
 let secrets = {}; // Global secrets object
+
+// SQLite DB (lazy init on first use)
+const db = getDb();
 
 // Whop integration constants
 const WHOP_APP_ID = process.env.WHOP_APP_ID || 'app_NyelCJC762qXb6';
@@ -232,9 +235,24 @@ app.use(generalLimiter);
 app.get('/healthz', (req, res) => {
   res.status(200).json({
     status: 'ok',
-    service: 'diagnosticpro-vertex-ai-backend',
-    version: '1.0.0'
+    service: 'diagnosticpro-llm-backend',
+    version: '2.3.0'
   });
+});
+
+// Local reports download (self-host, replaces GCS signed URLs)
+app.get('/reports/download/:submissionId', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const { submissionId } = req.params;
+  const reportsDir = process.env.REPORTS_DIR || path.join(process.cwd(), 'reports');
+  const filePath = path.join(reportsDir, `${submissionId}.pdf`);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Report not found' });
+  }
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="diagnostic-${submissionId}.pdf"`);
+  fs.createReadStream(filePath).pipe(res);
 });
 
 // Capture raw body for Stripe webhook signature verification
@@ -271,27 +289,31 @@ app.post('/saveSubmission', submissionLimiter, async (req, res) => {
     // Generate submission ID
     submissionId = `diag_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-    // Prepare Firestore document - SAVE COMPLETE PAYLOAD
-    // Store entire payload from UI to handle current and future fields
-    const submissionData = {
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      status: 'pending',
-      priceCents: 499,
-      payload: {
-        ...payload, // Spread entire payload to capture ALL UI fields
-        // Ensure empty strings for missing optional fields for consistency
-        make: payload.make || '',
-        year: payload.year || '',
-        notes: payload.notes || ''
-      },
-      reqId: req.reqId,
-      uiVersion: '1.0', // Track UI version for future compatibility
-      payloadKeyCount: Object.keys(payload).length // Track number of fields for debugging
+    // Prepare document for SQLite (replaces Firestore)
+    const now = new Date().toISOString();
+    const submissionPayload = {
+      ...payload,
+      make: payload.make || '',
+      year: payload.year || '',
+      notes: payload.notes || ''
     };
 
-    // Save to Firestore
-    await firestore.collection('diagnosticSubmissions').doc(submissionId).set(submissionData);
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO diagnostic_submissions
+      (id, status, price_cents, payload, req_id, ui_version, payload_key_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      submissionId,
+      'pending',
+      499,
+      JSON.stringify(submissionPayload),
+      req.reqId,
+      '1.0',
+      Object.keys(payload).length,
+      now,
+      now
+    );
 
     // Success logging
     logStructured({
@@ -338,9 +360,9 @@ app.post('/createCheckoutSession', async (req, res) => {
       });
     }
 
-    // Verify submission exists and status is valid
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId).get();
-    if (!submissionRef.exists) {
+    // Verify submission exists and status is valid (SQLite)
+    const row = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (!row) {
       logStructured({
         phase,
         status: 'error',
@@ -354,7 +376,10 @@ app.post('/createCheckoutSession', async (req, res) => {
       });
     }
 
-    const submissionData = submissionRef.data();
+    const submissionData = {
+      ...row,
+      payload: row.payload ? JSON.parse(row.payload) : {}
+    };
     if (!['pending', 'failed'].includes(submissionData.status)) {
       logStructured({
         phase,
@@ -428,13 +453,12 @@ app.post('/analysisStatus', async (req, res) => {
   try {
     const { submissionId } = req.body;
 
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId).get();
-    if (!submissionRef.exists) {
+    const row = db.prepare('SELECT status FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (!row) {
       return res.status(404).json({ error: 'Submission not found' });
     }
 
-    const submissionData = submissionRef.data();
-    const status = submissionData.status || 'pending';
+    const status = row.status || 'pending';
 
     res.json({ status });
 
@@ -449,14 +473,15 @@ app.post('/analyzeDiagnostic', analysisLimiter, async (req, res) => {
   try {
     const { submissionId, force } = req.body;
 
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId);
-    const submissionDoc = await submissionRef.get();
-
-    if (!submissionDoc.exists) {
+    const row = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (!row) {
       return res.status(404).json({ error: 'Submission not found' });
     }
 
-    const submissionData = submissionDoc.data();
+    const submissionData = {
+      ...row,
+      payload: row.payload ? JSON.parse(row.payload) : {}
+    };
 
     // Allow re-trigger if force=true or stuck for >10 minutes
     const stuckThreshold = 10 * 60 * 1000;
@@ -489,67 +514,50 @@ app.get('/view/:submissionId', async (req, res) => {
       return res.status(400).json({ error: 'submissionId is required' });
     }
 
-    // Check if submission exists and is ready
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId).get();
-    if (!submissionRef.exists) {
+    // Check if submission exists and is ready (SQLite)
+    const subRow = db.prepare('SELECT status FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (!subRow) {
       return res.status(404).json({ error: 'Submission not found' });
     }
-
-    const submissionData = submissionRef.data();
-    if (submissionData.status !== 'ready') {
+    if (subRow.status !== 'ready') {
       return res.status(400).json({
         error: 'Report not ready yet',
-        status: submissionData.status
+        status: subRow.status
       });
     }
 
     // Check if analysis record exists
-    const analysisRef = await firestore.collection('analysis').doc(submissionId).get();
-    if (!analysisRef.exists) {
+    const analysisRow = db.prepare('SELECT report_path FROM analyses WHERE id = ?').get(submissionId);
+    if (!analysisRow) {
       return res.status(404).json({ error: 'Analysis record not found' });
     }
 
-    const analysisData = analysisRef.data();
-    const reportPath = analysisData.reportPath;
+    // Serve local report directly (perfect self-host, no GCS)
+    const fs = require('fs');
+    const pathMod = require('path');
+    const reportsDir = process.env.REPORTS_DIR || pathMod.join(process.cwd(), 'reports');
+    const localPdf = pathMod.join(reportsDir, `${submissionId}.pdf`);
 
-    if (!reportPath) {
-      return res.status(404).json({
-        error: 'Report path not found',
-        code: 'MISSING_REPORT_PATH'
-      });
+    if (!fs.existsSync(localPdf)) {
+      return res.status(404).json({ error: 'Report file not found on disk' });
     }
-
-    // Generate fresh signed URL and redirect
-    const file = reportsBucket.file(reportPath);
-
-    const [url] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + 15 * 60 * 1000, // 15 minutes
-      // No contentType for read URLs
-    });
 
     logStructured({
       phase: 'viewReport',
       status: 'ok',
-      bucket: REPORT_BUCKET,
-      reportPath,
+      storage: 'local',
       submissionId
     });
 
-    // Update analysis record with stable view URL for tracking
-    await firestore.collection('analysis').doc(submissionId).update({
-      publicViewUrl: `/view/${submissionId}`,
-      lastViewedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
+    // Update analysis (SQLite)
+    const updateStmt = db.prepare(`
+      UPDATE analyses SET public_view_url = ?, last_viewed_at = ?, updated_at = ? WHERE id = ?
+    `);
+    updateStmt.run(`/view/${submissionId}`, new Date().toISOString(), new Date().toISOString(), submissionId);
 
-    logStructured({
-      phase,
-      status: 'ok',
-      reqId: req.reqId || 'anonymous',
-      submissionId
-    });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="diagnostic-report-${submissionId}.pdf"`);
+    fs.createReadStream(localPdf).pipe(res);
 
     // Redirect to signed URL for immediate viewing
     res.redirect(302, url);
@@ -652,13 +660,13 @@ app.get('/reports/signed-url', async (req, res) => {
       return res.status(400).json({ error: 'submissionId query parameter is required' });
     }
 
-    // Check if submission exists and is ready
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId).get();
-    if (!submissionRef.exists) {
+    // Check if submission exists and is ready (SQLite)
+    const subRow = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (!subRow) {
       return res.status(404).json({ error: 'Submission not found' });
     }
 
-    const submissionData = submissionRef.data();
+    const submissionData = { ...subRow, payload: subRow.payload ? JSON.parse(subRow.payload) : {} };
     if (submissionData.status !== 'ready') {
       return res.status(400).json({
         error: 'Report not ready yet',
@@ -667,51 +675,35 @@ app.get('/reports/signed-url', async (req, res) => {
     }
 
     // Check if analysis record exists
-    const analysisRef = await firestore.collection('analysis').doc(submissionId).get();
-    if (!analysisRef.exists) {
+    const analysisRow = db.prepare('SELECT * FROM analyses WHERE id = ?').get(submissionId);
+    if (!analysisRow) {
       return res.status(404).json({ error: 'Analysis record not found' });
     }
 
-    const analysisData = analysisRef.data();
-    const reportPath = analysisData.reportPath;
+    const reportPath = analysisRow.report_path;
 
-    if (!reportPath) {
-      return res.status(404).json({
-        error: 'Report path not found',
-        code: 'MISSING_REPORT_PATH'
-      });
-    }
+    // Prefer local file serving for self-host
+    const fs = require('fs');
+    const path = require('path');
+    const reportsDir = process.env.REPORTS_DIR || path.join(process.cwd(), 'reports');
+    const localFile = path.join(reportsDir, `${submissionId}.pdf`);
 
-    // Generate signed URLs (15 minutes)
-    const file = reportsBucket.file(reportPath);
-
-    const [downloadUrl] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + 15 * 60 * 1000,
-      responseDisposition: `attachment; filename="${submissionId}.pdf"`,
-      // No contentType for read URLs
-    });
-
-    const [viewUrl] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + 15 * 60 * 1000,
-      responseDisposition: `inline; filename="${submissionId}.pdf"`,
-      // No contentType for read URLs
-    });
+    const downloadUrl = `/reports/download/${submissionId}`;
+    const viewUrl = `/view/${submissionId}`;  // uses the local serve we added
 
     logStructured({
       phase,
       status: 'ok',
       reqId: req.reqId,
-      submissionId
+      submissionId,
+      storage: 'local'
     });
 
     res.json({
       downloadUrl,
       viewUrl,
-      expiresInSeconds: 900
+      expiresInSeconds: 3600,
+      local: true
     });
 
   } catch (error) {
@@ -739,50 +731,28 @@ app.get('/reports/status', async (req, res) => {
       return res.status(400).json({ error: 'Invalid submissionId', code: 'BAD_ID' });
     }
 
-    // Check if PDF exists in storage
-    const file = reportsBucket.file(`reports/${submissionId}.pdf`);
-    const [exists] = await file.exists();
+    // Prefer local FS (self-host)
+    const fs = require('fs');
+    const path = require('path');
+    const reportsDir = process.env.REPORTS_DIR || path.join(process.cwd(), 'reports');
+    const localFile = path.join(reportsDir, `${submissionId}.pdf`);
 
-    if (exists) {
-      // Generate signed URLs
-      const [downloadUrl] = await file.getSignedUrl({
-        version: 'v4',
-        action: 'read',
-        expires: Date.now() + 15 * 60 * 1000,
-        responseDisposition: `attachment; filename="${submissionId}.pdf"`,
-        contentType: 'application/pdf'
-      });
-
-      const [viewUrl] = await file.getSignedUrl({
-        version: 'v4',
-        action: 'read',
-        expires: Date.now() + 15 * 60 * 1000,
-        responseDisposition: `inline; filename="${submissionId}.pdf"`,
-        contentType: 'application/pdf'
-      });
-
-      logStructured({
-        phase,
-        status: 'ready',
-        reqId: req.reqId,
-        submissionId
-      });
-
-      return res.json({ status: 'ready', downloadUrl, viewUrl });
+    if (fs.existsSync(localFile)) {
+      const downloadUrl = `/reports/download/${submissionId}`;
+      return res.json({ status: 'ready', downloadUrl, viewUrl: downloadUrl, local: true });
     }
 
-    // Check submission status in Firestore
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId).get();
-    if (submissionRef.exists) {
-      const submissionData = submissionRef.data();
+    // Check DB status only
+    const subRow = db.prepare('SELECT status FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (subRow) {
       logStructured({
         phase,
         status: 'processing',
         reqId: req.reqId,
         submissionId,
-        submissionStatus: submissionData.status
+        submissionStatus: subRow.status
       });
-      return res.status(202).json({ status: 'processing', submissionStatus: submissionData.status });
+      return res.status(202).json({ status: 'processing', submissionStatus: subRow.status });
     }
 
     logStructured({
@@ -817,8 +787,16 @@ app.post('/reports/ensure', async (req, res) => {
     }
 
     // Check if PDF already exists
-    const file = reportsBucket.file(`reports/${submissionId}.pdf`);
-    const [exists] = await file.exists();
+    // GCS removed - local FS only path
+    const fs = require('fs');
+    const path = require('path');
+    const reportsDir = process.env.REPORTS_DIR || path.join(process.cwd(), 'reports');
+    const localFile = path.join(reportsDir, `${submissionId}.pdf`);
+    // local FS check (GCS removed)
+    const fsCheck = require('fs');
+    const pathCheck = require('path');
+    const dir = process.env.REPORTS_DIR || pathCheck.join(process.cwd(), 'reports');
+    const exists = fsCheck.existsSync(pathCheck.join(dir, `${submissionId}.pdf`));
 
     if (exists) {
       logStructured({
@@ -831,22 +809,20 @@ app.post('/reports/ensure', async (req, res) => {
     }
 
     // Get submission data for reprocessing
-    const submissionRef = firestore.collection('diagnosticSubmissions').doc(submissionId);
-    const submissionDoc = await submissionRef.get();
+    // note: direct ref no longer used, using db.prepare
+    const subRow = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
 
-    if (!submissionDoc.exists) {
+    if (!subRow) {
       return res.status(404).json({ error: 'Submission not found', code: 'NOT_FOUND' });
     }
 
-    const submissionData = submissionDoc.data();
+    const submissionData = { ...subRow, payload: subRow.payload ? JSON.parse(subRow.payload) : {} };
 
     // Update status to requeued if failed
     if (submissionData.status === 'failed' || submissionData.status === 'error') {
-      await submissionRef.update({
-        status: 'requeued',
-        updatedAt: new Date().toISOString(),
-        retryCount: (submissionData.retryCount || 0) + 1
-      });
+      db.prepare(`
+        UPDATE diagnostic_submissions SET status = 'requeued', updated_at = ?, retry_count = ? WHERE id = ?
+      `).run(new Date().toISOString(), (submissionData.retryCount || 0) + 1, submissionId);
 
       logStructured({
         phase,
@@ -902,12 +878,12 @@ app.post('/getDownloadUrl', async (req, res) => {
     }
 
     // Check if submission exists and is ready
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId).get();
-    if (!submissionRef.exists) {
+    const subRow = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (!subRow) {
       return res.status(404).json({ error: 'Submission not found' });
     }
 
-    const submissionData = submissionRef.data();
+    const submissionData = subRow ? { ...subRow, payload: subRow.payload ? JSON.parse(subRow.payload) : {} } : {};
     if (submissionData.status !== 'ready') {
       return res.status(400).json({
         error: 'Report not ready yet',
@@ -916,13 +892,12 @@ app.post('/getDownloadUrl', async (req, res) => {
     }
 
     // Check if analysis record exists
-    const analysisRef = await firestore.collection('analysis').doc(submissionId).get();
-    if (!analysisRef.exists) {
+    const analysisRow = db.prepare('SELECT report_path FROM analyses WHERE id = ?').get(submissionId);
+    if (!analysisRow) {
       return res.status(404).json({ error: 'Analysis record not found' });
     }
 
-    const analysisData = analysisRef.data();
-    const reportPath = analysisData.reportPath; // Should be "reports/{submissionId}.pdf"
+    const reportPath = analysisRow.report_path; // Should be "reports/{submissionId}.pdf"
 
     if (!reportPath) {
       logStructured({
@@ -939,7 +914,8 @@ app.post('/getDownloadUrl', async (req, res) => {
     }
 
     // Generate signed URLs (15 minutes = 900 seconds)
-    const file = reportsBucket.file(reportPath);
+    // GCS fully removed for self-host
+    // local FS only - no bucket
 
     const [downloadUrl] = await file.getSignedUrl({
       version: 'v4',
@@ -1084,23 +1060,17 @@ app.post('/stripeWebhookForward', async (req, res) => {
         });
       }
 
-      // Update submission to paid
-      const submissionRef = firestore.collection('diagnosticSubmissions').doc(submissionId);
-      await submissionRef.update({
-        status: 'paid',
-        updatedAt: new Date().toISOString(),
-        stripeSessionId: session.id,
-        paidAt: new Date().toISOString(),
-        amountPaidCents: 499
-      });
+      // Update submission to paid (SQLite)
+      const paidNow = new Date().toISOString();
+      db.prepare(`
+        UPDATE diagnostic_submissions SET status = 'paid', updated_at = ?, stripe_session_id = ?, paid_at = ?, amount_paid_cents = ? WHERE id = ?
+      `).run(paidNow, session.id, paidNow, 499, submissionId);
 
       // Create analysis record
-      await firestore.collection('analysis').doc(submissionId).set({
-        updatedAt: new Date().toISOString(),
-        status: 'queued',
-        model: 'gemini-1.5-flash-002',
-        reqId: req.reqId
-      });
+      db.prepare(`
+        INSERT OR REPLACE INTO analyses (id, submission_id, status, updated_at, model, req_id)
+        VALUES (?, ?, 'queued', ?, ?, ?)
+      `).run(submissionId, submissionId, paidNow, process.env.LLM_MODEL || 'gpt-4o', req.reqId);
 
       logStructured({
         phase,
@@ -1112,9 +1082,9 @@ app.post('/stripeWebhookForward', async (req, res) => {
       });
 
       // Start analysis process (async)
-      const submissionDoc = await submissionRef.get();
-      if (submissionDoc.exists) {
-        const submissionData = submissionDoc.data();
+      const subRow = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+      if (subRow) {
+        const submissionData = { ...subRow, payload: subRow.payload ? JSON.parse(subRow.payload) : {} };
         processAnalysis(submissionId, submissionData.payload, req.reqId).catch(error => {
           logStructured({
             phase: 'queueAnalyze',
@@ -1164,23 +1134,20 @@ async function processAnalysis(submissionId, payload, reqId) {
       submissionId
     });
 
-    // Update submission status to processing
-    await firestore.collection('diagnosticSubmissions').doc(submissionId).update({
-      status: 'processing',
-      updatedAt: new Date().toISOString(),
-      processingStartedAt: new Date().toISOString()
-    });
+    // Update submission status to processing (SQLite)
+    const procNow = new Date().toISOString();
+    db.prepare(`
+      UPDATE diagnostic_submissions SET status = 'processing', updated_at = ?, processing_started_at = ? WHERE id = ?
+    `).run(procNow, procNow, submissionId);
 
     // Create analysis record with running status
-    await firestore.collection('analysis').doc(submissionId).set({
-      status: 'running',
-      submissionId: submissionId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
+    db.prepare(`
+      INSERT OR REPLACE INTO analyses (id, submission_id, status, created_at, updated_at)
+      VALUES (?, ?, 'running', ?, ?)
+    `).run(submissionId, submissionId, procNow, procNow);
 
-    // Call Vertex AI Gemini
-    const analysis = await callVertexAI(payload);
+    // Call the LLM (OpenAI gpt-4o via the OpenAI-compatible client)
+    const analysis = await callLLM(payload);
 
     // Generate PDF report AND upload to Cloud Storage (all in one)
     const reportData = await generatePDFReport(submissionId, analysis, payload);
@@ -1195,24 +1162,18 @@ async function processAnalysis(submissionId, payload, reqId) {
       size: reportData.buffer.length
     });
 
-    // Update analysis to ready
-    await firestore.collection('analysis').doc(submissionId).update({
-      status: 'ready',
-      updatedAt: new Date().toISOString(),
-      reportPath: reportData.fileName,
-      fullAnalysis: analysis.fullAnalysis,
-      sections: parsedSectionsForStorage,
-      detectedCodes: analysis.detectedCodes || []
-    });
+    // Update analysis to ready (SQLite)
+    const readyNow = new Date().toISOString();
+    db.prepare(`
+      UPDATE analyses SET status = 'ready', updated_at = ?, report_path = ?, full_analysis = ?, sections = ?, detected_codes = ?
+      WHERE id = ?
+    `).run(readyNow, reportData.fileName, analysis.fullAnalysis, JSON.stringify(parsedSectionsForStorage), JSON.stringify(analysis.detectedCodes || []), submissionId);
 
     // Update submission to ready with report URL
-    await firestore.collection('diagnosticSubmissions').doc(submissionId).update({
-      status: 'ready',
-      reportUrl: reportData.publicUrl,
-      updatedAt: new Date().toISOString(),
-      completedAt: new Date().toISOString(),
-      analysisSummary: analysis.summary || null
-    });
+    db.prepare(`
+      UPDATE diagnostic_submissions SET status = 'ready', report_url = ?, updated_at = ?, completed_at = ?, analysis_summary = ?
+      WHERE id = ?
+    `).run(reportData.publicUrl, readyNow, readyNow, analysis.summary || null, submissionId);
 
     logStructured({
       phase: 'runAnalyze',
@@ -1239,20 +1200,16 @@ async function processAnalysis(submissionId, payload, reqId) {
       error: { code: 'ANALYSIS_ERROR', message: error.message }
     });
 
-    // Update submission to failed
-    await firestore.collection('diagnosticSubmissions').doc(submissionId).update({
-      status: 'failed',
-      updatedAt: new Date().toISOString(),
-      lastError: error.message,
-      errorAt: new Date().toISOString()
-    });
+    // Update submission to failed (SQLite)
+    const failNow = new Date().toISOString();
+    db.prepare(`
+      UPDATE diagnostic_submissions SET status = 'failed', updated_at = ?, last_error = ?, error_at = ? WHERE id = ?
+    `).run(failNow, error.message, failNow, submissionId);
 
     // Update analysis to failed
-    await firestore.collection('analysis').doc(submissionId).update({
-      status: 'failed',
-      updatedAt: new Date().toISOString(),
-      lastError: error.message
-    });
+    db.prepare(`
+      UPDATE analyses SET status = 'failed', updated_at = ?, last_error = ? WHERE id = ?
+    `).run(failNow, error.message, submissionId);
 
     throw error;
   }
@@ -1368,18 +1325,95 @@ function getEquipmentPromptContext(equipmentType, payload) {
   return configs[equipmentType] || defaultConfig;
 }
 
-// FUNCTION: Call Vertex AI Gemini
-async function callVertexAI(payload) {
-  const { VertexAI } = require('@google-cloud/vertexai');
+// FUNCTION: Call the LLM (OpenAI gpt-4o via the OpenAI-compatible client).
+// Provider is fully env-driven — LLM_BASE_URL / LLM_MODEL / LLM_API_KEY — so
+// switching to Groq (fast/cheap), Ollama (fully local self-hosted), xAI Grok,
+// vLLM, or any other /v1 chat-completions server is a config change, not code.
+// Keeps the exact same 15-section prompt contract and return shape.
+async function callLLM(payload) {
+  // OpenAI gpt-4o is the default. Override via LLM_BASE_URL / LLM_MODEL / LLM_API_KEY.
+  const apiKey = process.env.LLM_API_KEY || secrets.LLM_API_KEY ||
+                 process.env.OPENAI_API_KEY || secrets.OPENAI_API_KEY ||
+                 process.env.DEEPSEEK_API_KEY || secrets.DEEPSEEK_API_KEY ||
+                 process.env.GROQ_API_KEY || secrets.GROQ_API_KEY;
 
-  const vertex = new VertexAI({
-    project: process.env.GCP_PROJECT || 'diagnostic-pro-prod',
-    location: process.env.VAI_LOCATION || 'us-central1'
-  });
+  const baseURL = process.env.LLM_BASE_URL || 'https://api.openai.com/v1';
+  const modelName = process.env.LLM_MODEL || 'gpt-4o'; // OpenAI gpt-4o. Strong long-form structured diagnostic reports.
 
-  const model = vertex.getGenerativeModel({
-    model: process.env.VAI_MODEL || 'gemini-2.5-flash'
-  });
+  const detectedCodes = extractDiagnosticCodes(payload);
+
+  if (!apiKey || process.env.TEST_MOCK_LLM === 'true') {
+    // For tests/E2E without real key, return mock analysis so full flow can be tested
+    if (process.env.TEST_MOCK_LLM === 'true') {
+      console.log('Using MOCK LLM for test');
+      return {
+        fullAnalysis: `1. PRIMARY DIAGNOSIS
+Mock primary diagnosis for testing. Confidence 95%.
+
+2. DIFFERENTIAL DIAGNOSIS
+- Mock alt cause 1
+- Mock alt cause 2
+
+3. DIAGNOSTIC VERIFICATION
+Mock verification steps.
+
+4. SHOP INTERROGATION
+- Question 1?
+- Question 2?
+
+5. CONVERSATION SCRIPTING
+Mock script.
+
+6. COST BREAKDOWN
+- Mock cost 1
+- Mock cost 2
+
+7. RIPOFF DETECTION
+- Mock flag 1
+
+8. AUTHORIZATION GUIDE
+Mock guide.
+
+9. TECHNICAL EDUCATION
+Mock education.
+
+10. OEM PARTS STRATEGY
+- Mock part
+
+11. NEGOTIATION TACTICS
+Mock tactic.
+
+12. LIKELY CAUSES (RANKED)
+- Primary 95%
+
+13. RECOMMENDATIONS
+- Rec 1
+
+14. SOURCE VERIFICATION
+- Source 1
+
+15. NEXT STEPS SUMMARY
+- Step 1
+- Step 2
+- Step 3`,
+        summary: "Mock comprehensive analysis",
+        confidence: 0.95,
+        root_causes: ["Mock cause"],
+        recommendations: ["Mock rec"],
+        cost_ranges: [],
+        red_flags: [],
+        questions: [],
+        parts_needed: [],
+        labor_estimate: "Mock",
+        difficulty: "Mock",
+        tools_required: [],
+        detectedCodes
+      };
+    }
+    throw new Error('No LLM_API_KEY (or DEEPSEEK_API_KEY) configured. Set via env or SOPS secrets for self-hosted / VPS deployment.');
+  }
+
+  const openai = new OpenAI({ apiKey, baseURL });
 
   // DiagnosticPro Proprietary 15-Section Analysis Framework v2.0
   const equipmentContext = getEquipmentPromptContext(payload.equipmentType, payload);
@@ -1499,22 +1533,29 @@ Provide your analysis using the following EXACT 15-section structure. Every sect
 
 Return your response as a comprehensive diagnostic report following this structure exactly. Be specific, technical, and reference the customer's provided data throughout your analysis.`;
 
-  const response = await model.generateContent(prompt);
-  const text = response.response.candidates[0].content.parts[0].text;
+  const chat = await openai.chat.completions.create({
+    model: modelName,
+    messages: [
+      {
+        role: 'system',
+        content: 'You are DiagnosticPro\'s MASTER TECHNICIAN. Output ONLY the requested 15-section report with no extra preamble or markdown wrappers beyond the numbered headings.'
+      },
+      { role: 'user', content: prompt }
+    ],
+    max_tokens: 8192,
+    temperature: 0.25
+  });
 
-  // Debug logging to see what Vertex AI actually returns
-  console.log(`Vertex AI raw response for analysis:`, text);
+  const text = chat.choices?.[0]?.message?.content || '';
 
-  // The new proprietary prompt returns a comprehensive text report, not JSON
-  console.log(`Vertex AI comprehensive analysis length: ${text.length} characters`);
+  // Debug logging (provider agnostic)
+  console.log(`LLM analysis (base=${baseURL}, model=${modelName}) length=${text ? text.length : 0} chars`);
 
-  const detectedCodes = extractDiagnosticCodes(payload);
-
-  // Return the full analysis text for PDF generation
+  // Return the full analysis text for PDF generation (exact same shape as before)
   return {
     fullAnalysis: text,
-    summary: "Comprehensive 14-section diagnostic analysis completed",
-    confidence: 0.95,
+    summary: "Comprehensive 15-section diagnostic analysis completed",
+    confidence: 0.92,
     root_causes: ["Detailed analysis provided in full report"],
     recommendations: ["See comprehensive analysis for all recommendations"],
     cost_ranges: [],
@@ -1603,51 +1644,28 @@ async function generatePDFReport(submissionId, analysis, payload) {
     const pdfBuffer = await generatePdfBuffer();
     console.log(`PDF buffered successfully for: ${submissionId}`);
 
-    // 2. Upload the buffer to Cloud Storage
     const fileName = `reports/${submissionId}.pdf`;
-    const file = reportsBucket.file(fileName);
 
-    await file.save(pdfBuffer, {
-      metadata: {
-        contentType: 'application/pdf',
-        metadata: {
-          submissionId: submissionId
-        }
-      }
-    });
-    console.log(`PDF uploaded to Cloud Storage: ${fileName}`);
+    // Pure local FS (perfect self-host)
+    const fs = require('fs');
+    const path = require('path');
+    const reportsDir = process.env.REPORTS_DIR || path.join(process.cwd(), 'reports');
+    if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
+    const localPath = path.join(reportsDir, `${submissionId}.pdf`);
+    fs.writeFileSync(localPath, pdfBuffer);
+    console.log(`PDF written locally: ${localPath}`);
 
-    // 3. Generate signed URL for file access (compatible with uniform bucket-level access)
-    let publicUrl = `gs://${REPORT_BUCKET}/${fileName}`;
-    if (process.env.DISABLE_SIGNED_URLS === 'true') {
-      console.warn(`Signed URL generation disabled; using bucket URI for ${submissionId}`);
-    } else {
-      try {
-        const [signedUrl] = await file.getSignedUrl({
-          version: 'v4',
-          action: 'read',
-          expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-          // No contentType for read URLs to avoid header mismatch
-        });
-        publicUrl = signedUrl;
-      } catch (signError) {
-        if (process.env.ALLOW_UNSIGNED_URL_FALLBACK === 'true') {
-          console.warn(`Signed URL generation failed for ${submissionId}: ${signError.message}`);
-          console.warn('Falling back to gs:// URI.');
-        } else {
-          throw signError;
-        }
-      }
-    }
+    // public URL served by backend
+    const publicUrl = `/reports/download/${submissionId}`;
 
     return {
       buffer: pdfBuffer,
-      publicUrl: publicUrl,
-      fileName: fileName
+      publicUrl,
+      fileName
     };
 
   } catch (error) {
-    console.error(`PDF generation or upload failed for ${submissionId}:`, error);
+    console.error(`PDF generation or local write failed for ${submissionId}:`, error);
     throw error;
   }
 }
@@ -1805,11 +1823,12 @@ app.post('/api/auth/whop-exchange', async (req, res) => {
       updatedAt: new Date().toISOString()
     };
 
-    const existingDoc = await firestore.collection('whopUsers').doc(whopUserId).get();
-    if (!existingDoc.exists) {
-      whopUserDoc.createdAt = new Date().toISOString();
-    }
-    await firestore.collection('whopUsers').doc(whopUserId).set(whopUserDoc, { merge: true });
+    // Upsert to SQLite whop_users (replaces Firestore)
+    const whopNow = new Date().toISOString();
+    db.prepare(`
+      INSERT OR REPLACE INTO whop_users (id, whop_id, username, email, is_member, membership_id, last_verified, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(whopUserId, whopUserId, user.username || '', user.email || '', isMember ? 1 : 0, membership?.id || null, whopNow, whopNow);
 
     logStructured({
       phase,
@@ -1888,15 +1907,10 @@ app.post('/api/webhooks/whop', async (req, res) => {
     if (action === 'membership.went_valid' || action === 'membership.went_invalid') {
       const userId = data?.user_id;
       if (userId) {
-        const docRef = firestore.collection('whopUsers').doc(userId);
-        const whopDoc = await docRef.get();
-        if (whopDoc.exists) {
-          await docRef.update({
-            isMember: action === 'membership.went_valid',
-            lastVerified: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          });
-        }
+        // Update whop user membership (SQLite)
+        db.prepare(`
+          UPDATE whop_users SET is_member = ?, last_verified = ?, updated_at = ? WHERE id = ?
+        `).run(action === 'membership.went_valid' ? 1 : 0, new Date().toISOString(), new Date().toISOString(), userId);
       }
     }
 
@@ -1926,14 +1940,14 @@ app.post('/api/whop/analyze', checkWhopMember, async (req, res) => {
       return res.status(400).json({ error: 'Missing submissionId' });
     }
 
-    const submissionRef = firestore.collection('diagnosticSubmissions').doc(submissionId);
-    const submissionDoc = await submissionRef.get();
+    // note: direct ref no longer used, using db.prepare
+    const subRow = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
 
-    if (!submissionDoc.exists) {
+    if (!subRow) {
       return res.status(404).json({ error: 'Submission not found' });
     }
 
-    const submissionData = submissionDoc.data();
+    const submissionData = { ...subRow, payload: subRow.payload ? JSON.parse(subRow.payload) : {} };
 
     // Verify this submission belongs to the requesting member (match email)
     if (req.whopUser?.email && submissionData.payload?.email &&
@@ -1946,27 +1960,20 @@ app.post('/api/whop/analyze', checkWhopMember, async (req, res) => {
       return res.json({ status: submissionData.status, message: 'Already processed' });
     }
 
-    // Mark as paid via membership (skip Stripe)
-    await submissionRef.update({
-      status: 'paid',
-      updatedAt: new Date().toISOString(),
-      paidAt: new Date().toISOString(),
-      paidVia: 'whop_membership',
-      whopUserId: req.whopUser?.id || '',
-      whopMembershipId: req.whopMembership?.id || '',
-      usedWithMembership: true,
-      charged: false,
-      amountPaidCents: 0
-    });
+    // Mark as paid via membership (SQLite)
+    const paidNow = new Date().toISOString();
+    db.prepare(`
+      UPDATE diagnostic_submissions SET status = 'paid', updated_at = ?, paid_at = ?, paid_via = 'whop_membership',
+      whop_user_id = ?, whop_membership_id = ?, used_with_membership = 1, charged = 0, amount_paid_cents = 0
+      WHERE id = ?
+    `).run(paidNow, paidNow, req.whopUser?.id || '', req.whopMembership?.id || '', submissionId);
 
-    // Create analysis record
-    await firestore.collection('analysis').doc(submissionId).set({
-      updatedAt: new Date().toISOString(),
-      status: 'queued',
-      model: 'gemini-2.5-flash',
-      reqId: req.reqId,
-      paidVia: 'whop_membership'
-    });
+    // Create analysis record (SQLite)
+    const whopNow = new Date().toISOString();
+    db.prepare(`
+      INSERT OR REPLACE INTO analyses (id, submission_id, status, updated_at, model, req_id, paid_via)
+      VALUES (?, ?, 'queued', ?, ?, ?, 'whop_membership')
+    `).run(submissionId, submissionId, whopNow, process.env.LLM_MODEL || 'gpt-4o', req.reqId);
 
     logStructured({
       phase,
@@ -2016,7 +2023,7 @@ if (require.main === module) {
   // Load secrets from Secret Manager before starting server
   (async () => {
     try {
-      console.log('🔐 Loading secrets from Google Secret Manager...');
+      console.log('🔐 Loading secrets from environment (SOPS-materialized)...');
       secrets = await loadSecrets();
 
       // Initialize Stripe with secret from Secret Manager
@@ -2025,17 +2032,17 @@ if (require.main === module) {
       console.log('✅ Secrets loaded successfully');
 
       app.listen(PORT, () => {
-        console.log(`🚀 DiagnosticPro Backend running on port ${PORT}`);
+        console.log(`🚀 DiagnosticPro Backend running on port ${PORT} (self-hosted)`);
         console.log(`💰 Price: $4.99 USD (499 cents)`);
-        console.log(`🔗 Project: diagnostic-pro-prod`);
-        console.log(`📁 Storage: gs://${REPORT_BUCKET}`);
-        console.log('🔒 Using Google Secret Manager for sensitive credentials');
+        console.log(`🗄️  DB: SQLite (better-sqlite3)`);
+        console.log(`📄 Reports: local FS`);
+        console.log('🔒 Secrets via SOPS/age');
         console.log('\nEndpoints:');
         console.log('  POST /saveSubmission');
         console.log('  POST /createCheckoutSession');
         console.log('  POST /analysisStatus');
         console.log('  POST /analyzeDiagnostic');
-        console.log('  POST /getDownloadUrl');
+        console.log('  GET  /reports/download/:id');
         console.log('  POST /stripeWebhookForward (PRIVATE)');
         console.log('  POST /api/auth/whop-exchange');
         console.log('  GET  /api/auth/whop-verify');
@@ -2054,7 +2061,10 @@ if (require.main === module) {
         STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
         FIREBASE_API_KEY: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
         API_GATEWAY_KEY: process.env.API_GATEWAY_KEY || process.env.VITE_API_KEY,
-        WHOP_API_KEY: process.env.WHOP_API_KEY
+        WHOP_API_KEY: process.env.WHOP_API_KEY,
+        LLM_API_KEY: process.env.LLM_API_KEY || process.env.DEEPSEEK_API_KEY || process.env.GROQ_API_KEY,
+        DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
+        GROQ_API_KEY: process.env.GROQ_API_KEY
       };
 
       app.listen(PORT, () => {
@@ -2068,4 +2078,5 @@ module.exports = app;
 module.exports.parseFullAnalysis = parseFullAnalysis;
 module.exports.processAnalysis = processAnalysis;
 module.exports.generatePDFReport = generatePDFReport;
-module.exports.callVertexAI = callVertexAI;
+module.exports.callLLM = callLLM;
+module.exports.extractDiagnosticCodes = extractDiagnosticCodes;
