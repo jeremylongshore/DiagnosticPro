@@ -3,8 +3,8 @@
 <div align="center">
 
 [![Live Status](https://img.shields.io/badge/status-live-success.svg)](https://diagnosticpro.io)
-[![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28.svg)](https://firebase.google.com)
-[![Vertex AI](https://img.shields.io/badge/Vertex%20AI-Gemini%202.5-4285F4.svg)](https://cloud.google.com/vertex-ai)
+[![Self-Hosted](https://img.shields.io/badge/Self--Hosted-VPS%20%2B%20Caddy%20%2B%20SQLite-10b981.svg)](https://diagnosticpro.io)
+[![LLM](https://img.shields.io/badge/LLM-OpenAI%20gpt--4o%20(default)-412991.svg)](https://platform.openai.com)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 **Get professional AI-assisted diagnostic reports for vehicles and equipment — Just $4.99**
@@ -43,7 +43,9 @@ DiagnosticPro transforms confusing equipment problems into clear, professional d
 - ⚙️ **Technical education** explaining how your equipment actually works
 - 🔗 **Source verification** with links to manufacturer documentation
 
-**Price:** $4.99 per diagnostic report — delivered in minutes
+**Pricing:**
+- **$4.99** per one-off diagnostic report via **Stripe** — delivered in minutes
+- **$29/mo** unlimited subscription via **Whop** — for frequent troubleshooters
 
 ---
 
@@ -60,10 +62,10 @@ Getting your diagnostic report is simple and fast:
 
 2. **Review your submission** and confirm details are correct
 
-3. **Pay securely via Stripe** — just $4.99, one-time payment
+3. **Pay securely** — $4.99 one-time via **Stripe**, or subscribe at $29/mo via **Whop**
 
-4. **AI analyzes your submission** — powered by Google Vertex AI Gemini 2.5 Flash
-   - Processes symptoms against vast repair database
+4. **AI analyzes your submission** — OpenAI **gpt-4o** by default, via an OpenAI-compatible endpoint (switchable to Groq, xAI Grok, or local Ollama with no code change)
+   - Processes symptoms against vast repair knowledge
    - Generates 15-section comprehensive analysis
    - Creates professional PDF report (12-15 pages)
 
@@ -77,17 +79,17 @@ Getting your diagnostic report is simple and fast:
 flowchart LR
     A[User Opens DiagnosticPro.io] --> B[Fill Out Diagnostic Form]
     B --> C[Review Submission Details]
-    C --> D[Pay $4.99 via Stripe Checkout]
-    D --> E[Stripe Webhook Confirms Payment]
+    C --> D[Pay $4.99 Stripe / $29 mo Whop]
+    D --> E[Payment Webhook Confirms]
     E --> F[AI Analysis Begins]
-    F --> G[Vertex AI Generates 15-Section Report]
-    G --> H[PDF Report Created & Stored]
+    F --> G[OpenAI gpt-4o Generates 15-Section Report]
+    G --> H[PDF Report Created & Stored on VPS]
     H --> I[Email Sent with Download Link]
     I --> J[User Downloads Professional PDF]
 
-    style D fill:#00D924
-    style G fill:#4285F4
-    style J fill:#FFCA28
+    style D fill:#635bff,color:#fff
+    style G fill:#10a37f,color:#fff
+    style J fill:#f59e0b,color:#fff
 ```
 
 **Total Time:** 2-3 minutes to submit + ~5 minutes for AI analysis = **Report in your inbox in under 10 minutes**
@@ -146,21 +148,25 @@ Every DiagnosticPro report includes our proprietary **15-section analysis framew
 
 > **For Developers:** This section explains the system architecture and tech stack.
 
+DiagnosticPro is **self-hosted** on the Intent Solutions VPS (Contabo, `167.86.106.29`). A single
+**Caddy** reverse proxy terminates TLS (auto-provisioned certificates) and proxies public traffic
+to a Node/Express backend running in Docker, bound to `127.0.0.1:8089`. All data lives on the box:
+**SQLite** for records, the **local filesystem** for report PDFs. No managed cloud services.
+
 ### Tech Stack
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **Frontend** | React 18 + TypeScript + Vite | User-facing web app at diagnosticpro.io |
-| **Hosting** | Firebase Hosting | Static site delivery with custom domain |
+| **Frontend** | React 18 + TypeScript + Vite | User-facing web app at diagnosticpro.io (static `dist/` served by Caddy) |
+| **Hosting** | Intent Solutions VPS + Caddy | Single reverse proxy, auto-provisioned TLS, same-origin API |
 | **UI Framework** | shadcn/ui + Tailwind CSS | Professional component library |
-| **Backend** | Node.js 18 + Express | Cloud Run service handling business logic |
-| **API Gateway** | Google Cloud API Gateway | Route management and rate limiting |
-| **AI Engine** | Vertex AI Gemini 2.5 Flash | 15-section diagnostic analysis generation |
-| **Payments** | Stripe Checkout + Webhooks | Secure $4.99 one-time payments |
-| **Database** | Cloud Firestore | Real-time NoSQL for submissions and orders |
-| **File Storage** | Google Cloud Storage | PDF report storage with signed URLs |
-| **Secrets** | Google Secret Manager | Encrypted credential management |
-| **Deployment** | Cloud Run + Firebase | Fully managed, auto-scaling infrastructure |
+| **Backend** | Node.js 18 + Express (Docker) | Business logic — bound to `127.0.0.1:8089`, Caddy is the public face |
+| **AI Engine** | OpenAI **gpt-4o** (OpenAI-compatible client) | 15-section diagnostic analysis — provider is env-driven and swappable |
+| **Payments** | Stripe Checkout ($4.99) + Whop ($29/mo) | Secure one-time payments and subscriptions |
+| **Database** | SQLite (better-sqlite3, WAL) | Submissions and orders on a Docker volume |
+| **File Storage** | Local filesystem | PDF reports written to the VPS volume |
+| **Secrets** | SOPS-encrypted `.env.sops` (age) | Materialized in-process at deploy time — never plaintext at rest |
+| **Deployment** | git push → VPS Docker deploy behind Caddy | Reproducible container build via `docker-compose.yml` |
 
 ### System Architecture
 
@@ -170,59 +176,51 @@ flowchart TB
         USER[User Browser]
     end
 
-    subgraph Firebase["Firebase Services"]
-        HOSTING[Firebase Hosting<br/>diagnosticpro.io]
+    subgraph Stripe["Payment Providers"]
+        CHECKOUT[Stripe Checkout $4.99]
+        WHOP[Whop Subscription $29/mo]
     end
 
-    subgraph Stripe["Stripe Platform"]
-        CHECKOUT[Stripe Checkout]
-        WEBHOOK[Stripe Webhook]
-    end
+    subgraph VPS["Intent Solutions VPS (167.86.106.29)"]
+        CADDY[Caddy Reverse Proxy<br/>diagnosticpro.io — auto TLS]
+        EXPRESS[Node/Express Backend<br/>Docker · 127.0.0.1:8089]
 
-    subgraph GCP["Google Cloud Platform"]
-        GATEWAY[API Gateway<br/>diagpro-gw]
-        CLOUDRUN[Cloud Run Backend<br/>diagnosticpro-vertex-ai-backend]
-
-        subgraph Data["Data Layer"]
-            FIRESTORE[(Firestore<br/>diagnosticSubmissions<br/>orders<br/>emailLogs)]
-            STORAGE[(Cloud Storage<br/>PDF Reports)]
+        subgraph Data["Local Data (Docker volume)"]
+            SQLITE[(SQLite<br/>submissions · orders)]
+            FS[(Local Filesystem<br/>PDF Reports)]
         end
-
-        subgraph AI["AI Layer"]
-            VERTEX[Vertex AI<br/>Gemini 2.5 Flash]
-        end
-
-        SECRET[Secret Manager<br/>API Keys & Credentials]
     end
 
-    USER -->|1. Access site| HOSTING
-    USER -->|2. Submit diagnostic form| GATEWAY
-    GATEWAY --> CLOUDRUN
-    CLOUDRUN -->|Save submission| FIRESTORE
+    subgraph AI["AI Provider (env-driven)"]
+        LLM[OpenAI gpt-4o<br/>OpenAI-compatible client]
+    end
 
-    USER -->|3. Pay $4.99| CHECKOUT
-    CHECKOUT -->|4. Payment webhook| WEBHOOK
-    WEBHOOK --> GATEWAY
+    USER -->|1. Access site + static assets| CADDY
+    USER -->|2. Submit diagnostic form| CADDY
+    CADDY --> EXPRESS
+    EXPRESS -->|Save submission| SQLITE
 
-    GATEWAY -->|5. Trigger analysis| CLOUDRUN
-    CLOUDRUN -->|6. Fetch secrets| SECRET
-    CLOUDRUN -->|7. Generate analysis| VERTEX
-    VERTEX -->|8. Return 15-section report| CLOUDRUN
+    USER -->|3. Pay| CHECKOUT
+    USER -->|3b. Subscribe| WHOP
+    CHECKOUT -->|4. Payment webhook| CADDY
+    WHOP -->|4b. Membership webhook| CADDY
 
-    CLOUDRUN -->|9. Generate PDF| CLOUDRUN
-    CLOUDRUN -->|10. Upload PDF| STORAGE
-    CLOUDRUN -->|11. Update order status| FIRESTORE
+    EXPRESS -->|5. Generate analysis| LLM
+    LLM -->|6. Return 15-section report| EXPRESS
 
-    USER -->|12. Download report| GATEWAY
-    GATEWAY --> CLOUDRUN
-    CLOUDRUN -->|13. Get signed URL| STORAGE
-    STORAGE -->|14. Deliver PDF| USER
+    EXPRESS -->|7. Generate + write PDF| FS
+    EXPRESS -->|8. Update order status| SQLITE
 
-    style USER fill:#4285F4
-    style VERTEX fill:#34A853
-    style CHECKOUT fill:#00D924
-    style FIRESTORE fill:#FFCA28
-    style STORAGE fill:#EA4335
+    USER -->|9. Download report| CADDY
+    CADDY --> EXPRESS
+    EXPRESS -->|10. Stream PDF| FS
+    FS -->|11. Deliver PDF| USER
+
+    style USER fill:#3b82f6,color:#fff
+    style CADDY fill:#10b981,color:#fff
+    style LLM fill:#10a37f,color:#fff
+    style CHECKOUT fill:#635bff,color:#fff
+    style SQLITE fill:#f59e0b,color:#fff
 ```
 
 ### Data Flow
@@ -231,83 +229,109 @@ flowchart TB
 
 ```
 1. USER submits diagnostic form
-   └─> POST /saveSubmission via API Gateway
-       └─> Cloud Run saves to Firestore (diagnosticSubmissions collection)
+   └─> POST /saveSubmission (same-origin, Caddy proxies to Express)
+       └─> Express writes to SQLite (submissions)
        └─> Returns submissionId to frontend
 
-2. USER completes Stripe Checkout
-   └─> Stripe creates checkout session ($4.99)
+2. USER completes payment
+   └─> Stripe Checkout ($4.99) or Whop subscription ($29/mo)
        └─> Payment succeeds
-           └─> Stripe fires checkout.session.completed webhook
+           └─> Provider fires a webhook (checkout.session.completed / membership event)
 
-3. Stripe webhook hits API Gateway
-   └─> POST /stripeWebhook with signature verification
-       └─> Cloud Run validates webhook signature
-           └─> Creates order in Firestore (orders collection)
+3. Payment webhook hits Caddy → Express
+   └─> POST /stripeWebhookForward with signature verification
+       └─> Express validates the webhook signature
+           └─> Creates order in SQLite (orders)
            └─> Triggers AI analysis
 
-4. Cloud Run calls Vertex AI
-   └─> Loads submission data from Firestore
-       └─> Sends to Gemini 2.5 Flash with 15-section prompt
-           └─> Receives 2000+ word structured analysis (20-30s)
+4. Express calls the LLM
+   └─> Loads submission data from SQLite
+       └─> Sends to OpenAI gpt-4o with the 15-section prompt
+           └─> Receives 2000+ word structured analysis
 
-5. Cloud Run generates PDF
-   └─> PDFValidationSystem validates all 15 sections
+5. Express generates the PDF
+   └─> Validates all 15 sections
        └─> Typography manager formats with proper pagination
            └─> Generates 12-15 page professional PDF
-               └─> Uploads to Cloud Storage bucket
+               └─> Writes it to the local reports directory on the VPS volume
 
-6. Cloud Run sends email
-   └─> Fetches signed URL from Cloud Storage (valid 7 days)
+6. Express sends email
+   └─> Produces a download link for the report
        └─> Sends email with download link to customer
-           └─> Logs email delivery in Firestore (emailLogs collection)
+           └─> Logs delivery in SQLite
 
 7. USER downloads report
    └─> Clicks email link
-       └─> GET /getDownloadUrl via API Gateway
-           └─> Cloud Run generates fresh signed URL
-               └─> User downloads PDF from Cloud Storage
+       └─> GET /getDownloadUrl (Caddy → Express)
+           └─> Express streams the PDF from the local filesystem
 ```
 
 ### Key Endpoints
 
+The frontend calls the API **same-origin** — Caddy proxies these paths to Express (leave
+`VITE_API_BASE` empty for the self-hosted build).
+
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/saveSubmission` | POST | Save diagnostic form to Firestore |
+| `/saveSubmission` | POST | Save diagnostic form to SQLite |
 | `/createCheckoutSession` | POST | Create Stripe Checkout session |
-| `/stripeWebhook` | POST | Handle Stripe payment webhooks (private) |
-| `/analyzeDiagnostic` | POST | Trigger AI analysis manually |
-| `/getDownloadUrl` | POST | Generate signed URL for PDF download |
-| `/analysisStatus` | POST | Check status of diagnostic analysis |
+| `/stripeWebhookForward` | POST | Handle payment webhooks with signature verification (private) |
+| `/analyzeDiagnostic` | POST | Trigger AI analysis |
+| `/analysisStatus` | POST | Check status of a diagnostic analysis |
+| `/getDownloadUrl` | POST | Get the download link for a report PDF |
 | `/healthz` | GET | Health check endpoint |
 
 ### Environment Configuration
 
-**Required Secrets (stored in Google Secret Manager):**
-- `FIREBASE_API_KEY` — Firebase project authentication
-- `STRIPE_SECRET_KEY` — Stripe payment processing
-- `STRIPE_WEBHOOK_SECRET` — Webhook signature verification
-- `API_GATEWAY_KEY` — API Gateway access control
+Copy `.env.example` to `.env` for local dev. **Never commit real plaintext values** — the real
+secrets live in a SOPS-encrypted `.env.sops` (age) that IS committed and is materialized in-process
+on the VPS at deploy time (see `secrets.example.yaml` for the schema).
 
-**Environment Variables:**
 ```bash
-GOOGLE_CLOUD_PROJECT=diagnostic-pro-prod
-VERTEX_AI_PROJECT=diagnostic-pro-prod
-VERTEX_AI_LOCATION=us-central1
-REPORT_BUCKET=diagnostic-pro-prod-reports-us-central1
+# Frontend API base — leave EMPTY for the self-hosted build so the browser calls
+# the API same-origin (Caddy proxies /saveSubmission, /analyzeDiagnostic, etc.).
+VITE_USE_NEW_API=true
+VITE_API_BASE=
+
+# Stripe ($4.99 one-off)
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_PUBLISHABLE_KEY=pk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+
+# Whop ($29/mo subscription)
+WHOP_API_KEY=...
+WHOP_WEBHOOK_SECRET=...
+
+# LLM — OpenAI gpt-4o is the default (OpenAI-compatible client).
+# Provider is fully env-driven, so switching is a config change, not a code change.
+LLM_API_KEY=...
+LLM_BASE_URL=https://api.openai.com/v1
+LLM_MODEL=gpt-4o
+#   Groq:   LLM_BASE_URL=https://api.groq.com/openai/v1     (+ GROQ_API_KEY)
+#   xAI:    LLM_BASE_URL=https://api.x.ai/v1  LLM_MODEL=grok-4
+#   Ollama: LLM_BASE_URL=http://127.0.0.1:11434/v1          (100% local, any pulled model)
+
+# Optional: Slack notifications
+SLACK_WEBHOOK_URL=https://hooks.slack.com/services/YOUR/WEBHOOK/URL
+
+# Runtime
 NODE_ENV=production
 PORT=8080
+
+# Self-host storage — SQLite DB + local report FS on the VPS/Docker volume
+DB_PATH=/data/diagnosticpro.db
+REPORTS_DIR=/data/diagnosticpro/reports
 ```
 
 ### Security Architecture
 
-- **Workload Identity Federation** — Keyless GitHub Actions authentication
-- **Secret Manager** — All credentials encrypted and centrally managed
-- **Stripe Signature Verification** — Webhook authenticity validation
-- **Cloud Storage Signed URLs** — Time-limited report access (7 days)
-- **CORS Configuration** — Restricted to diagnosticpro.io domain
-- **Firestore Security Rules** — Row-level access control
-- **PCI DSS Compliant** — Stripe handles all payment data
+- **SOPS + age encryption** — all credentials committed encrypted, materialized in-process at deploy; nothing plaintext at rest
+- **Caddy auto-provisioned TLS** — certificates issued and renewed automatically for diagnosticpro.io
+- **Localhost-only backend** — Express binds `127.0.0.1:8089`; only Caddy can reach it
+- **Payment signature verification** — Stripe and Whop webhook authenticity validation
+- **CORS configuration** — restricted to the diagnosticpro.io origin
+- **PCI DSS compliant** — Stripe handles all payment card data
+- **Secret scanning in CI** — gitleaks runs on every push to keep plaintext secrets out of history
 
 ---
 
@@ -318,9 +342,9 @@ PORT=8080
 ```bash
 # Required tools
 - Node.js 18+
-- Google Cloud CLI (gcloud)
-- Firebase CLI
-- Stripe account
+- Docker + Docker Compose (for the containerized backend)
+- Stripe account (and Whop account for subscriptions)
+- An OpenAI API key (or a compatible provider key: Groq, xAI, Ollama)
 ```
 
 ### 1. Clone Repository
@@ -349,9 +373,8 @@ npm install
 cp .env.example .env
 
 # Edit .env with your credentials:
-# - Firebase config (from Firebase Console)
-# - Stripe keys (from Stripe Dashboard)
-# - Google Cloud project ID
+# - Stripe keys (from Stripe Dashboard) + Whop keys
+# - LLM_API_KEY / LLM_BASE_URL / LLM_MODEL (OpenAI gpt-4o by default)
 ```
 
 ### 4. Run Locally
@@ -368,37 +391,50 @@ npm run dev
 # → http://localhost:8080
 ```
 
-### 5. Deploy to Production
+Or run the backend the way production does, in Docker:
 
 ```bash
-# Deploy frontend
-firebase deploy --only hosting
-
-# Deploy backend
-gcloud run deploy diagnosticpro-vertex-ai-backend \
-  --source 02-src/backend/services/backend \
-  --region us-central1 \
-  --project diagnostic-pro-prod \
-  --set-secrets="STRIPE_SECRET_KEY=STRIPE_SECRET_KEY:latest,STRIPE_WEBHOOK_SECRET=STRIPE_WEBHOOK_SECRET:latest,FIREBASE_API_KEY=FIREBASE_API_KEY:latest"
+docker compose up -d          # builds + starts the backend container
+docker compose ps
+curl http://127.0.0.1:8089/healthz
 ```
 
-**See [CLAUDE.md](CLAUDE.md) for complete deployment documentation**
+### 5. Deploy to Production
+
+Production runs on the Intent Solutions VPS behind Caddy. A `deploy.yml` reusable-workflow caller
+is being wired for `git push → VPS Docker deploy`; **interim deploys are manual** per the VPS
+runbook:
+
+```bash
+# On the VPS (secrets already materialized from .env.sops; clone at /srv/code/diagnostic-pro)
+docker compose pull || docker compose build
+docker compose up -d
+docker compose ps
+
+# Caddy fronts it publicly (validate first, then reload — never restart):
+caddy validate --config /etc/caddy/Caddyfile
+systemctl reload caddy
+```
+
+**See [CLAUDE.md](CLAUDE.md) and the Intent Solutions VPS runbook (`onboard-new-repo-deploy.md`,
+`manual-deploy.md`) for complete deployment documentation.**
 
 ---
 
 ## 📊 Production Status
 
-**Version:** v2.0.0 (Released October 2025)
+**Version:** v1.1.0 — self-hosted on the Intent Solutions VPS
 
 ### ✅ What's Live
 
-- **Frontend** → Firebase Hosting at `https://diagnosticpro.io`
-- **Backend API** → Cloud Run at `diagnosticpro-vertex-ai-backend`
-- **AI Engine** → Vertex AI Gemini 2.5 Flash
-- **Payment System** → Stripe Checkout + Webhooks
-- **Database** → Cloud Firestore (3 collections)
-- **PDF System** → Production-grade v2.0 with validation
-- **Email Delivery** → >98% success rate
+- **Frontend** → static `dist/` served by Caddy at `https://diagnosticpro.io`
+- **Backend API** → Node/Express in Docker, `127.0.0.1:8089`, fronted by Caddy
+- **AI Engine** → OpenAI gpt-4o (OpenAI-compatible, provider-swappable)
+- **Payments** → Stripe Checkout ($4.99) + Whop subscription ($29/mo)
+- **Database** → SQLite (better-sqlite3, WAL) on a Docker volume
+- **Report Storage** → local filesystem on the VPS volume
+- **PDF System** → 15-section validation with typography pagination
+- **Email Delivery** → download-link delivery on report completion
 
 ### 📈 Key Metrics
 
@@ -412,20 +448,16 @@ gcloud run deploy diagnosticpro-vertex-ai-backend \
 
 ### 💰 Cost Reality
 
-**Monthly Operational Costs** (100 diagnostics/month):
+Self-hosting collapses the per-service cloud bill into one flat VPS cost plus per-token LLM usage:
 
 | Component | Monthly Cost |
 |-----------|-------------|
-| Firebase Hosting | Free (Spark plan) |
-| Cloud Run Backend | ~$10 (scale-to-zero) |
-| Vertex AI Gemini | ~$15 (per-use) |
-| Firestore | ~$5 |
-| Cloud Storage | ~$2 |
-| Stripe Fees | 2.9% + $0.30/transaction |
-| **Total** | **~$32/month + fees** |
+| VPS hosting (shared box, Caddy + Docker) | Flat — no per-request scaling cost |
+| SQLite + local report storage | Included (on the box) |
+| OpenAI gpt-4o | Per token (usage-based) |
+| Stripe / Whop fees | Stripe 2.9% + $0.30/txn · Whop platform fee on subscriptions |
 
-**Revenue:** $4.99 per diagnostic × 100 = $499/month
-**Margin:** ~70% after costs
+**Revenue:** $4.99 per one-off diagnostic + $29/mo subscriptions.
 
 ---
 
@@ -435,24 +467,24 @@ gcloud run deploy diagnosticpro-vertex-ai-backend \
 
 ```bash
 # Frontend
-npm run dev              # Vite dev server
-npm run build           # Production build
-npm test               # Jest tests
-npm run lint           # ESLint
+npm run dev              # Vite dev server (http://localhost:5173)
+npm run build           # Production build → dist/ (served by Caddy)
+npm test                # Tests
+npm run lint            # ESLint
 
 # Backend
-npm run dev            # Nodemon with hot reload
-npm start             # Production mode
-npm test              # Run tests
+npm run dev             # Nodemon with hot reload (http://localhost:8080)
+npm start               # Production mode
+npm test                # Run tests
 
-# Firebase
-firebase emulators:start    # Local emulators
-firebase deploy            # Deploy everything
-firebase functions:log    # View logs
+# Docker (production-parity backend)
+docker compose up -d          # Build + start backend on 127.0.0.1:8089
+docker compose logs -f        # Tail backend logs
+docker compose down           # Stop (named volume diagnosticpro-data persists)
 
 # Quality
-npm run format        # Prettier formatting
-npx tsc --noEmit     # Type checking
+npm run format          # Prettier formatting
+npx tsc --noEmit        # Type checking
 ```
 
 ### Testing
@@ -467,20 +499,11 @@ npm run test:watch
 # Coverage report
 npm run test:coverage
 
-# E2E testing
-# 1. Start Firebase emulators
-firebase emulators:start
-
-# 2. Use Stripe test cards
+# Payment webhook (local): forward Stripe events to the backend
+stripe listen --forward-to localhost:8080/stripeWebhookForward
+# Stripe test cards:
 # 4242 4242 4242 4242 (success)
 # 4000 0000 0000 9995 (decline)
-```
-
-### Diagnostic Test Script
-
-```bash
-# Verify README and workflow setup
-./test-github-readme.sh
 ```
 
 ---
@@ -490,18 +513,14 @@ firebase emulators:start
 ### "Payment succeeded but no email"
 
 ```bash
-# Check Cloud Run logs
-gcloud logging read \
-  "resource.type=\"cloud_run_revision\" \
-  AND resource.labels.service_name=\"diagnosticpro-vertex-ai-backend\"" \
-  --project diagnostic-pro-prod \
-  --limit 50
+# Check backend logs
+docker compose logs --tail=100 backend
 
-# Check order status in Firestore
-# Should see orderId with status: "paid"
+# Inspect order state in SQLite (inside the container / on the volume)
+docker compose exec backend node -e "const db=require('better-sqlite3')(process.env.DB_PATH); console.log(db.prepare('SELECT id,status FROM orders ORDER BY rowid DESC LIMIT 5').all())"
 ```
 
-### "PDF has blank pages" (Fixed in v2.0.0)
+### "PDF has blank pages"
 
 ```bash
 # Ensure you're on latest version
@@ -510,24 +529,24 @@ cd 02-src/backend/services/backend
 npm install
 ```
 
-### "Stripe webhook fails"
+### "Payment webhook fails"
 
 ```bash
-# Verify webhook secret matches Stripe Dashboard
+# Verify the webhook secret matches the Stripe (or Whop) dashboard
 echo $STRIPE_WEBHOOK_SECRET
 
 # Test webhook locally
-stripe listen --forward-to localhost:8080/stripeWebhook
+stripe listen --forward-to localhost:8080/stripeWebhookForward
 ```
 
 ### Common Issues
 
 | Issue | Solution |
 |-------|----------|
-| Firebase config missing | Check all `VITE_FIREBASE_*` vars in `.env` |
-| CORS errors | Verify Cloud Run allows `diagnosticpro.io` origin |
-| AI analysis timeout | Normal — Gemini takes 20-30s for full analysis |
-| PDF generation slow | Expected — comprehensive 15-section report |
+| API calls 404 in the browser | Build the frontend with `VITE_API_BASE=` empty so calls go same-origin through Caddy |
+| LLM errors / timeouts | Check `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL`; gpt-4o full analysis takes ~20-30s |
+| Backend unreachable publicly | It binds `127.0.0.1:8089` by design — Caddy is the only public path; check the Caddy block |
+| CORS errors | Verify Caddy allows the `diagnosticpro.io` origin |
 
 ---
 
@@ -535,15 +554,18 @@ stripe listen --forward-to localhost:8080/stripeWebhook
 
 ### Project Documentation
 - **[CLAUDE.md](CLAUDE.md)** — Complete system architecture & deployment guide
-- **[SECURITY_SETUP.md](SECURITY_SETUP.md)** — Secret Manager & WIF configuration
-- **[.github/README.md](.github/README.md)** — GitHub Actions & CI/CD workflows
+- **[CONTRIBUTING.md](CONTRIBUTING.md)** — How to contribute
+- **[SECURITY.md](SECURITY.md)** — Security policy & vulnerability reporting
+- **[docker-compose.yml](docker-compose.yml)** — Self-hosted backend service definition
+- **[.env.example](.env.example)** — Authoritative environment-variable reference
 - **[01-docs/](01-docs/)** — All technical documentation
 
 ### External Resources
-- [Firebase Documentation](https://firebase.google.com/docs)
-- [Vertex AI Documentation](https://cloud.google.com/vertex-ai/docs)
+- [OpenAI API Reference](https://platform.openai.com/docs)
 - [Stripe API Reference](https://stripe.com/docs/api)
-- [Cloud Run Documentation](https://cloud.google.com/run/docs)
+- [Whop Documentation](https://dev.whop.com)
+- [Caddy Documentation](https://caddyserver.com/docs)
+- [Docker Compose Documentation](https://docs.docker.com/compose)
 
 ---
 
@@ -555,7 +577,7 @@ stripe listen --forward-to localhost:8080/stripeWebhook
 - Generates comprehensive 15-section reports
 - Offers conversation coaching and scam detection
 - Delivers instant PDF reports via email
-- Processes $4.99 payments securely
+- Processes $4.99 one-off payments (Stripe) and $29/mo subscriptions (Whop)
 
 ### ⚠️ What DiagnosticPro Is NOT
 
@@ -570,13 +592,16 @@ stripe listen --forward-to localhost:8080/stripeWebhook
 
 ## 🏆 Built With
 
-- **[Firebase](https://firebase.google.com)** — Hosting, Firestore, Authentication
-- **[Google Vertex AI](https://cloud.google.com/vertex-ai)** — Gemini 2.5 Flash AI engine
-- **[Cloud Run](https://cloud.google.com/run)** — Serverless backend API
-- **[Stripe](https://stripe.com)** — Payment processing
-- **[shadcn/ui](https://ui.shadcn.com)** — React component library
-- **[Tailwind CSS](https://tailwindcss.com)** — Utility-first CSS framework
-- **[Vite](https://vitejs.dev)** — Lightning-fast build tool
+- **[Caddy](https://caddyserver.com)** — Reverse proxy with automatic TLS
+- **[Docker](https://www.docker.com)** — Containerized backend (`docker-compose.yml`)
+- **[SQLite](https://www.sqlite.org)** (better-sqlite3, WAL) — Local records store
+- **[OpenAI gpt-4o](https://platform.openai.com)** — AI engine via OpenAI-compatible client
+- **[Node.js + Express](https://expressjs.com)** — Backend service
+- **[Stripe](https://stripe.com)** — One-time payment processing
+- **[Whop](https://whop.com)** — Subscription billing
+- **[SOPS](https://github.com/getsops/sops) + [age](https://github.com/FiloSottile/age)** — Secret encryption
+- **[React](https://react.dev)** + **[shadcn/ui](https://ui.shadcn.com)** + **[Tailwind CSS](https://tailwindcss.com)** — Frontend
+- **[Vite](https://vitejs.dev)** — Build tool
 - **[PDFKit](https://pdfkit.org)** — PDF generation library
 
 ---
@@ -611,13 +636,13 @@ MIT License — See [LICENSE](LICENSE) for details
 We design and deploy custom AI systems for enterprise intelligence.
 
 **Specialties:**
-- Vertex AI production deployments
-- Firebase + Cloud Run architectures
+- Self-hosted, single-box AI application deployments (VPS + Caddy + Docker)
+- Provider-agnostic LLM integration (OpenAI-compatible, swappable to Groq / xAI / Ollama)
 - Revenue-generating AI applications
 - Enterprise diagnostic platforms
-- Multi-cloud AI orchestration
+- SOPS/age secret management and reproducible deploys
 
-**Portfolio:** This DiagnosticPro platform demonstrates production-grade AI integration with real revenue generation and enterprise security.
+**Portfolio:** This DiagnosticPro platform demonstrates production-grade AI integration with real revenue generation and self-hosted, provider-agnostic infrastructure.
 
 **Learn More:** [intentsolutions.io](https://intentsolutions.io)
 
@@ -625,7 +650,7 @@ We design and deploy custom AI systems for enterprise intelligence.
 
 <div align="center">
 
-**Powered by Google Cloud Vertex AI** • © 2025 Intent Solutions IO
+**AI powered by OpenAI gpt-4o** • Self-hosted on the Intent Solutions VPS • © 2026 Intent Solutions IO
 
 [Live Demo](https://diagnosticpro.io) • [Documentation](CLAUDE.md) • [Contact](https://intentsolutions.io)
 
