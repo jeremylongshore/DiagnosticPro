@@ -12,6 +12,21 @@ dist
 dist-ssr
 *.local
 
+# Self-host runtime artifacts (SQLite DB, generated PDF reports) — never committed;
+# these live on the VPS volume at runtime, not in source.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+reports/
+02-src/**/reports/
+test-results/
+playwright-report/
+
+# Aborted git-filter-branch scratch dir (must never be tracked)
+.git-rewrite/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
@@ -23,12 +38,15 @@ dist-ssr
 *.sln
 *.sw?
 
-# Environment variables - NEVER commit real values!
+# Environment variables - NEVER commit real (plaintext) values!
 .env
 .env.*
 *.env
 !.env.example
 !.env.template
+# SOPS-encrypted secrets ARE committed (age-encrypted, safe in git) — this is
+# the self-host secret source of truth materialized on the VPS at deploy time.
+!.env.sops
 .env.local
 .env.development.local
 .env.test.local
