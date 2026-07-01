@@ -1,0 +1,20 @@
+# SOPS configuration for DiagnosticPro
+# Follows Intent Solutions standard (age + sops). See runbook docs/secrets-inventory.md
+# and onboarding for VPS deploys.
+#
+# Encrypt: sops -e .env > .env.sops   (or use scripts/sops-env)
+# On VPS: scripts/sops-env --materialize   (writes to runtime .env)
+#
+# CI / GitHub: set SOPS_AGE_KEY secret (private key for the recipients below).
+
+creation_rules:
+  - path_regex: \.env(\.sops)?$
+    age: >-
+      age1me3vkelljqe2u4zcagja9ru5fdpfpw72xmch39fwle2cr0yfr4cs8vr5d8,
+      age1csyjrdez6fhe97zsu3zden8j7x7xes6zm3yzce5fzz524wmqav4sc0vgz3,
+      age197narfsp8geg4ud4yd634xl2tdy4wrunqr242t8cjurrt6rth58srp82da
+  - path_regex: secrets\.[a-z]+(\.sops)?\.yaml$
+    age: >-
+      age1me3vkelljqe2u4zcagja9ru5fdpfpw72xmch39fwle2cr0yfr4cs8vr5d8,
+      age1csyjrdez6fhe97zsu3zden8j7x7xes6zm3yzce5fzz524wmqav4sc0vgz3,
+      age197narfsp8geg4ud4yd634xl2tdy4wrunqr242t8cjurrt6rth58srp82da
