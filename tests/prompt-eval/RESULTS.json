@@ -1,0 +1,49 @@
+{
+  "generatedAt": "2026-07-02",
+  "baseline": "v2__gpt-4o",
+  "winner": "v3-b",
+  "shipRecommendation": "Ship v3-b (few-shot exemplar) as the gpt-4o prompt behind an LLM_FRAMEWORK_VERSION env flag: it beats v2.0 in 18/18 blind judgments (9 cases x 2 judges, 0 losses, 0 ties) with a mean weighted margin of +11.4 (gpt-5.4 judge) / +10.8 (deepseek judge) - about 2x the cross-judge noise - at +$0.008 and +6s per report; promote only after the e2e-live journey suite passes with the flag on.",
+  "rule": "A candidate ships only if it beats v2.0 on the weighted rubric consistently across cases and judges; margins within judge noise do not ship.",
+  "judges": {
+    "openai": "gpt-5.4",
+    "deepseek": "deepseek-chat (fallback second judge; planned anthropic/claude-sonnet-5 judge blocked by exhausted Anthropic API credits)"
+  },
+  "weightedScores": {
+    "v3-a__gpt-4o":          { "openai": { "candidate": 53.56, "baseline": 52.44, "wlt": "5-4-0" }, "deepseek": { "candidate": 64.67, "baseline": 60.5,  "wlt": "6-3-0" }, "cases": 9 },
+    "v3-b__gpt-4o":          { "openai": { "candidate": 64.72, "baseline": 53.33, "wlt": "9-0-0" }, "deepseek": { "candidate": 68.5,  "baseline": 57.67, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-c__gpt-4o":          { "openai": { "candidate": 53.06, "baseline": 50.56, "wlt": "6-3-0" }, "deepseek": { "candidate": 60.22, "baseline": 58.72, "wlt": "4-4-1" }, "cases": 9 },
+    "v3-d__gpt-4o":          { "openai": { "candidate": 64.22, "baseline": 51.94, "wlt": "7-2-0" }, "deepseek": { "candidate": 71.56, "baseline": 56.11, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-a__gpt-5.4":         { "openai": { "candidate": 85.39, "baseline": 47.67, "wlt": "9-0-0" }, "deepseek": { "candidate": 91.22, "baseline": 45.61, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-b__gpt-5.4":         { "openai": { "candidate": 87.89, "baseline": 48.11, "wlt": "9-0-0" }, "deepseek": { "candidate": 91.39, "baseline": 45.39, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-c__gpt-5.4":         { "openai": { "candidate": 86.17, "baseline": 48.44, "wlt": "9-0-0" }, "deepseek": { "candidate": 91.83, "baseline": 47.72, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-d__gpt-5.4":         { "openai": { "candidate": 89.78, "baseline": 44.39, "wlt": "9-0-0" }, "deepseek": { "candidate": 94.72, "baseline": 48.06, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-a__claude-sonnet-5": { "openai": { "candidate": 68.5,  "baseline": 53.6,  "wlt": "4-1-0" }, "deepseek": { "candidate": 91.9,  "baseline": 48.4,  "wlt": "5-0-0" }, "cases": 5, "partial": true },
+    "v3-b__claude-sonnet-5": { "openai": { "candidate": 72.17, "baseline": 47.25, "wlt": "6-0-0" }, "deepseek": { "candidate": 90.0,  "baseline": 45.5,  "wlt": "6-0-0" }, "cases": 6, "partial": true },
+    "v3-c__claude-sonnet-5": { "openai": { "candidate": 59.67, "baseline": 50.83, "wlt": "2-1-0" }, "deepseek": { "candidate": 86.5,  "baseline": 50.33, "wlt": "3-0-0" }, "cases": 3, "partial": true }
+  },
+  "judgeAgreement": {
+    "v3-a__gpt-4o": 0.67,
+    "v3-b__gpt-4o": 1.0,
+    "v3-c__gpt-4o": 0.56,
+    "v3-d__gpt-4o": 0.78,
+    "v3-a__gpt-5.4": 1.0,
+    "v3-b__gpt-5.4": 1.0,
+    "v3-c__gpt-5.4": 1.0,
+    "v3-d__gpt-5.4": 1.0,
+    "v3-a__claude-sonnet-5": 0.8,
+    "v3-b__claude-sonnet-5": 1.0,
+    "v3-c__claude-sonnet-5": 0.67
+  },
+  "costPerReportUSD": {
+    "v2__gpt-4o": 0.016,
+    "v3-b__gpt-4o": 0.025,
+    "v3-b__gpt-5.4": 0.079,
+    "v3-b__claude-sonnet-5": 0.137
+  },
+  "notes": [
+    "v3-d fails the consistency bar (lost mock-d and mock-g under the gpt-5.4 judge for fabricated specifics) despite comparable mean margins; best graft donor for cost-basis discipline.",
+    "v3-a and v3-c margins on gpt-4o are within cross-judge noise; do not ship.",
+    "claude-sonnet-5 cells are partial (Anthropic credits exhausted) and 5/14 outputs truncated at max_tokens 8192.",
+    "Rollout: env-flagged LLM_FRAMEWORK_VERSION with per-row framework_version stamping; promote only after e2e-live journey suite passes with the flag on."
+  ]
+}

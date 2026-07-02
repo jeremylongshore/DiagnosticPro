@@ -1,0 +1,26 @@
+{
+  "id": "live-1",
+  "payload": {
+    "equipmentType": "automotive",
+    "make": "Toyota",
+    "model": "Camry",
+    "year": "2020",
+    "symptoms": "check engine light on, rough idle at cold start",
+    "errorCodes": "P0301",
+    "problemDescription": null,
+    "fullName": "Live Cutover E2E",
+    "email": "jeremy@intentsolutions.io"
+  },
+  "meta": {
+    "sourceFile": "reports-dataset.ndjson (live report diag_1782964751258_e9092037, framework v2.0, model gpt-4o)",
+    "expectedCodes": [
+      "P0301"
+    ],
+    "tags": [
+      "automotive",
+      "misfire",
+      "single-code",
+      "real-live-case"
+    ]
+  }
+}

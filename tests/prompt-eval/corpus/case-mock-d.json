@@ -1,0 +1,27 @@
+{
+  "id": "mock-d",
+  "payload": {
+    "equipmentType": "hvac",
+    "make": "Daikin",
+    "model": "SkyAir",
+    "year": "2019",
+    "symptoms": "Office unit barely cools; supply air only 5\u00b0F below return. Compressor short cycles.",
+    "errorCodes": "CH21",
+    "problemDescription": "Filter recently replaced. Outdoor coil dusty. Ambient 92\u00b0F. Noisy expansion valve reported by staff.",
+    "fullName": "Tenant Services",
+    "email": "tenant.services@example.com"
+  },
+  "meta": {
+    "sourceFile": "tests/mocks/mock_D_hvac_low_cooling.json",
+    "sourceSubmissionId": "diag_mock_D",
+    "expectedCodes": [
+      "CH21"
+    ],
+    "tags": [
+      "hvac",
+      "manufacturer-code",
+      "low-cooling",
+      "short-cycling"
+    ]
+  }
+}

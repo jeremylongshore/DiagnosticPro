@@ -74,6 +74,8 @@ ui-debug.log
 !**/config/*.json
 # Live-journey per-run results are the durable evidence trail (no secrets inside)
 !tests/live/*.json
+# Prompt-eval corpus/outputs/results — the frozen A/B evidence for framework v3 (no secrets)
+!tests/prompt-eval/**/*.json
 *.key
 *.pem
 *.p12

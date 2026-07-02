@@ -1,0 +1,26 @@
+{
+  "id": "mock-g",
+  "payload": {
+    "equipmentType": "other",
+    "make": null,
+    "model": null,
+    "year": null,
+    "symptoms": "Custom CNC router occasionally stalls mid-job, no alarms, sometimes resumes after reboot.",
+    "errorCodes": "",
+    "problemDescription": "No detailed logs. Operators note humidity high. Controller fan noisy.",
+    "fullName": "Makerspace Lead",
+    "email": "maker.space@example.com"
+  },
+  "meta": {
+    "sourceFile": "tests/mocks/mock_G_other_vague.json",
+    "sourceSubmissionId": "diag_mock_G",
+    "expectedCodes": [],
+    "tags": [
+      "other",
+      "no-codes",
+      "vague",
+      "low-data",
+      "industrial"
+    ]
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "id": "mock-b",
+  "payload": {
+    "equipmentType": "automotive",
+    "make": "Honda",
+    "model": "Civic",
+    "year": "2009",
+    "symptoms": "Occasional crank-no-start, but runs fine once started. No warning lamps.",
+    "errorCodes": "",
+    "problemDescription": "Customer states battery and starter new, but alternator test inconclusive. Weather related? happens randomly in rain.",
+    "fullName": "Jamie Chen",
+    "email": "owner.b@example.com"
+  },
+  "meta": {
+    "sourceFile": "tests/mocks/mock_B_vehicle_low_conflict.json",
+    "sourceSubmissionId": "diag_mock_B",
+    "expectedCodes": [],
+    "tags": [
+      "automotive",
+      "no-codes",
+      "intermittent",
+      "conflicting-evidence",
+      "low-data"
+    ]
+  }
+}
