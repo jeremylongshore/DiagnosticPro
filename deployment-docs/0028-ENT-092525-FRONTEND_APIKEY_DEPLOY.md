@@ -10,7 +10,7 @@
 - Protected routes require header: x-api-key ✅
 - Backend secrets (KEEP PRIVATE in Cloud Run):
   - STRIPE_SECRET_KEY=sk_live_REDACTED ✅
-  - STRIPE_WEBHOOK_SECRET=whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ ✅
+  - STRIPE_WEBHOOK_SECRET=whsec_REDACTED-legacy-gcp-endpoint-2026-07-01 ✅
   - REPORT_BUCKET=diagnostic-pro-prod_diagnostic-reports ✅
 
 ---

@@ -369,7 +369,7 @@ https://checkout.stripe.com/c/pay/cs_live_a1UkGWy6PSyzFe2WX04yMkGR3sTKeeWWcav68e
 
 ### Stripe Configuration
 - **API Key:** sk_live_REDACTED... (version 2, valid)
-- **Webhook Secret:** whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ
+- **Webhook Secret:** whsec_REDACTED-legacy-gcp-endpoint-2026-07-01
 - **Webhook URL:** https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev/webhook/stripe
 - **Price:** $4.99 (499 cents)
 - **Mode:** Live (production)

@@ -16,4 +16,10 @@ export default defineConfig(() => ({
       "@": path.resolve(__dirname, "./src/src"),
     },
   },
+  define: {
+    // Bridge for src/src/lib/env.ts: `process.env[key]` in source becomes
+    // `import.meta.env[key]` in Vite builds (Jest keeps real process.env).
+    // Vite's own longer `process.env.NODE_ENV` define still takes precedence.
+    "process.env": "import.meta.env",
+  },
 }));

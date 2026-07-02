@@ -108,3 +108,4 @@ diagnostic-platform/
 .dolt/
 *.db
 .beads-credential-key
+coverage/

@@ -40,8 +40,9 @@ const PaymentSuccess = () => {
   }, []);
 
   const fetchSubmissionIdFromSession = async (sessionId: string) => {
-    const API_BASE = import.meta.env.VITE_API_GATEWAY_URL || 'https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev';
-    const API_KEY = import.meta.env.VITE_API_KEY || 'REDACTED_API_KEY';
+    // Empty base = same-origin relative path (self-host: Caddy proxies API paths)
+    const API_BASE = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE || '';
+    const API_KEY = import.meta.env.VITE_API_KEY || '';
     const MAX_RETRIES = 3;
     const RETRY_DELAY = 2000; // 2 seconds
 
@@ -55,9 +56,7 @@ const PaymentSuccess = () => {
           `${API_BASE}/checkout/session?id=${encodeURIComponent(sessionId)}`,
           {
             method: 'GET',
-            headers: {
-              'x-api-key': API_KEY
-            }
+            headers: API_KEY ? { 'x-api-key': API_KEY } : {}
           }
         );
 
@@ -105,8 +104,9 @@ const PaymentSuccess = () => {
   };
 
   const startAutoDownload = async (submissionId: string) => {
-    const API_BASE = import.meta.env.VITE_API_GATEWAY_URL || 'https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev';
-    const API_KEY = import.meta.env.VITE_API_KEY || 'REDACTED_API_KEY';
+    // Empty base = same-origin relative path (self-host: Caddy proxies API paths)
+    const API_BASE = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE || '';
+    const API_KEY = import.meta.env.VITE_API_KEY || '';
     const MAX_ATTEMPTS = 30;
 
     setStatus('polling');
@@ -119,9 +119,7 @@ const PaymentSuccess = () => {
           `${API_BASE}/reports/signed-url?submissionId=${encodeURIComponent(submissionId)}`,
           {
             method: 'GET',
-            headers: {
-              'x-api-key': API_KEY
-            }
+            headers: API_KEY ? { 'x-api-key': API_KEY } : {}
           }
         );
 

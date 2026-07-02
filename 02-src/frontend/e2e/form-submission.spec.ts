@@ -24,9 +24,8 @@ test.describe('Diagnostic Form Flow - Full Paid User Journey (self-host)', () =>
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 
-    // Fill minimal form (assume selectors from form)
-    await page.selectOption('select[name="equipmentType"]', 'automotive'); // adjust if needed
-    // For simplicity, use request to save since UI form may be complex
+    // Submit via API — the form uses a shadcn custom Select (no native <select>),
+    // and the actual persistence path under test is the backend /saveSubmission route.
     const saveRes = await request.post(`${base}/saveSubmission`, {
       data: {
         payload: {
@@ -34,7 +33,9 @@ test.describe('Diagnostic Form Flow - Full Paid User Journey (self-host)', () =>
           make: 'Toyota',
           model: 'Camry',
           year: '2020',
-          symptoms: ['engine light'],
+          // DiagnosticReview joins symptoms to a comma string before submit —
+          // the backend validator requires a non-empty string, not an array.
+          symptoms: 'engine light',
           fullName: 'Test User',
           email: 'test@example.com'
         }
@@ -73,14 +74,17 @@ test.describe('Diagnostic Form Flow - Full Paid User Journey (self-host)', () =>
     const pageText = await page.textContent('body');
     expect(pageText!.toLowerCase()).toMatch(/ready|download|report/);
 
-    // Try download if link present
-    const downloadLink = page.locator('a:has-text("Download")');
-    if (await downloadLink.count() > 0) {
-      const [download] = await Promise.all([
-        page.waitForEvent('download'),
-        downloadLink.click()
-      ]);
-      expect(download.suggestedFilename()).toContain('.pdf');
-    }
+    // The PDF must be retrievable — assert via the API contract rather than a
+    // UI link that may render differently per state (unconditional, unlike the
+    // old `if (count > 0)` guard that could silently skip the assertion).
+    const dlRes = await request.post(`${base}/getDownloadUrl`, { data: { submissionId } });
+    expect(dlRes.status()).toBe(200);
+    const dl = await dlRes.json();
+    expect(dl.downloadUrl).toContain('/reports/download/');
+    const pdfRes = await request.get(`${base}${dl.downloadUrl}`);
+    expect(pdfRes.status()).toBe(200);
+    const pdfBody = await pdfRes.body();
+    expect(pdfBody.length).toBeGreaterThan(10_000);
+    expect(pdfBody.subarray(0, 5).toString()).toBe('%PDF-');
   });
 });

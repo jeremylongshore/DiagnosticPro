@@ -66,8 +66,8 @@ interface SubmissionResponse {
  */
 export async function submitDiagnosticForm(data: DiagnosticFormData): Promise<SubmissionResponse> {
   try {
-    const apiBase = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE;
-    if (!apiBase) throw new Error('No API base configured');
+    // Empty base = same-origin relative path (self-host: Caddy proxies API paths)
+    const apiBase = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE || '';
 
     const payload = {
       equipmentType: data.equipmentType ?? "",
@@ -119,36 +119,58 @@ export async function submitDiagnosticForm(data: DiagnosticFormData): Promise<Su
 /**
  * Start diagnostic analysis
  */
+// The backend /analyzeDiagnostic response has shipped in two shapes:
+//   legacy:  { ok: boolean, path?: string, analysisId?: string }
+//   current: { status: string, message?: string, ... } (may also carry the legacy fields)
+// Accept BOTH robustly. api() already throws on non-2xx, so reaching the
+// success path means HTTP 200/202 — only an explicit failure marker in the
+// body should turn that into a failure.
+interface AnalyzeResponse {
+  ok?: boolean;
+  path?: string;
+  analysisId?: string;
+  status?: string;
+  message?: string;
+}
+
+const ANALYZE_FAILURE_STATUSES = new Set(['failed', 'failure', 'error']);
+const ANALYZE_PENDING_STATUSES = new Set(['processing', 'queued', 'pending']);
+
 export async function startAnalysis(
   submissionId: string,
   diagnosticData?: any
 ): Promise<ApiResponse<DiagnosticAnalysis>> {
   try {
-    const response = await api<{ ok: boolean; path: string; analysisId: string }>('/analyzeDiagnostic', {
+    const response = await api<AnalyzeResponse>('/analyzeDiagnostic', {
       method: 'POST',
       body: JSON.stringify({ submissionId }),
     });
 
-    if (response.ok) {
+    const bodyStatus = typeof response.status === 'string' ? response.status.toLowerCase() : '';
+    const explicitFailure = response.ok === false || ANALYZE_FAILURE_STATUSES.has(bodyStatus);
+
+    if (!explicitFailure) {
+      const stillProcessing = ANALYZE_PENDING_STATUSES.has(bodyStatus);
       return {
         data: {
-          id: response.analysisId,
+          id: response.analysisId || submissionId,
           submissionId,
-          analysisResult: 'Analysis completed successfully',
+          analysisResult: response.message
+            || (stillProcessing ? 'Analysis in progress' : 'Analysis completed successfully'),
           confidence: 0.95,
           recommendations: [],
           createdAt: new Date().toISOString(),
-          reportStatus: 'ready',
+          reportStatus: stillProcessing ? 'generating' : 'ready',
           reportUrl: response.path
         } as DiagnosticAnalysis,
         success: true
       };
-    } else {
-      return {
-        error: 'Analysis failed',
-        success: false
-      };
     }
+
+    return {
+      error: response.message || 'Analysis failed',
+      success: false
+    };
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : 'Analysis failed',

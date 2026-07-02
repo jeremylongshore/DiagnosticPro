@@ -45,10 +45,8 @@ export async function downloadReport(id: string): Promise<void> {
 export async function getDiagnosticStatus(diagnosticId: string): Promise<{ data: DiagnosticStatus | null; status: number; error?: string }> {
   try {
     const { getEnv } = await import('../lib/env');
+    // Empty base = same-origin relative path (self-host: Caddy proxies API paths)
     const apiBase = getEnv('VITE_API_GATEWAY_URL') || getEnv('VITE_API_BASE') || '';
-    if (!apiBase) {
-      throw new Error('No API base configured');
-    }
 
     const response = await fetch(`${apiBase}/analysisStatus`, {
       method: 'POST',

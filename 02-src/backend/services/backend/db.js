@@ -15,6 +15,7 @@ function getDb() {
     db.pragma('journal_mode = WAL');
     db.pragma('foreign_keys = ON');
     initSchema(db);
+    migrateSchema(db);
     console.log(`[db] SQLite initialized at ${DB_PATH}`);
   }
   return db;
@@ -37,6 +38,15 @@ function initSchema(db) {
       processing_started_at TEXT,
       last_error TEXT,
       error_at TEXT,
+      stripe_session_id TEXT,
+      paid_at TEXT,
+      amount_paid_cents INTEGER,
+      retry_count INTEGER DEFAULT 0,
+      paid_via TEXT,
+      whop_user_id TEXT,
+      whop_membership_id TEXT,
+      used_with_membership INTEGER DEFAULT 0,
+      charged INTEGER,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -57,6 +67,9 @@ function initSchema(db) {
       public_view_url TEXT,
       last_viewed_at TEXT,
       last_error TEXT,
+      model TEXT,
+      req_id TEXT,
+      paid_via TEXT,
       created_at TEXT,
       updated_at TEXT
     );
@@ -81,6 +94,46 @@ function initSchema(db) {
 
     CREATE INDEX IF NOT EXISTS idx_whop_email ON whop_users(email);
   `);
+}
+
+// Columns the index.js write paths depend on. CREATE TABLE IF NOT EXISTS does
+// nothing for a pre-existing table, so migrateSchema() ALTERs these in on boot
+// when a live DB was created from an older schema. Idempotent by design.
+const REQUIRED_COLUMNS = {
+  diagnostic_submissions: {
+    stripe_session_id: 'TEXT',
+    paid_at: 'TEXT',
+    amount_paid_cents: 'INTEGER',
+    retry_count: 'INTEGER DEFAULT 0',
+    paid_via: 'TEXT',
+    whop_user_id: 'TEXT',
+    whop_membership_id: 'TEXT',
+    used_with_membership: 'INTEGER DEFAULT 0',
+    charged: 'INTEGER'
+  },
+  analyses: {
+    model: 'TEXT',
+    req_id: 'TEXT',
+    paid_via: 'TEXT'
+  }
+};
+
+/**
+ * Idempotent startup migration: add any missing columns to existing tables.
+ * Safe to run on every boot (PRAGMA table_info check before each ALTER).
+ */
+function migrateSchema(db) {
+  for (const [table, columns] of Object.entries(REQUIRED_COLUMNS)) {
+    const existing = new Set(
+      db.prepare(`PRAGMA table_info(${table})`).all().map(col => col.name)
+    );
+    for (const [name, type] of Object.entries(columns)) {
+      if (!existing.has(name)) {
+        db.exec(`ALTER TABLE ${table} ADD COLUMN ${name} ${type}`);
+        console.log(`[db] migration: added column ${table}.${name}`);
+      }
+    }
+  }
 }
 
 /**

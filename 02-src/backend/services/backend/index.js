@@ -259,6 +259,10 @@ app.get('/reports/download/:submissionId', (req, res) => {
 // Must be registered BEFORE express.json() middleware
 app.post('/stripeWebhookForward', express.raw({ type: 'application/json' }), attachRequestId);
 
+// Capture raw body for Whop webhook signature verification (HMAC must run
+// over the exact bytes Whop sent, not a re-serialized JSON.stringify)
+app.post('/api/webhooks/whop', express.raw({ type: 'application/json' }), attachRequestId);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(attachRequestId);
 
@@ -486,17 +490,31 @@ app.post('/analyzeDiagnostic', analysisLimiter, async (req, res) => {
     // Allow re-trigger if force=true or stuck for >10 minutes
     const stuckThreshold = 10 * 60 * 1000;
     const isStuck = submissionData.status === 'processing' &&
-      submissionData.processingStartedAt &&
-      (Date.now() - new Date(submissionData.processingStartedAt).getTime()) > stuckThreshold;
+      submissionData.processing_started_at &&
+      (Date.now() - new Date(submissionData.processing_started_at).getTime()) > stuckThreshold;
 
     if ((submissionData.status === 'processing' || submissionData.status === 'ready') && !force && !isStuck) {
-      return res.json({ status: submissionData.status, message: 'Already processed' });
+      // ok/path/analysisId are the fields the frontend startAnalysis() checks;
+      // status/message kept for backward compat
+      return res.json({
+        ok: true,
+        analysisId: submissionId,
+        path: submissionData.report_url || `/reports/download/${submissionId}`,
+        status: submissionData.status,
+        message: 'Already processed'
+      });
     }
 
     // Start analysis
     await processAnalysis(submissionId, submissionData.payload);
 
-    res.json({ status: 'processing', message: 'Analysis started' });
+    res.json({
+      ok: true,
+      analysisId: submissionId,
+      path: `/reports/download/${submissionId}`,
+      status: 'processing',
+      message: 'Analysis started'
+    });
 
   } catch (error) {
     console.error('❌ Analyze diagnostic error:', error);
@@ -558,9 +576,7 @@ app.get('/view/:submissionId', async (req, res) => {
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `inline; filename="diagnostic-report-${submissionId}.pdf"`);
     fs.createReadStream(localPdf).pipe(res);
-
-    // Redirect to signed URL for immediate viewing
-    res.redirect(302, url);
+    return;
 
   } catch (error) {
     logStructured({
@@ -822,14 +838,14 @@ app.post('/reports/ensure', async (req, res) => {
     if (submissionData.status === 'failed' || submissionData.status === 'error') {
       db.prepare(`
         UPDATE diagnostic_submissions SET status = 'requeued', updated_at = ?, retry_count = ? WHERE id = ?
-      `).run(new Date().toISOString(), (submissionData.retryCount || 0) + 1, submissionId);
+      `).run(new Date().toISOString(), (submissionData.retry_count || 0) + 1, submissionId);
 
       logStructured({
         phase,
         status: 'requeued',
         reqId: req.reqId,
         submissionId,
-        retryCount: (submissionData.retryCount || 0) + 1
+        retryCount: (submissionData.retry_count || 0) + 1
       });
 
       // Trigger analysis asynchronously
@@ -913,31 +929,16 @@ app.post('/getDownloadUrl', async (req, res) => {
       });
     }
 
-    // Generate signed URLs (15 minutes = 900 seconds)
-    // GCS fully removed for self-host
-    // local FS only - no bucket
-
-    const [downloadUrl] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + 15 * 60 * 1000,
-      responseDisposition: `attachment; filename="${submissionId}.pdf"`,
-      // No contentType for read URLs
-    });
-
-    const [viewUrl] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + 15 * 60 * 1000,
-      responseDisposition: `inline; filename="${submissionId}.pdf"`,
-      // No contentType for read URLs
-    });
+    // Self-host: local FS URLs served by this backend (GCS signed URLs removed)
+    const downloadUrl = `/reports/download/${submissionId}`;
+    const viewUrl = `/view/${submissionId}`;
 
     logStructured({
       phase,
       status: 'ok',
       reqId: req.reqId,
-      submissionId
+      submissionId,
+      storage: 'local'
     });
 
     res.json({
@@ -945,7 +946,8 @@ app.post('/getDownloadUrl', async (req, res) => {
       viewUrl,
       expiresInSeconds: 900,
       submissionId,
-      reportPath
+      reportPath,
+      local: true
     });
 
   } catch (error) {
@@ -1060,11 +1062,29 @@ app.post('/stripeWebhookForward', async (req, res) => {
         });
       }
 
+      // Idempotency guard: Stripe can replay events. If this submission is
+      // already paid (or further along) AND an analysis row exists, do NOT
+      // reset it to 'queued' or re-run the LLM — just ACK the webhook.
+      const existingSub = db.prepare('SELECT status FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+      const existingAnalysis = db.prepare('SELECT id FROM analyses WHERE id = ?').get(submissionId);
+      if (existingSub && existingAnalysis && ['paid', 'processing', 'ready'].includes(existingSub.status)) {
+        logStructured({
+          phase,
+          status: 'duplicate_ignored',
+          reqId: req.reqId,
+          submissionId,
+          eventId,
+          submissionStatus: existingSub.status,
+          message: 'Replayed checkout.session.completed — already paid with analysis record, skipping re-queue'
+        });
+        return res.json({ received: true, duplicate: true });
+      }
+
       // Update submission to paid (SQLite)
       const paidNow = new Date().toISOString();
       db.prepare(`
         UPDATE diagnostic_submissions SET status = 'paid', updated_at = ?, stripe_session_id = ?, paid_at = ?, amount_paid_cents = ? WHERE id = ?
-      `).run(paidNow, session.id, paidNow, 499, submissionId);
+      `).run(paidNow, session.id, paidNow, session.amount_total ?? 499, submissionId);
 
       // Create analysis record
       db.prepare(`
@@ -1681,24 +1701,54 @@ function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
-// Verify Whop webhook signature using HMAC-SHA256
-function verifyWhopWebhookSignature(rawBody, signatureHeader) {
+// Constant-time signature compare; length mismatch is a normal auth failure
+// (return false → 401), never a thrown error (500)
+function safeSignatureCompare(a, b) {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+// Verify Whop webhook signature over the RAW request body (Buffer).
+// Primary scheme: Standard Webhooks (Whop follows it) — HMAC-SHA256 over
+// "<webhook-id>.<webhook-timestamp>.<payload>", secret is base64 after the
+// "whsec_" prefix, header "webhook-signature" holds "v1,<base64>" entries.
+// Fallback: plain HMAC-SHA256 of the body (hex or base64) via
+// whop-signature / x-whop-signature, so manual curl tests still work in dev.
+function verifyWhopWebhookSignature(rawBody, headers) {
   const webhookSecret = secrets.WHOP_WEBHOOK_SECRET || process.env.WHOP_WEBHOOK_SECRET;
   if (!webhookSecret) {
     logStructured({ phase: 'whopWebhook', status: 'warn', message: 'WHOP_WEBHOOK_SECRET not configured, skipping verification' });
     return false;
   }
-  if (!signatureHeader) return false;
 
-  const expectedSig = crypto
-    .createHmac('sha256', webhookSecret)
-    .update(typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody))
-    .digest('base64');
+  const bodyBuf = Buffer.isBuffer(rawBody)
+    ? rawBody
+    : Buffer.from(typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody));
 
-  return crypto.timingSafeEqual(
-    Buffer.from(signatureHeader),
-    Buffer.from(expectedSig)
-  );
+  const msgId = headers['webhook-id'];
+  const msgTimestamp = headers['webhook-timestamp'];
+  const msgSignature = headers['webhook-signature'];
+
+  if (msgId && msgTimestamp && msgSignature) {
+    // Standard Webhooks scheme
+    const key = Buffer.from(webhookSecret.replace(/^whsec_/, ''), 'base64');
+    const signedContent = `${msgId}.${msgTimestamp}.${bodyBuf.toString('utf8')}`;
+    const expectedSig = crypto.createHmac('sha256', key).update(signedContent).digest('base64');
+    // Header may hold multiple space-delimited signatures: "v1,<b64> v1,<b64>"
+    return msgSignature.split(' ').some(entry => {
+      const sig = entry.includes(',') ? entry.split(',')[1] : entry;
+      return Boolean(sig) && safeSignatureCompare(sig, expectedSig);
+    });
+  }
+
+  // Simple-HMAC fallback (dev / manual curl)
+  const legacySig = headers['whop-signature'] || headers['x-whop-signature'];
+  if (!legacySig) return false;
+  const expectedHex = crypto.createHmac('sha256', webhookSecret).update(bodyBuf).digest('hex');
+  const expectedB64 = crypto.createHmac('sha256', webhookSecret).update(bodyBuf).digest('base64');
+  return safeSignatureCompare(legacySig, expectedHex) || safeSignatureCompare(legacySig, expectedB64);
 }
 
 // Middleware: optionally attach Whop membership status to request
@@ -1809,26 +1859,13 @@ app.post('/api/auth/whop-exchange', async (req, res) => {
       membershipPlanId = isMember ? membershipData.data[0].plan_id : null;
     }
 
-    // Upsert to Firestore whopUsers collection (no raw tokens stored)
+    // Upsert to SQLite whop_users (replaces Firestore; no raw tokens stored)
     const whopUserId = user.id;
-    const whopUserDoc = {
-      whopId: whopUserId,
-      username: user.username || '',
-      name: user.name || '',
-      email: user.email || '',
-      isMember,
-      membershipId,
-      membershipStatus: isMember ? 'active' : null,
-      lastVerified: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    // Upsert to SQLite whop_users (replaces Firestore)
     const whopNow = new Date().toISOString();
     db.prepare(`
       INSERT OR REPLACE INTO whop_users (id, whop_id, username, email, is_member, membership_id, last_verified, updated_at)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(whopUserId, whopUserId, user.username || '', user.email || '', isMember ? 1 : 0, membership?.id || null, whopNow, whopNow);
+    `).run(whopUserId, whopUserId, user.username || '', user.email || '', isMember ? 1 : 0, membershipId, whopNow, whopNow);
 
     logStructured({
       phase,
@@ -1892,14 +1929,19 @@ app.post('/api/webhooks/whop', async (req, res) => {
   const phase = 'whopWebhook';
 
   try {
-    // Verify webhook signature
-    const signature = req.headers['whop-signature'] || req.headers['x-whop-signature'];
-    if (!verifyWhopWebhookSignature(req.body, signature)) {
+    // Verify webhook signature over the raw body bytes (express.raw route above)
+    if (!verifyWhopWebhookSignature(req.body, req.headers)) {
       logStructured({ phase, status: 'rejected', reason: 'Invalid or missing webhook signature' });
       return res.status(401).json({ error: 'Invalid webhook signature' });
     }
 
-    const event = req.body;
+    // Parse the raw Buffer only after the signature checks out
+    let event;
+    try {
+      event = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString('utf8')) : req.body;
+    } catch (parseErr) {
+      return res.status(400).json({ error: 'Invalid JSON body', code: 'INVALID_BODY' });
+    }
     const { action, data } = event;
 
     logStructured({ phase, status: 'received', action, userId: data?.user_id });

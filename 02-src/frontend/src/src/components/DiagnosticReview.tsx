@@ -205,15 +205,15 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
           keyCount: Object.keys(payload).length
         });
 
-        // Call API Gateway endpoint
+        // Call backend endpoint (empty base = same-origin; Caddy proxies API paths)
         const apiGatewayUrl = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE || '';
-        const apiKey = import.meta.env.VITE_API_KEY || 'REDACTED_API_KEY';
+        const apiKey = import.meta.env.VITE_API_KEY || '';
 
         const response = await fetch(`${apiGatewayUrl}/saveSubmission`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': apiKey,
+            ...(apiKey ? { 'x-api-key': apiKey } : {}),
             'x-dp-reqid': reqId
           },
           body: JSON.stringify(submissionRequest)
@@ -509,9 +509,12 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
                       </div>
                     ) : isDataSaved && submissionId ? (
                       <div className="space-y-4">
+                        {/* Env vars win so a Stripe account swap only needs a rebuild with new
+                            VITE_STRIPE_* values; publishable keys are public, so a hardcoded
+                            fallback to the current live account is acceptable. */}
                         <stripe-buy-button
-                          buy-button-id="buy_btn_1SC6LyJfyCDmId8XPHZozmzJ"
-                          publishable-key="pk_live_51RgbAkJfyCDmId8XfY0H7dLS8v2mjL6887WNfScroA9v6ggvcPbXSQUjrLkY2dVZh26QdbcS3nXegFKnf6C6RMEb00po2qC8Fg"
+                          buy-button-id={import.meta.env.VITE_STRIPE_BUY_BUTTON_ID || "buy_btn_1SC6LyJfyCDmId8XPHZozmzJ"}
+                          publishable-key={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "pk_live_51RgbAkJfyCDmId8XfY0H7dLS8v2mjL6887WNfScroA9v6ggvcPbXSQUjrLkY2dVZh26QdbcS3nXegFKnf6C6RMEb00po2qC8Fg"}
                         >
                         </stripe-buy-button>
                         {/* Upsell for non-members */}

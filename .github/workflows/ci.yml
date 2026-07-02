@@ -46,7 +46,42 @@ jobs:
           cache-dependency-path: ./02-src/backend/services/backend/package-lock.json
       - name: Install dependencies
         run: npm ci
-      - name: Run backend tests (including new self-host SQLite layer)
-        run: npm test
+      - name: Run backend tests with coverage gate (floor enforced by jest coverageThreshold)
+        run: npx jest --coverage
       - name: Verify PDF generator (legacy smoke)
         run: node -e "const {generateDiagnosticProPDF} = require('./reportPdfProduction.js'); console.log('PDF generator loaded successfully');"
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [frontend-test, backend-test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+          cache-dependency-path: ./02-src/frontend/pnpm-lock.yaml
+      - name: Install backend deps
+        working-directory: ./02-src/backend/services/backend
+        run: npm ci
+      - name: Boot backend (mock LLM)
+        working-directory: ./02-src/backend/services/backend
+        run: |
+          TEST_MOCK_LLM=1 NODE_ENV=test PORT=8089 \
+            DB_PATH=/tmp/e2e.db REPORTS_DIR=/tmp/e2e-reports \
+            node index.js &
+          for i in $(seq 1 30); do
+            curl -sf http://127.0.0.1:8089/healthz && break; sleep 1;
+          done
+      - name: Install frontend deps + Playwright
+        working-directory: ./02-src/frontend
+        run: |
+          pnpm install --frozen-lockfile
+          npx playwright install --with-deps chromium
+      - name: Run Playwright e2e
+        working-directory: ./02-src/frontend
+        run: npx playwright test

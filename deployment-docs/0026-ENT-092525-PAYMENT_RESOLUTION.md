@@ -143,7 +143,7 @@ curl -X POST "https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev/createCheckout
 
 ### **Stripe Webhook Configuration Verified**
 - **Endpoint URL:** `https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev/webhook/stripe`
-- **Signing Secret:** `whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ`
+- **Signing Secret:** `whsec_REDACTED-legacy-gcp-endpoint-2026-07-01`
 - **API Version:** `2025-06-30.basil`
 - **Events:** 4 events configured
 - **Description:** Cloud diagnosticpro
@@ -176,7 +176,7 @@ curl -X POST "https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev/createCheckout
 ### **Environment Variables (Final)**
 ```bash
 STRIPE_SECRET_KEY=sk_live_REDACTED
-STRIPE_WEBHOOK_SECRET=whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ
+STRIPE_WEBHOOK_SECRET=whsec_REDACTED-legacy-gcp-endpoint-2026-07-01
 REPORT_BUCKET=diagnostic-pro-prod_diagnostic-reports
 GCP_PROJECT=diagnostic-pro-prod
 VAI_LOCATION=us-central1

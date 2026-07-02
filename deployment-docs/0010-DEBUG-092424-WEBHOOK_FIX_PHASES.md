@@ -57,7 +57,7 @@ stripe.webhooks.constructEvent(
 
 
     •    Update env var:
-    •    gcloud run services update simple-diagnosticpro --region us-central1 --project diagnostic-pro-prod --update-env-vars STRIPE_WEBHOOK_SECRET=whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ
+    •    gcloud run services update simple-diagnosticpro --region us-central1 --project diagnostic-pro-prod --update-env-vars STRIPE_WEBHOOK_SECRET=whsec_REDACTED-legacy-gcp-endpoint-2026-07-01
     •    Confirm STRIPE_SECRET=sk_live_... is already set.
     •    PASS if code and env match.
 
