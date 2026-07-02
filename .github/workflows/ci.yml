@@ -71,7 +71,7 @@ jobs:
       - name: Boot backend (mock LLM)
         working-directory: ./02-src/backend/services/backend
         run: |
-          TEST_MOCK_LLM=1 NODE_ENV=test PORT=8089 \
+          TEST_MOCK_LLM=true NODE_ENV=test PORT=8089 \
             DB_PATH=/tmp/e2e.db REPORTS_DIR=/tmp/e2e-reports \
             node index.js &
           for i in $(seq 1 30); do
@@ -82,6 +82,11 @@ jobs:
         run: |
           pnpm install --frozen-lockfile
           npx playwright install --with-deps chromium
+      - name: Build frontend (Playwright preview server serves dist/)
+        working-directory: ./02-src/frontend
+        run: pnpm run build
+        env:
+          VITE_API_BASE: ''
       - name: Run Playwright e2e
         working-directory: ./02-src/frontend
         run: npx playwright test
