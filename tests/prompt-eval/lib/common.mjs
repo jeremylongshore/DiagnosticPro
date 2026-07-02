@@ -52,6 +52,9 @@ export const MODELS = {
   // Judge-only fallback (2026-07-02): Anthropic credit balance exhausted mid-eval,
   // so the second (independent) judge runs on DeepSeek's OpenAI-compatible API.
   'deepseek-chat': { baseUrl: 'https://api.deepseek.com/v1', keyEnvVar: 'DEEPSEEK_API_KEY' },
+  // Challenger replacing claude-sonnet-5 (2026-07-02 rerun): the scout's rank-3
+  // pick, benched to complete the grid after Anthropic credits died.
+  'deepseek-v4-pro': { baseUrl: 'https://api.deepseek.com/v1', keyEnvVar: 'DEEPSEEK_API_KEY' },
 };
 
 export function resolveModel(modelId) {
