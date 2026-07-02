@@ -1198,7 +1198,7 @@ async function processAnalysis(submissionId, payload, reqId) {
         req_id = COALESCE(analyses.req_id, excluded.req_id),
         framework_version = excluded.framework_version
     `).run(submissionId, submissionId, procNow, procNow,
-           process.env.LLM_MODEL || 'gpt-4o', reqId || null, LLM_FRAMEWORK_VERSION);
+           process.env.LLM_MODEL || 'gpt-4o', reqId || null, llmFrameworkVersion());
 
     // Call the LLM (OpenAI gpt-4o via the OpenAI-compatible client)
     const analysis = await callLLM(payload);
@@ -1379,12 +1379,18 @@ function getEquipmentPromptContext(equipmentType, payload) {
   return configs[equipmentType] || defaultConfig;
 }
 
-// Report framework version stamped on every analyses row (dataset versioning).
-// v2.0 = the current "DiagnosticPro Proprietary 15-Section Analysis Framework"
-// prompt inside callLLM. Bump (or override via env during a staged rollout)
-// whenever the prompt contract changes, so old vs new reports stay
-// distinguishable in the long-term dataset.
-const LLM_FRAMEWORK_VERSION = process.env.LLM_FRAMEWORK_VERSION || 'v2.0';
+// Report framework version — SELECTS the prompt in callLLM and is stamped on
+// every analyses row (dataset versioning), so attribution can never drift from
+// the prompt actually used. Read live from env (not module-load) so a
+// container env flip + restart is the entire rollout switch.
+//   v2.0 (default) — the original 15-Section Analysis Framework prompt below.
+//   v3.x           — candidate v3-b "few-shot exemplar" (promptV3.js), winner
+//                    of the 2026-07-02 blind A/B eval (18/18 vs v2.0,
+//                    +11.4/+10.8 weighted — tests/prompt-eval/RESULTS.md).
+const { V3B_SYSTEM, V3B_USER_TEMPLATE } = require('./promptV3.js');
+function llmFrameworkVersion() {
+  return process.env.LLM_FRAMEWORK_VERSION || 'v2.0';
+}
 
 // FUNCTION: Call the LLM (OpenAI gpt-4o via the OpenAI-compatible client).
 // Provider is fully env-driven — LLM_BASE_URL / LLM_MODEL / LLM_API_KEY — so
@@ -1530,14 +1536,50 @@ Provide your analysis using the following EXACT 15-section structure. Every sect
 
 Return your response as a comprehensive diagnostic report following this structure exactly. Be specific, technical, and reference the customer's provided data throughout your analysis.`;
 
+  // Framework selection. v2.0 = the literal above (byte-frozen eval baseline —
+  // do not edit it without re-benching). v3.x = candidate v3-b rendered with
+  // the SAME substitutions the eval harness used (renderCandidate in
+  // tests/prompt-eval/lib/common.mjs), so production output matches what the
+  // judges scored.
+  const frameworkVersion = llmFrameworkVersion();
+  let systemContent = 'You are DiagnosticPro\'s MASTER TECHNICIAN. Output ONLY the requested 15-section report with no extra preamble or markdown wrappers beyond the numbered headings.';
+  let userContent = prompt;
+  if (frameworkVersion.startsWith('v3')) {
+    const customerDataBlock = `- Vehicle: ${payload.make || 'N/A'} ${payload.model || 'N/A'} ${payload.year || 'N/A'}
+- Equipment Type: ${payload.equipmentType || 'N/A'}
+- Mileage/Hours: ${payload.mileageHours || 'N/A'}
+- Serial Number: ${payload.serialNumber || 'N/A'}
+- Problem: ${payload.problemDescription || 'N/A'}
+- Symptoms: ${payload.symptoms || 'N/A'}
+- Extracted Error Codes: ${(detectedCodes.join(', ')) || 'None auto-detected'}
+- Raw Error/Code Text: ${payload.errorCodes || 'None provided'}
+- When Started: ${payload.whenStarted || 'N/A'}
+- Frequency: ${payload.frequency || 'N/A'}
+- Urgency Level: ${payload.urgencyLevel || 'N/A'}
+- Location/Environment: ${payload.locationEnvironment || 'N/A'}
+- Usage Pattern: ${payload.usagePattern || 'N/A'}
+- Previous Repairs: ${payload.previousRepairs || 'N/A'}
+- Modifications: ${payload.modifications || 'N/A'}
+- Troubleshooting Done: ${payload.troubleshootingSteps || 'N/A'}
+- Shop Quote: ${payload.shopQuoteAmount || 'N/A'}
+- Shop Recommendation: ${payload.shopRecommendation || 'N/A'}`;
+    const subs = {
+      '{{CUSTOMER_DATA_BLOCK}}': customerDataBlock,
+      '{{DIAGNOSTIC_FRAME}}': equipmentContext.diagnosticFrame,
+      '{{ERROR_CODE_GUIDANCE}}': equipmentContext.errorCodeGuidance,
+      '{{SOURCE_GUIDANCE}}': equipmentContext.sourceGuidance,
+      '{{SAFETY_CONSIDERATIONS}}': equipmentContext.safetyConsiderations
+    };
+    const render = (tpl) => Object.entries(subs).reduce((out, [k, v]) => out.split(k).join(v), tpl);
+    systemContent = render(V3B_SYSTEM);
+    userContent = render(V3B_USER_TEMPLATE);
+  }
+
   const chat = await openai.chat.completions.create({
     model: modelName,
     messages: [
-      {
-        role: 'system',
-        content: 'You are DiagnosticPro\'s MASTER TECHNICIAN. Output ONLY the requested 15-section report with no extra preamble or markdown wrappers beyond the numbered headings.'
-      },
-      { role: 'user', content: prompt }
+      { role: 'system', content: systemContent },
+      { role: 'user', content: userContent }
     ],
     max_tokens: 8192,
     temperature: 0.25
@@ -1546,7 +1588,7 @@ Return your response as a comprehensive diagnostic report following this structu
   const text = chat.choices?.[0]?.message?.content || '';
 
   // Debug logging (provider agnostic)
-  console.log(`LLM analysis (base=${baseURL}, model=${modelName}) length=${text ? text.length : 0} chars`);
+  console.log(`LLM analysis (base=${baseURL}, model=${modelName}, framework=${frameworkVersion}) length=${text ? text.length : 0} chars`);
 
   // Return the full analysis text for PDF generation (exact same shape as before)
   return {

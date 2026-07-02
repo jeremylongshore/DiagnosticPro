@@ -11,6 +11,7 @@ process.env.DB_PATH = path.join(tmpRoot, 'test.db');
 process.env.REPORTS_DIR = path.join(tmpRoot, 'reports');
 
 // Deterministic key resolution: no real provider keys
+delete process.env.LLM_FRAMEWORK_VERSION;
 delete process.env.OPENAI_API_KEY;
 delete process.env.DEEPSEEK_API_KEY;
 delete process.env.GROQ_API_KEY;
@@ -119,6 +120,48 @@ describe('callLLM with the OpenAI client mocked', () => {
 
     expect(result.fullAnalysis).toBe('');
     expect(result.confidence).toBe(0.92);
+  });
+
+  test('default framework v2.0 sends the original prompt with no exemplar', async () => {
+    mockCreate.mockResolvedValue({ choices: [{ message: { content: 'report' } }] });
+
+    await callLLM(semiPayload);
+
+    const req = mockCreate.mock.calls[0][0];
+    expect(req.messages[0].content).toBe(
+      "You are DiagnosticPro's MASTER TECHNICIAN. Output ONLY the requested 15-section report with no extra preamble or markdown wrappers beyond the numbered headings."
+    );
+    expect(req.messages[1].content).not.toContain('BEGIN EXEMPLAR');
+    expect(req.messages[1].content).toContain('Return your response as a comprehensive diagnostic report');
+  });
+
+  test('LLM_FRAMEWORK_VERSION=v3.0 selects the v3-b few-shot prompt with all placeholders substituted', async () => {
+    mockCreate.mockResolvedValue({ choices: [{ message: { content: 'report' } }] });
+    process.env.LLM_FRAMEWORK_VERSION = 'v3.0';
+    try {
+      await callLLM(semiPayload);
+
+      const req = mockCreate.mock.calls[0][0];
+      // system carries the exemplar-handling contract
+      expect(req.messages[0].content).toContain('REFERENCE EXEMPLAR');
+      const user = req.messages[1].content;
+      // the embedded exemplar + its anti-copy fencing are present
+      expect(user).toContain('=== BEGIN EXEMPLAR');
+      expect(user).toContain('=== END EXEMPLAR ===');
+      // v3-only authoring rule 8 (dash bullets — parser protection)
+      expect(user).toContain('use "-" dash bullets only');
+      // preamble ban closing instruction
+      expect(user).toContain('Begin your response with the line "1. PRIMARY DIAGNOSIS"');
+      // placeholders substituted with the SAME context v2 uses
+      expect(user).toContain('Class 8 commercial vehicle technician');   // {{DIAGNOSTIC_FRAME}}
+      expect(user).toContain('Extracted Error Codes: SPN3216/FMI4');     // {{CUSTOMER_DATA_BLOCK}}
+      expect(user).toContain('Kenworth T680 2017');
+      expect(user).not.toMatch(/\{\{[A-Z_]+\}\}/);                        // nothing unresolved
+      // the 15-section contract survives intact
+      expect(user).toContain('15. NEXT STEPS SUMMARY');
+    } finally {
+      delete process.env.LLM_FRAMEWORK_VERSION;
+    }
   });
 
   test('throws the no-key error when no provider key is configured at all', async () => {

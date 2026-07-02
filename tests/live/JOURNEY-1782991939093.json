@@ -1,0 +1,147 @@
+{
+  "run": "JOURNEY-1782991939093",
+  "baseUrl": "https://test.diagnosticpro.io",
+  "startedAt": "2026-07-02T11:32:19.093Z",
+  "finishedAt": "2026-07-02T11:33:04.644Z",
+  "gates": {
+    "stripeTestMode": true,
+    "whopMemberToken": false
+  },
+  "summary": {
+    "passed": 11,
+    "skipped": 2
+  },
+  "journeyState": {
+    "submissionId": "diag_1782991945882_9d0d6ae1",
+    "checkoutSessionId": "cs_test_a1jKsNn3KEMerMHyHsIcV29mTi2s2Rm9QEnzArThFbK6YrbcAlcTOY5xKV",
+    "whopSubmissionId": ""
+  },
+  "steps": [
+    {
+      "id": "J1-01",
+      "name": "J1-01 landing page serves 200 with the diagnostic form and CTA",
+      "status": "passed",
+      "ms": 1936,
+      "evidence": {
+        "http": 200,
+        "title": "DiagnosticPro.io - Professional Automotive Diagnostic Solutions"
+      }
+    },
+    {
+      "id": "J1-02",
+      "name": "J1-02 real form submit persists a pending submission",
+      "status": "passed",
+      "ms": 4372,
+      "evidence": {
+        "submissionId": "diag_1782991945882_9d0d6ae1",
+        "http": 200,
+        "dbStatus": "pending"
+      }
+    },
+    {
+      "id": "J1-03",
+      "name": "J1-03 pay CTA renders bound to the submission (client-reference-id)",
+      "status": "passed",
+      "ms": 3201,
+      "evidence": {
+        "ctaSubmissionId": "diag_1782991949498_f7d6bea1",
+        "pkMode": "live",
+        "buyButtonId": "buy_btn_1SC6LyJfyCDmId8XPHZozmzJ"
+      }
+    },
+    {
+      "id": "J1-04",
+      "name": "J1-04 server-created checkout session returns a Stripe-hosted URL",
+      "status": "passed",
+      "ms": 671,
+      "evidence": {
+        "sessionId": "cs_test_a1jKsNn3KEMerMHyHsIcV29mTi2s2Rm9QEnzArThFbK6YrbcAlcTOY5xKV",
+        "mode": "test",
+        "http": 200
+      }
+    },
+    {
+      "id": "J1-05",
+      "name": "J1-05 hosted checkout accepts the 4242 test card and redirects to /success",
+      "status": "passed",
+      "ms": 11519,
+      "evidence": {
+        "redirectedTo": "/success?session_id=cs_test_a1jKsNn3KEMerMHyHsIcV29mTi2s2Rm9QEnzArThFbK6YrbcAlcTOY5xKV"
+      }
+    },
+    {
+      "id": "J1-06",
+      "name": "J1-06 checkout.session.completed webhook flips the submission to paid + queues analysis",
+      "status": "passed",
+      "ms": 148,
+      "evidence": {
+        "dbStatus": "processing"
+      }
+    },
+    {
+      "id": "J1-07",
+      "name": "J1-07 /checkout/session resolves the session back to the submission",
+      "status": "passed",
+      "ms": 315,
+      "evidence": {
+        "http": 200,
+        "resolved": "diag_1782991945882_9d0d6ae1"
+      }
+    },
+    {
+      "id": "J1-08",
+      "name": "J1-08 real gpt-4o analysis completes to ready",
+      "status": "passed",
+      "ms": 19394,
+      "evidence": {
+        "dbStatus": "ready",
+        "verifyWith": "scripts/verify-live-analysis.sh diag_1782991945882_9d0d6ae1"
+      }
+    },
+    {
+      "id": "J1-09",
+      "name": "J1-09 signed-url endpoint returns the download + view contract",
+      "status": "passed",
+      "ms": 295,
+      "evidence": {
+        "http": 200,
+        "downloadUrl": "/reports/download/diag_1782991945882_9d0d6ae1",
+        "viewUrl": "/view/diag_1782991945882_9d0d6ae1"
+      }
+    },
+    {
+      "id": "J1-10",
+      "name": "J1-10 /success auto-downloads the real PDF report",
+      "status": "passed",
+      "ms": 1956,
+      "evidence": {
+        "filename": "diagnostic-diag_1782991945882_9d0d6ae1.pdf",
+        "pdfBytes": 31215,
+        "savedTo": "/home/jeremy/000-projects/diagnostic-pro/02-src/frontend/test-results/journey-J1-10-success-auto-downloads-the-real-PDF-report-live-journey/journey-diag_1782991945882_9d0d6ae1.pdf"
+      }
+    },
+    {
+      "id": "J1-11",
+      "name": "J1-11 /view serves the report inline as PDF",
+      "status": "passed",
+      "ms": 259,
+      "evidence": {
+        "http": 200,
+        "contentType": "application/pdf",
+        "bytes": 31215
+      }
+    },
+    {
+      "id": "J2-01",
+      "name": "J2-01 Whop member token verifies as an active membership",
+      "status": "skipped",
+      "ms": 5
+    },
+    {
+      "id": "J2-02",
+      "name": "J2-02 member analysis runs free and delivers a real downloadable report",
+      "status": "skipped",
+      "ms": 9
+    }
+  ]
+}
