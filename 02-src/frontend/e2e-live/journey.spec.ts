@@ -237,16 +237,23 @@ test('J1-05 hosted checkout accepts the 4242 test card and redirects to /success
   expect(checkoutSessionId).toMatch(/^cs_test_/);
 
   await page.goto(checkoutUrl, { waitUntil: 'domcontentloaded' });
-  await page.getByLabel(/email/i).fill(`journey+${RUN_EPOCH}@intentsolutions.io`);
-  await page.getByPlaceholder('1234 1234 1234 1234').fill('4242 4242 4242 4242');
-  await page.getByPlaceholder(/MM\s*\/\s*YY/i).fill('12 / 34');
-  await page.getByPlaceholder(/CVC/i).fill('123');
-  const nameField = page.locator('#billingName');
-  if (await nameField.count()) await nameField.fill('Journey Probe');
-  const zipField = page.getByPlaceholder(/ZIP|Postal/i);
+  // Selectors verified against the real hosted-checkout DOM (probe 2026-07-02):
+  // direct inputs #email/#cardNumber/#cardExpiry/#cardCvc/#billingName/
+  // #billingPostalCode, card accordion radio, Link enrollment checkbox.
+  await page.locator('#email').fill(`journey+${RUN_EPOCH}@intentsolutions.io`);
+  const cardRadio = page.locator('#payment-method-accordion-item-title-card');
+  if ((await cardRadio.count()) && !(await cardRadio.isChecked())) await cardRadio.click();
+  await page.locator('#cardNumber').fill('4242 4242 4242 4242');
+  await page.locator('#cardExpiry').fill('12 / 34');
+  await page.locator('#cardCvc').fill('123');
+  await page.locator('#billingName').fill('Journey Probe');
+  const zipField = page.locator('#billingPostalCode');
   if (await zipField.count()) await zipField.fill('30301');
+  // Decline Link enrollment — it makes phoneNumber required and blocks submit.
+  const linkPass = page.locator('#enableStripePass');
+  if ((await linkPass.count()) && (await linkPass.isChecked())) await linkPass.uncheck();
 
-  await page.locator('[data-testid="hosted-payment-submit-button"], button[type="submit"]').first().click();
+  await page.locator('[data-testid="hosted-payment-submit-button"]').click();
   await page.waitForURL(/\/success\?session_id=cs_/, { timeout: 90_000 });
   const url = new URL(page.url());
   expect(url.searchParams.get('session_id')).toBe(checkoutSessionId);

@@ -408,6 +408,12 @@ app.post('/createCheckoutSession', async (req, res) => {
       });
     }
 
+    // Redirect base is env-driven so a test-mode deployment (e.g.
+    // test.diagnosticpro.io with sk_test) sends payers back to ITSELF, never
+    // to the live host. {CHECKOUT_SESSION_ID} is Stripe's literal template
+    // token — the /success page resolves session -> submission via
+    // GET /checkout/session (the same path the Buy Button flow exercises).
+    const frontendBase = (process.env.FRONTEND_URL || 'https://diagnosticpro.io').replace(/\/+$/, '');
     const session = await stripeClient.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
@@ -423,8 +429,8 @@ app.post('/createCheckoutSession', async (req, res) => {
       }],
       mode: 'payment',
       client_reference_id: submissionId,
-      success_url: `https://diagnosticpro.io/success?submission_id=${submissionId}`,
-      cancel_url: `https://diagnosticpro.io/cancel?submission_id=${submissionId}`,
+      success_url: `${frontendBase}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${frontendBase}/cancel?submission_id=${submissionId}`,
       metadata: {
         submissionId: submissionId
       }
