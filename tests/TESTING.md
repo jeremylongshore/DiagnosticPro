@@ -33,7 +33,7 @@
 - L0: @intentsolutions/audit-harness@1.2.3 (frontend devDep + backend devDep)
 - L1: root Makefile `full-check` + pre-commit harness gate (frontend `.harness-hash`)
 - L2: ESLint + TypeScript (frontend); none declared (backend, plain JS)
-- L3: Jest (frontend 6 suites; backend suites incl. route/webhook/migration/PDF tests), coverage floors above
+- L3: Jest (frontend 8 suites / 41 tests incl. diagnostics/env/reports service units; backend 9 suites / 92 tests incl. route/webhook/migration/PDF), coverage floors above. Frontend ts-jest transpiles via `jest.import-meta-transform.cjs` (rewrites Vite `import.meta.env`; pins DOM lib + isolatedModules so local == CI).
 - L4: backend route tests via supertest against a spawned server (TEST_MOCK_LLM)
 - L6: Playwright (4 specs + full-flow paid-journey spec, PDF assertion unconditional)
 
@@ -56,6 +56,7 @@ make full-check
 ## Last audit
 
 - 2026-07-01 — /audit-tests full 7-layer sweep on `feat/self-host-migration` (TEST_AUDIT.md at repo root). Grade D+ pre-remediation; revenue-path P0s remediated same day (see TEST_AUDIT.md § Handoff).
+- 2026-07-02 — /implement-tests follow-up: L3 frontend service units for the fixed money-adjacent files (diagnostics.ts 0→100%, env.ts 0→80%, reports.ts getDiagnosticStatus fully covered). Fixed the ts-jest DOM-lib gap that was failing frontend-test in CI. Hash manifest initialized.
 
 ## Traceability
 

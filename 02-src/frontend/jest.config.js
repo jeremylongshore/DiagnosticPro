@@ -9,21 +9,10 @@ export default {
     '^@/(.*)$': '<rootDir>/src/src/$1'
   },
   transform: {
-    '^.+\\.tsx?$': ['ts-jest', {
-      tsconfig: {
-        jsx: 'react-jsx',
-        module: 'esnext',
-        target: 'es2022',
-        esModuleInterop: true,
-        allowSyntheticDefaultImports: true,
-        strict: false,
-        noImplicitAny: false,
-        baseUrl: '.',
-        paths: {
-          '@/*': ['./src/src/*']
-        }
-      }
-    }]
+    // Wraps ts-jest to neutralize Vite-only `import.meta.env` so modules that
+    // read it (src/services/diagnostics.ts) load under the CommonJS jest
+    // runtime. ts-jest options live inside the shim. See the .cjs file header.
+    '^.+\\.tsx?$': '<rootDir>/jest.import-meta-transform.cjs'
   },
   coverageDirectory: 'coverage',
   collectCoverageFrom: [
