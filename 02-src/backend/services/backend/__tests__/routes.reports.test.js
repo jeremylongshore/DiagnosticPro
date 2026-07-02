@@ -2,6 +2,10 @@
 // /getDownloadUrl -> download/view/status). Boots the exported express app
 // in-process (index.js only listens under require.main). DB + reports are
 // isolated to a per-suite tmp dir; env MUST be set before requiring index.js.
+//
+// The LLM is isolated at the `openai` MODULE boundary (jest.mock) — there is
+// no mock branch in production code. callLLM runs its real code path against
+// the mocked client.
 
 const os = require('os');
 const fs = require('fs');
@@ -10,7 +14,29 @@ const path = require('path');
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'diagpro-reports-'));
 process.env.DB_PATH = path.join(tmpRoot, 'test.db');
 process.env.REPORTS_DIR = path.join(tmpRoot, 'reports');
-process.env.TEST_MOCK_LLM = 'true';
+process.env.LLM_API_KEY = 'sk-unit-test-fake-key-not-real';
+delete process.env.LLM_MODEL;
+delete process.env.LLM_FRAMEWORK_VERSION;
+
+const CANNED_REPORT = Array.from({ length: 15 }, (_, i) => {
+  const titles = [
+    'PRIMARY DIAGNOSIS', 'DIFFERENTIAL DIAGNOSIS', 'DIAGNOSTIC VERIFICATION',
+    'SHOP INTERROGATION', 'CONVERSATION SCRIPTING', 'COST BREAKDOWN',
+    'RIPOFF DETECTION', 'AUTHORIZATION GUIDE', 'TECHNICAL EDUCATION',
+    'OEM PARTS STRATEGY', 'NEGOTIATION TACTICS', 'LIKELY CAUSES (RANKED)',
+    'RECOMMENDATIONS', 'SOURCE VERIFICATION', 'NEXT STEPS SUMMARY'
+  ];
+  return `${i + 1}. ${titles[i]}\nUnit-canned section body for ${titles[i].toLowerCase()}. Confidence 90%.`;
+}).join('\n\n');
+
+const mockCreate = jest.fn(async () => ({
+  choices: [{ message: { content: CANNED_REPORT } }]
+}));
+jest.mock('openai', () =>
+  jest.fn().mockImplementation(() => ({
+    chat: { completions: { create: (...args) => mockCreate(...args) } }
+  }))
+);
 
 const request = require('supertest');
 const app = require('../index.js');
@@ -93,6 +119,33 @@ describe('POST /saveSubmission', () => {
     });
   });
 
+  test('accepts a description-only submission (real UI: symptom checkboxes are optional)', async () => {
+    // Regression for the J1-02 live find: customers who fill only the
+    // always-visible description (no symptom checkboxes) were 400-rejected.
+    const res = await request(app).post('/saveSubmission').send({
+      payload: {
+        equipmentType: 'automotive',
+        make: 'Toyota',
+        model: 'Camry',
+        year: '2020',
+        symptoms: '',
+        problemDescription: 'Check engine light with rough idle, single-cylinder misfire under load.'
+      }
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.submissionId).toMatch(/^diag_\d{13}_[0-9a-f]{8}$/);
+  });
+
+  test('rejects a submission with neither symptoms nor problemDescription', async () => {
+    const res = await request(app).post('/saveSubmission').send({
+      payload: { equipmentType: 'automotive', model: 'Camry' }
+    });
+    expect(res.status).toBe(400);
+    expect(res.body.details).toContain(
+      "Field 'symptoms' or 'problemDescription' is required and must be a non-empty string"
+    );
+  });
+
   test('rejects a non-object contact field', async () => {
     const res = await request(app).post('/saveSubmission').send({
       payload: {
@@ -161,9 +214,15 @@ describe('POST /analyzeDiagnostic (mock LLM full run)', () => {
     expect(sub.status).toBe('ready');
     expect(sub.report_url).toBe(`/reports/download/${analyzedId}`);
 
-    const analysis = db.prepare('SELECT status, report_path FROM analyses WHERE id = ?').get(analyzedId);
+    const analysis = db.prepare(
+      'SELECT status, report_path, model, framework_version, full_analysis FROM analyses WHERE id = ?'
+    ).get(analyzedId);
     expect(analysis.status).toBe('ready');
     expect(analysis.report_path).toBe(`reports/${analyzedId}.pdf`);
+    // Attribution survives the run (the old INSERT OR REPLACE nulled model)
+    expect(analysis.model).toBe('gpt-4o');
+    expect(analysis.framework_version).toBe('v2.0');
+    expect(analysis.full_analysis).toBe(CANNED_REPORT);
 
     const pdfPath = path.join(process.env.REPORTS_DIR, `${analyzedId}.pdf`);
     expect(fs.existsSync(pdfPath)).toBe(true);

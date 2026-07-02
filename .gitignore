@@ -72,6 +72,8 @@ ui-debug.log
 !firebase.json
 !.firebaserc
 !**/config/*.json
+# Live-journey per-run results are the durable evidence trail (no secrets inside)
+!tests/live/*.json
 *.key
 *.pem
 *.p12

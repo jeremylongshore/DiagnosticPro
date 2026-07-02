@@ -70,6 +70,7 @@ function initSchema(db) {
       model TEXT,
       req_id TEXT,
       paid_via TEXT,
+      framework_version TEXT,       -- report prompt framework (e.g. 'v2.0'); dataset versioning
       created_at TEXT,
       updated_at TEXT
     );
@@ -114,7 +115,8 @@ const REQUIRED_COLUMNS = {
   analyses: {
     model: 'TEXT',
     req_id: 'TEXT',
-    paid_via: 'TEXT'
+    paid_via: 'TEXT',
+    framework_version: 'TEXT'
   }
 };
 

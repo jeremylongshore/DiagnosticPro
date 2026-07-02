@@ -1,63 +1,67 @@
 # JOURNEYS.md — revenue journey step coverage
 
 > Declaration blocks (journey name, personas, trigger, critical flag, linked endpoints)
-> are engineer-owned. The per-step **Test file / Status** columns are observational and
-> rebuilt by the journey-mapper audit. Last audit: 2026-07-01 (branch `feat/self-host-migration`).
+> are engineer-owned. The per-step **Status** column is observational — updated after
+> each run of the live journey suite (`02-src/frontend/e2e-live/journey.spec.ts`,
+> `pnpm run test:live`), whose machine-readable results land in
+> `tests/live/JOURNEY-<epoch>.json`. Last live run: **JOURNEY-1782971805863**
+> (2026-07-02, https://diagnosticpro.io, branch `feat/self-host-migration`).
 >
-> No `RTM.md` exists in this repo; MoSCoW is derived from the audit directive:
-> steps tied to **payment, webhook, or report delivery are MUST** (P0 if untested).
->
-> Legend: `✓` ≥1 real test exercises the step · `⚠` mocked-only / partial / conditional · `✗` no test.
+> Legend: `✓ live` proven against the deployed site by its own test ·
+> `⛔ gated` authored + deliberately blocked on a named credential/mode ·
+> `✗` no test.
 
 ---
 
 ## J1 — retail purchase (`critical: true`)
 
-- **Persona:** anonymous retail visitor paying $4.99–$29.99 for a diagnostic report
-- **Trigger:** organic/paid landing on diagnosticpro site
-- **Backend surface:** `/saveSubmission`, `/createCheckoutSession`, `/stripeWebhookForward`, `/analyzeDiagnostic`, `/analysisStatus`, `/view/:id`, `/getDownloadUrl`, `/reports/*`
+- **Persona:** anonymous retail visitor paying $4.99 for a diagnostic report
+- **Trigger:** organic/paid landing on diagnosticpro.io
+- **Suite:** `e2e-live/journey.spec.ts` — one `test()` per step, serial, evidence per step.
+  Payment steps run only against a **test-mode** target (`DPRO_STRIPE_TEST_MODE=1`,
+  backend on `sk_test`); the suite hard-refuses to pay a `cs_live_` session.
 
-| # | Step | Endpoint(s) | MoSCoW | Test file | Status |
+| # | Step | Endpoint(s) | MoSCoW | Live test | Status |
 |---|------|-------------|--------|-----------|--------|
-| 1 | Land on site | `/` (frontend) | SHOULD | `02-src/frontend/e2e/landing.spec.ts`, `03-tests/e2e/smoke.spec.ts`, `02-src/frontend/src/src/components/__tests__/Hero.test.tsx` | ✓ |
-| 2 | Fill + submit diagnostic form | `POST /saveSubmission` | SHOULD | `02-src/frontend/e2e/form-submission.spec.ts` (real POST, asserts `submissionId`), `02-src/frontend/src/src/components/__tests__/DiagnosticForm.test.tsx`, `02-src/frontend/src/src/utils/__tests__/validation.test.ts`, `02-src/backend/services/backend/__tests__/db.test.js` (SQLite insert/query) | ✓ |
-| 3 | Create Stripe checkout session | `POST /createCheckoutSession` | MUST | — (also uncovered: `GET /checkout/session`) | ✗ |
-| 4 | Customer pays (Stripe hosted checkout completes) | Stripe-hosted; `/success` redirect | MUST | — (`report-page.spec.ts` renders bare `/success` shell only, no payment state asserted) | ✗ |
-| 5 | Webhook marks submission paid | `POST /stripeWebhookForward` | MUST | — (no signature-verification, idempotency, or paid-state test; e2e bypasses via `analyzeDiagnostic {force:true}`) | ✗ |
-| 6 | AI analysis runs + status polls to ready | `POST /analyzeDiagnostic`, `POST /analysisStatus` | MUST | `02-src/frontend/e2e/form-submission.spec.ts` (TEST_MOCK_LLM + `force:true`, payment gate bypassed), `02-src/backend/services/backend/__tests__/analysis.test.js` (parse-only), `02-src/frontend/src/src/services/__tests__/reports.test.ts` (client → `/analysisStatus`, fetch mocked), `tests/{validate_schema,readiness_guard,confidence_guard,length_guard}.sh` (golden-fixture output guards) | ⚠ mocked-only |
-| 7 | View report | `GET /view/:id` (backend HTML), `/report/:id` (frontend) | MUST | `02-src/frontend/e2e/report-page.spec.ts` (frontend `/report/:id` renders, body-length assert only), `form-submission.spec.ts` (text matches /ready\|download\|report/) — backend `GET /view/:id` itself has **no test** | ⚠ partial |
-| 8 | Download PDF | `POST /getDownloadUrl`, `GET /reports/download/:id`, `/reports/{signed-url,status,ensure}` | MUST | `02-src/frontend/e2e/form-submission.spec.ts` — download click is **conditional** (`if (await downloadLink.count() > 0)`), so the assertion can silently never run; no direct test of `/getDownloadUrl` or any `/reports/*` route | ⚠ conditional/partial |
+| 1 | Land on site (200, form + CTA render) | `/` | SHOULD | J1-01 | ✓ live |
+| 2 | Fill + submit the real form UI → pending row persisted | `POST /saveSubmission`, `POST /analysisStatus` | MUST | J1-02 | ✓ live |
+| 3 | Pay CTA renders bound to the submission (`client-reference-id`) | Stripe buy-button web component | MUST | J1-03 | ✓ live |
+| 4 | Server-created checkout session → Stripe-hosted URL | `POST /createCheckoutSession` | MUST | J1-04 | ✓ live |
+| 5 | Customer pays 4242 on Stripe hosted checkout → `/success` redirect | Stripe-hosted checkout | MUST | J1-05 | ⛔ gated (sk_test handoff) |
+| 6 | Webhook flips submission to paid + queues analysis | `POST /stripeWebhookForward` | MUST | J1-06 | ⛔ gated (sk_test handoff) |
+| 7 | Session resolves back to submission | `GET /checkout/session` | MUST | J1-07 | ⛔ gated (sk_test handoff) |
+| 8 | Real gpt-4o analysis completes to ready | LLM + `POST /analysisStatus` | MUST | J1-08 (+ `scripts/verify-live-analysis.sh` for DB-side structure/attribution) | ⛔ gated (sk_test handoff) |
+| 9 | Signed-url returns download + view contract | `GET /reports/signed-url` | MUST | J1-09 | ⛔ gated (sk_test handoff) |
+| 10 | `/success` auto-downloads the real PDF | `PaymentSuccess` → `GET /reports/download/:id` | MUST | J1-10 | ⛔ gated (sk_test handoff) |
+| 11 | Report views inline as PDF | `GET /view/:id` | MUST | J1-11 | ⛔ gated (sk_test handoff) |
 
-**J1 coverage:** 3/8 ✓ · 3/8 ⚠ · 2 hard-untested of 8 → **~37% fully covered** (critical journey requires 100%).
+**J1 status:** 4/11 ✓ live · 7/11 authored + gated on the single `sk_test` handoff
+(`/dev/shm/dpro-test-keys.env`). Zero steps untested-by-design.
 
 ## J2 — Whop member (`critical: true`)
 
 - **Persona:** Whop community member with an active membership entitlement
 - **Trigger:** member arrives from Whop with an auth code
-- **Backend surface:** `/api/auth/whop-exchange`, `/api/auth/whop-verify`, `/api/whop/analyze`, `/api/webhooks/whop`
 
-| # | Step | Endpoint(s) | MoSCoW | Test file | Status |
+| # | Step | Endpoint(s) | MoSCoW | Live test | Status |
 |---|------|-------------|--------|-----------|--------|
-| 1 | Whop auth exchange + verify | `POST /api/auth/whop-exchange`, `GET /api/auth/whop-verify` | SHOULD | — (`02-src/frontend/src/src/lib/whop-auth.ts` has no test) | ✗ |
-| 2 | Member analyze | `POST /api/whop/analyze` (+ `checkWhopMember` middleware) | MUST | — endpoint never exercised. Adjacent only: `02-src/frontend/src/src/services/__tests__/api.test.ts` verifies the client attaches `x-whop-token` (mocked fetch) — does not hit the route or the membership gate | ✗ |
-| 3 | Whop webhook lifecycle (membership went valid/invalid) | `POST /api/webhooks/whop` | MUST | — (no signature, event-type, or entitlement-flip test) | ✗ |
-
-**J2 coverage:** 0/3 ✓ → **0% covered** (critical journey requires 100%).
+| 1 | Member token verifies as active membership | `GET /api/auth/whop-verify` | SHOULD | J2-01 | ⛔ gated (`DPRO_WHOP_TEST_TOKEN`) |
+| 2 | Member analysis runs free → real report → download | `POST /api/whop/analyze`, `GET /reports/signed-url` | MUST | J2-02 | ⛔ gated (`DPRO_WHOP_TEST_TOKEN` + `DPRO_WHOP_TEST_EMAIL`) |
+| 3 | Whop webhook lifecycle (went valid/invalid) | `POST /api/webhooks/whop` | MUST | unit: `routes.whop.test.js` (signature schemes, entitlement flips, fail-closed) | ⚠ unit-only — live wiring deferred per prior decision (401 fail-closed) |
 
 ---
 
-## Gap register (audit 2026-07-01)
+## Live finds fixed by this suite (run JOURNEY-1782971805863 + first red run)
 
-| Severity | Journey | Step | Gap |
-|---|---|---|---|
-| P0 | J1 | 3 | `POST /createCheckoutSession` untested (MUST — payment) |
-| P0 | J1 | 4 | Stripe payment completion untested; e2e bypasses payment via `force:true` (MUST — payment) |
-| P0 | J1 | 5 | `POST /stripeWebhookForward` untested — no signature/idempotency/paid-state coverage (MUST — webhook) |
-| P0 | J2 | 2 | `POST /api/whop/analyze` + `checkWhopMember` gate untested (MUST — paid report generation) |
-| P0 | J2 | 3 | `POST /api/webhooks/whop` untested (MUST — webhook) |
-| P1 | J1 | 6 | Analysis path is mocked-only (TEST_MOCK_LLM) and enters via `force:true`, so the paid→analyze contract is never tested (advisory) |
-| P1 | J1 | 7 | Backend `GET /view/:id` has no test; frontend `/report/:id` e2e asserts body length only (partial) |
-| P1 | J1 | 8 | PDF download assertion is conditional in e2e — can pass with zero downloads; `/getDownloadUrl` + `/reports/*` have no direct tests (partial) |
-| P1 | J2 | 1 | Whop auth exchange/verify untested (SHOULD) |
+| Found by | Defect | Fix |
+|---|---|---|
+| J1-02 (first red run) | Backend hard-required `symptoms`, but the real UI treats symptom checkboxes as optional (hidden behind "Add Details") → every description-only customer got a 400, **buy button never rendered, sale lost** | Validator now requires `symptoms` OR `problemDescription` (`index.js`), regression unit tests added |
+| Journey trace | `PaymentSuccess` polled 30×1s then showed timeout — real gpt-4o takes 1–3 min, so every real paying customer hit the timeout screen | `MAX_ATTEMPTS` 30 → 240 |
+| Dataset audit | `processAnalysis` INSERT-OR-REPLACE nulled `model`/`req_id`/`paid_via` on every run (first live report stored with `model=NULL`) | Attribution-preserving upsert + `framework_version` stamped; live row backfilled |
 
-**Summary:** 2 journeys declared · 0 fully covered · 2 partial · **5 untested MUST steps (P0)** · 4 P1 gaps.
+## Prior gap register (2026-07-01) — disposition
+
+All 5 P0s from the 2026-07-01 audit are now either **proven live** (J1 steps 3–4),
+**authored + gated on a named credential** (J1 5–11, J2 1–2), or **unit-covered with
+live wiring deliberately deferred** (J2-3). The `TEST_MOCK_LLM` prod-code branch and
+the `force:true` payment bypass in e2e are gone.

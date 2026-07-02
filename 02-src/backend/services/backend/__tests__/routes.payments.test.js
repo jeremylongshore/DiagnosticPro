@@ -21,8 +21,20 @@ const { spawn } = require('child_process');
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'diagpro-payments-'));
 process.env.DB_PATH = path.join(tmpRoot, 'test.db');
 process.env.REPORTS_DIR = path.join(tmpRoot, 'reports');
-process.env.TEST_MOCK_LLM = 'true';
+process.env.LLM_API_KEY = 'sk-unit-test-fake-key-not-real';
+delete process.env.LLM_MODEL;
+delete process.env.LLM_FRAMEWORK_VERSION;
 delete process.env.STRIPE_WEBHOOK_SECRET;
+
+// LLM isolated at the `openai` module boundary (no prod-code mock branch).
+const mockCreate = jest.fn(async () => ({
+  choices: [{ message: { content: '1. PRIMARY DIAGNOSIS\nUnit-canned webhook-path report. Confidence 90%.\n\n15. NEXT STEPS SUMMARY\n- step' } }]
+}));
+jest.mock('openai', () =>
+  jest.fn().mockImplementation(() => ({
+    chat: { completions: { create: (...args) => mockCreate(...args) } }
+  }))
+);
 
 const request = require('supertest');
 const app = require('../index.js');
@@ -99,11 +111,16 @@ describe('POST /stripeWebhookForward (dev unsigned path)', () => {
     expect(row.amount_paid_cents).toBe(1299);
     expect(row.paid_at).toMatch(/^\d{4}-\d{2}-\d{2}T/);
 
-    // Analysis was queued and (with the mock LLM) completes
+    // Analysis was queued and (openai module mocked) completes
     await pollUntilStatus(paidId, 'ready');
-    const analysis = db.prepare('SELECT status, report_path FROM analyses WHERE id = ?').get(paidId);
+    const analysis = db.prepare(
+      'SELECT status, report_path, model, framework_version FROM analyses WHERE id = ?'
+    ).get(paidId);
     expect(analysis.status).toBe('ready');
     expect(analysis.report_path).toBe(`reports/${paidId}.pdf`);
+    // Model attribution written at queue time survives processAnalysis (Phase 4 fix)
+    expect(analysis.model).toBe('gpt-4o');
+    expect(analysis.framework_version).toBe('v2.0');
   }, 60000);
 
   test('replayed delivery is acknowledged as duplicate and does not re-queue analysis', async () => {
@@ -230,7 +247,8 @@ describe('checkout success contract (child process with fake stripe SDK)', () =>
         DB_PATH: path.join(childTmp, 'child.db'),
         REPORTS_DIR: path.join(childTmp, 'reports'),
         NODE_ENV: 'test',
-        TEST_MOCK_LLM: 'true',
+        // No LLM env needed: this child only exercises saveSubmission +
+        // checkout-session creation — analysis is never triggered.
         STRIPE_SECRET_KEY: 'sk_test_placeholder_preload_fake'
       },
       stdio: ['ignore', 'pipe', 'pipe']

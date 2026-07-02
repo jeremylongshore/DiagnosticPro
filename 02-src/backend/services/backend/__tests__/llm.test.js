@@ -10,8 +10,7 @@ const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'diagpro-llm-'));
 process.env.DB_PATH = path.join(tmpRoot, 'test.db');
 process.env.REPORTS_DIR = path.join(tmpRoot, 'reports');
 
-// Deterministic key resolution: no real provider keys, no mock short-circuit
-delete process.env.TEST_MOCK_LLM;
+// Deterministic key resolution: no real provider keys
 delete process.env.OPENAI_API_KEY;
 delete process.env.DEEPSEEK_API_KEY;
 delete process.env.GROQ_API_KEY;
@@ -120,25 +119,6 @@ describe('callLLM with the OpenAI client mocked', () => {
 
     expect(result.fullAnalysis).toBe('');
     expect(result.confidence).toBe(0.92);
-  });
-
-  test('TEST_MOCK_LLM=true short-circuits to the canned 15-section report without any API call', async () => {
-    process.env.TEST_MOCK_LLM = 'true';
-    try {
-      const result = await callLLM({
-        equipmentType: 'automotive',
-        make: 'Chevrolet',
-        model: 'Silverado 2500HD',
-        symptoms: 'P0301 misfire on cylinder 1 when towing'
-      });
-      expect(result.fullAnalysis).toContain('1. PRIMARY DIAGNOSIS');
-      expect(result.fullAnalysis).toContain('15. NEXT STEPS SUMMARY');
-      expect(result.confidence).toBe(0.95);
-      expect(result.detectedCodes).toEqual(['P0301']);
-      expect(mockCreate).not.toHaveBeenCalled();
-    } finally {
-      delete process.env.TEST_MOCK_LLM;
-    }
   });
 
   test('throws the no-key error when no provider key is configured at all', async () => {

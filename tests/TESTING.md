@@ -34,13 +34,13 @@
 - L1: root Makefile `full-check` + pre-commit harness gate (frontend `.harness-hash`)
 - L2: ESLint + TypeScript (frontend); none declared (backend, plain JS)
 - L3: Jest (frontend 8 suites / 41 tests incl. diagnostics/env/reports service units; backend 9 suites / 92 tests incl. route/webhook/migration/PDF), coverage floors above. Frontend ts-jest transpiles via `jest.import-meta-transform.cjs` (rewrites Vite `import.meta.env`; pins DOM lib + isolatedModules so local == CI).
-- L4: backend route tests via supertest against a spawned server (TEST_MOCK_LLM)
-- L6: Playwright (4 specs + full-flow paid-journey spec, PDF assertion unconditional)
+- L4: backend route tests via supertest (LLM isolated at the `openai` module boundary with jest.mock — the TEST_MOCK_LLM prod-code branch was REMOVED 2026-07-01; no canned text can ever reach the analyses table)
+- L6: Playwright — local plumbing specs (`e2e/`) + the **live customer-journey suite** (`02-src/frontend/e2e-live/journey.spec.ts`): one test per J1/J2 step against the deployed site, real Stripe hosted checkout (test mode when enabled), real gpt-4o. Per-run results land in `tests/live/JOURNEY-<epoch>.json`.
 
 ## Frameworks
 
 - Frontend: Jest + @testing-library/react; Playwright (chromium)
-- Backend: Jest + supertest; better-sqlite3 in-tmp fixtures; TEST_MOCK_LLM=1 mock LLM path
+- Backend: Jest + supertest; better-sqlite3 in-tmp fixtures; `openai` module mocked in unit suites (never a prod-code flag)
 
 ## How to run
 
@@ -51,7 +51,22 @@ cd 02-src/frontend && pnpm test && npx playwright test
 cd 02-src/backend/services/backend && npx jest --coverage
 # full local gate
 make full-check
+# LIVE customer journey against the deployed site (writes tests/live/JOURNEY-*.json)
+cd 02-src/frontend && pnpm run test:live
+# DB-side structural verification of a live report (model attribution, sections)
+scripts/verify-live-analysis.sh <submissionId>
 ```
+
+## Live-journey gating (deliberate deferrals, not gaps)
+
+- **Stripe 4242 payment steps (J1-05…J1-11)** — gated on `DPRO_STRIPE_TEST_MODE=1`,
+  set only when the target backend runs test-mode keys (`sk_test`). The suite
+  hard-refuses to submit a card against a `cs_live_` session. Blocked on the sk_test
+  handoff (`/dev/shm/dpro-test-keys.env`).
+- **Whop member steps (J2)** — gated on `DPRO_WHOP_TEST_TOKEN` + `DPRO_WHOP_TEST_EMAIL`.
+  Whop webhook-secret wiring stays deferred per prior decision (401 fail-closed is safe).
+- **Whop tokens at rest** — `whop_users.access_token`/`refresh_token` are plaintext in
+  SQLite (flagged; encrypt-at-rest or drop if unused — not blocking).
 
 ## Last audit
 

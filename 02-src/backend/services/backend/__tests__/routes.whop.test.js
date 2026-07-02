@@ -11,7 +11,21 @@ const crypto = require('crypto');
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'diagpro-whop-'));
 process.env.DB_PATH = path.join(tmpRoot, 'test.db');
 process.env.REPORTS_DIR = path.join(tmpRoot, 'reports');
-process.env.TEST_MOCK_LLM = 'true';
+process.env.LLM_API_KEY = 'sk-unit-test-fake-key-not-real';
+delete process.env.LLM_MODEL;
+delete process.env.LLM_FRAMEWORK_VERSION;
+
+// LLM isolated at the `openai` module boundary (no prod-code mock branch).
+// The openai client never touches global.fetch here, so the per-test Whop
+// fetch mocks below stay authoritative for Whop API traffic.
+const mockLlmCreate = jest.fn(async () => ({
+  choices: [{ message: { content: '1. PRIMARY DIAGNOSIS\nUnit-canned member-path report. Confidence 90%.\n\n15. NEXT STEPS SUMMARY\n- step' } }]
+}));
+jest.mock('openai', () =>
+  jest.fn().mockImplementation(() => ({
+    chat: { completions: { create: (...args) => mockLlmCreate(...args) } }
+  }))
+);
 
 // Standard Webhooks secret: "whsec_" + base64(raw signing key)
 const SIGNING_KEY = Buffer.from('diagpro-whop-unit-signing-key-2026');
@@ -422,13 +436,16 @@ describe('POST /api/whop/analyze (member-gated)', () => {
     expect(row.whop_user_id).toBe('user_ohLK9v');
     expect(row.whop_membership_id).toBe('mem_R7K2p');
 
-    // Current source behavior: processAnalysis re-creates the analyses row via
-    // INSERT OR REPLACE, which wipes the paid_via='whop_membership' the route
-    // wrote moments earlier. The durable membership record lives on the
-    // diagnostic_submissions row (asserted above).
-    const analysis = db.prepare('SELECT paid_via, status FROM analyses WHERE id = ?').get(memberId);
+    // processAnalysis upserts (never REPLACEs) the analyses row, so the
+    // paid_via='whop_membership' + model attribution written at queue time
+    // survive the run — the dataset row is fully attributed.
+    const analysis = db.prepare(
+      'SELECT paid_via, status, model, framework_version FROM analyses WHERE id = ?'
+    ).get(memberId);
     expect(analysis.status).toBe('ready');
-    expect(analysis.paid_via).toBe(null);
+    expect(analysis.paid_via).toBe('whop_membership');
+    expect(analysis.model).toBe('gpt-4o');
+    expect(analysis.framework_version).toBe('v2.0');
   }, 60000);
 
   test('already-processed member submission is not re-run', async () => {

@@ -35,13 +35,23 @@ function validateSubmissionPayload(payload) {
   const errors = [];
 
   // Required fields (minimum for AI analysis)
-  const requiredFields = ['equipmentType', 'model', 'symptoms'];
+  const requiredFields = ['equipmentType', 'model'];
 
   // Check for required fields only - allow all other fields to pass through
   for (const field of requiredFields) {
     if (!payload[field] || typeof payload[field] !== 'string' || payload[field].trim() === '') {
       errors.push(`Field '${field}' is required and must be a non-empty string`);
     }
+  }
+
+  // The AI needs SOME symptom text, but in the real UI the symptom checkboxes
+  // are optional (hidden behind "Add Details") while the always-visible
+  // free-text is problemDescription. Requiring `symptoms` alone 400-rejected
+  // every customer who only filled the description — the buy button never
+  // rendered and the sale was lost (caught live by journey step J1-02).
+  const hasText = (v) => typeof v === 'string' && v.trim() !== '';
+  if (!hasText(payload.symptoms) && !hasText(payload.problemDescription)) {
+    errors.push("Field 'symptoms' or 'problemDescription' is required and must be a non-empty string");
   }
 
   // NO FIELD RESTRICTIONS - Accept any additional fields from UI
@@ -1086,11 +1096,16 @@ app.post('/stripeWebhookForward', async (req, res) => {
         UPDATE diagnostic_submissions SET status = 'paid', updated_at = ?, stripe_session_id = ?, paid_at = ?, amount_paid_cents = ? WHERE id = ?
       `).run(paidNow, session.id, paidNow, session.amount_total ?? 499, submissionId);
 
-      // Create analysis record
+      // Create analysis record (upsert — never REPLACE, which nulls unnamed columns)
       db.prepare(`
-        INSERT OR REPLACE INTO analyses (id, submission_id, status, updated_at, model, req_id)
-        VALUES (?, ?, 'queued', ?, ?, ?)
-      `).run(submissionId, submissionId, paidNow, process.env.LLM_MODEL || 'gpt-4o', req.reqId);
+        INSERT INTO analyses (id, submission_id, status, created_at, updated_at, model, req_id)
+        VALUES (?, ?, 'queued', ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = 'queued',
+          updated_at = excluded.updated_at,
+          model = excluded.model,
+          req_id = excluded.req_id
+      `).run(submissionId, submissionId, paidNow, paidNow, process.env.LLM_MODEL || 'gpt-4o', req.reqId);
 
       logStructured({
         phase,
@@ -1160,11 +1175,24 @@ async function processAnalysis(submissionId, payload, reqId) {
       UPDATE diagnostic_submissions SET status = 'processing', updated_at = ?, processing_started_at = ? WHERE id = ?
     `).run(procNow, procNow, submissionId);
 
-    // Create analysis record with running status
+    // Create-or-update the analysis record at run start WITHOUT clobbering
+    // attribution. The old INSERT OR REPLACE deleted + reinserted the row,
+    // nulling every unnamed column — it wiped `model`/`req_id`/`paid_via`
+    // written at queue time on every stored report (dataset poison; the first
+    // live paid report shipped with model=NULL because of it). The upsert
+    // stamps the model actually about to be used + the framework version,
+    // and leaves paid_via/created_at intact on existing rows.
     db.prepare(`
-      INSERT OR REPLACE INTO analyses (id, submission_id, status, created_at, updated_at)
-      VALUES (?, ?, 'running', ?, ?)
-    `).run(submissionId, submissionId, procNow, procNow);
+      INSERT INTO analyses (id, submission_id, status, created_at, updated_at, model, req_id, framework_version)
+      VALUES (?, ?, 'running', ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        status = 'running',
+        updated_at = excluded.updated_at,
+        model = excluded.model,
+        req_id = COALESCE(analyses.req_id, excluded.req_id),
+        framework_version = excluded.framework_version
+    `).run(submissionId, submissionId, procNow, procNow,
+           process.env.LLM_MODEL || 'gpt-4o', reqId || null, LLM_FRAMEWORK_VERSION);
 
     // Call the LLM (OpenAI gpt-4o via the OpenAI-compatible client)
     const analysis = await callLLM(payload);
@@ -1345,6 +1373,13 @@ function getEquipmentPromptContext(equipmentType, payload) {
   return configs[equipmentType] || defaultConfig;
 }
 
+// Report framework version stamped on every analyses row (dataset versioning).
+// v2.0 = the current "DiagnosticPro Proprietary 15-Section Analysis Framework"
+// prompt inside callLLM. Bump (or override via env during a staged rollout)
+// whenever the prompt contract changes, so old vs new reports stay
+// distinguishable in the long-term dataset.
+const LLM_FRAMEWORK_VERSION = process.env.LLM_FRAMEWORK_VERSION || 'v2.0';
+
 // FUNCTION: Call the LLM (OpenAI gpt-4o via the OpenAI-compatible client).
 // Provider is fully env-driven — LLM_BASE_URL / LLM_MODEL / LLM_API_KEY — so
 // switching to Groq (fast/cheap), Ollama (fully local self-hosted), xAI Grok,
@@ -1362,74 +1397,10 @@ async function callLLM(payload) {
 
   const detectedCodes = extractDiagnosticCodes(payload);
 
-  if (!apiKey || process.env.TEST_MOCK_LLM === 'true') {
-    // For tests/E2E without real key, return mock analysis so full flow can be tested
-    if (process.env.TEST_MOCK_LLM === 'true') {
-      console.log('Using MOCK LLM for test');
-      return {
-        fullAnalysis: `1. PRIMARY DIAGNOSIS
-Mock primary diagnosis for testing. Confidence 95%.
-
-2. DIFFERENTIAL DIAGNOSIS
-- Mock alt cause 1
-- Mock alt cause 2
-
-3. DIAGNOSTIC VERIFICATION
-Mock verification steps.
-
-4. SHOP INTERROGATION
-- Question 1?
-- Question 2?
-
-5. CONVERSATION SCRIPTING
-Mock script.
-
-6. COST BREAKDOWN
-- Mock cost 1
-- Mock cost 2
-
-7. RIPOFF DETECTION
-- Mock flag 1
-
-8. AUTHORIZATION GUIDE
-Mock guide.
-
-9. TECHNICAL EDUCATION
-Mock education.
-
-10. OEM PARTS STRATEGY
-- Mock part
-
-11. NEGOTIATION TACTICS
-Mock tactic.
-
-12. LIKELY CAUSES (RANKED)
-- Primary 95%
-
-13. RECOMMENDATIONS
-- Rec 1
-
-14. SOURCE VERIFICATION
-- Source 1
-
-15. NEXT STEPS SUMMARY
-- Step 1
-- Step 2
-- Step 3`,
-        summary: "Mock comprehensive analysis",
-        confidence: 0.95,
-        root_causes: ["Mock cause"],
-        recommendations: ["Mock rec"],
-        cost_ranges: [],
-        red_flags: [],
-        questions: [],
-        parts_needed: [],
-        labor_estimate: "Mock",
-        difficulty: "Mock",
-        tools_required: [],
-        detectedCodes
-      };
-    }
+  // No mock path. This function ALWAYS talks to the real provider — a canned
+  // report must never be able to reach the analyses table (dataset poison).
+  // Tests mock the `openai` module boundary in jest, never a prod-code branch.
+  if (!apiKey) {
     throw new Error('No LLM_API_KEY (or DEEPSEEK_API_KEY) configured. Set via env or SOPS secrets for self-hosted / VPS deployment.');
   }
 
@@ -2010,12 +1981,18 @@ app.post('/api/whop/analyze', checkWhopMember, async (req, res) => {
       WHERE id = ?
     `).run(paidNow, paidNow, req.whopUser?.id || '', req.whopMembership?.id || '', submissionId);
 
-    // Create analysis record (SQLite)
+    // Create analysis record (SQLite; upsert — never REPLACE, which nulls unnamed columns)
     const whopNow = new Date().toISOString();
     db.prepare(`
-      INSERT OR REPLACE INTO analyses (id, submission_id, status, updated_at, model, req_id, paid_via)
-      VALUES (?, ?, 'queued', ?, ?, ?, 'whop_membership')
-    `).run(submissionId, submissionId, whopNow, process.env.LLM_MODEL || 'gpt-4o', req.reqId);
+      INSERT INTO analyses (id, submission_id, status, created_at, updated_at, model, req_id, paid_via)
+      VALUES (?, ?, 'queued', ?, ?, ?, ?, 'whop_membership')
+      ON CONFLICT(id) DO UPDATE SET
+        status = 'queued',
+        updated_at = excluded.updated_at,
+        model = excluded.model,
+        req_id = excluded.req_id,
+        paid_via = excluded.paid_via
+    `).run(submissionId, submissionId, whopNow, whopNow, process.env.LLM_MODEL || 'gpt-4o', req.reqId);
 
     logStructured({
       phase,

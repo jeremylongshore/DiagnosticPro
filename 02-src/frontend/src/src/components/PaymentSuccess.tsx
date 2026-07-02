@@ -107,7 +107,9 @@ const PaymentSuccess = () => {
     // Empty base = same-origin relative path (self-host: Caddy proxies API paths)
     const API_BASE = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE || '';
     const API_KEY = import.meta.env.VITE_API_KEY || '';
-    const MAX_ATTEMPTS = 30;
+    // Real gpt-4o report generation takes 1–3 minutes. 30 attempts (~30s) made
+    // every real paying customer hit the timeout screen right after checkout.
+    const MAX_ATTEMPTS = 240;
 
     setStatus('polling');
 
