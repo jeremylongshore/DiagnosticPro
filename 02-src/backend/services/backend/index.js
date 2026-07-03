@@ -1392,6 +1392,46 @@ function llmFrameworkVersion() {
   return process.env.LLM_FRAMEWORK_VERSION || 'v2.0';
 }
 
+// Chat-completion call that adapts to per-model param quirks so LLM_MODEL is a
+// pure config switch. Newer OpenAI models (gpt-5.x, o-series) reject `max_tokens`
+// and require `max_completion_tokens`; some reasoning models also reject a
+// non-default `temperature`. We pick the right shape by model family up front,
+// then defensively retry once each on a param-shape 400 (either direction) —
+// mirroring the eval harness (tests/prompt-eval/lib/common.mjs) so production
+// sends the SAME request the judges scored. Any other error propagates.
+async function createChatCompletionAdaptive(openai, { model, messages, maxTokens, temperature }) {
+  const usesMaxCompletionTokens = /^(gpt-5|o\d)/i.test(model);
+  const state = { maxCompletion: usesMaxCompletionTokens, dropTemp: false };
+
+  const build = () => {
+    const body = { model, messages };
+    if (!state.dropTemp) body.temperature = temperature;
+    if (state.maxCompletion) body.max_completion_tokens = maxTokens;
+    else body.max_tokens = maxTokens;
+    return body;
+  };
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await openai.chat.completions.create(build());
+    } catch (err) {
+      const msg = String(err?.message || '').toLowerCase();
+      const is400 = err?.status === 400 || err?.statusCode === 400;
+      if (is400 && !state.maxCompletion && msg.includes('max_completion_tokens')) {
+        state.maxCompletion = true;
+        continue;
+      }
+      if (is400 && !state.dropTemp && msg.includes('temperature')) {
+        state.dropTemp = true;
+        continue;
+      }
+      throw err;
+    }
+  }
+  // Final attempt with whatever adaptations stuck (let a real error surface).
+  return openai.chat.completions.create(build());
+}
+
 // FUNCTION: Call the LLM (OpenAI gpt-4o via the OpenAI-compatible client).
 // Provider is fully env-driven — LLM_BASE_URL / LLM_MODEL / LLM_API_KEY — so
 // switching to Groq (fast/cheap), Ollama (fully local self-hosted), xAI Grok,
@@ -1575,13 +1615,13 @@ Return your response as a comprehensive diagnostic report following this structu
     userContent = render(V3B_USER_TEMPLATE);
   }
 
-  const chat = await openai.chat.completions.create({
+  const chat = await createChatCompletionAdaptive(openai, {
     model: modelName,
     messages: [
       { role: 'system', content: systemContent },
       { role: 'user', content: userContent }
     ],
-    max_tokens: 8192,
+    maxTokens: 8192,
     temperature: 0.25
   });
 

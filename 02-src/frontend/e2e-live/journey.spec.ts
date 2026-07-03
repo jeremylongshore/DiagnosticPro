@@ -281,7 +281,7 @@ test('J1-07 /checkout/session resolves the session back to the submission', asyn
   ev('J1-07', { http: res.status(), resolved: body.submissionId ?? body.client_reference_id });
 });
 
-test('J1-08 real gpt-4o analysis completes to ready', async ({ request }) => {
+test('J1-08 real LLM analysis completes to ready', async ({ request }) => {
   test.skip(!PAY_READY, PAY_BLOCKED_REASON);
   test.skip(!submissionId, 'no submission');
   test.setTimeout(420_000);

@@ -12,6 +12,7 @@ process.env.REPORTS_DIR = path.join(tmpRoot, 'reports');
 
 // Deterministic key resolution: no real provider keys
 delete process.env.LLM_FRAMEWORK_VERSION;
+delete process.env.LLM_MODEL;
 delete process.env.OPENAI_API_KEY;
 delete process.env.DEEPSEEK_API_KEY;
 delete process.env.GROQ_API_KEY;
@@ -161,6 +162,55 @@ describe('callLLM with the OpenAI client mocked', () => {
       expect(user).toContain('15. NEXT STEPS SUMMARY');
     } finally {
       delete process.env.LLM_FRAMEWORK_VERSION;
+    }
+  });
+
+  test('gpt-4o uses max_tokens (unchanged param shape)', async () => {
+    mockCreate.mockResolvedValue({ choices: [{ message: { content: 'report' } }] });
+
+    await callLLM(semiPayload);
+
+    const req = mockCreate.mock.calls[0][0];
+    expect(req.model).toBe('gpt-4o');
+    expect(req.max_tokens).toBe(8192);
+    expect(req.max_completion_tokens).toBeUndefined();
+    expect(req.temperature).toBe(0.25);
+  });
+
+  test('gpt-5.x uses max_completion_tokens up front (no wasted 400)', async () => {
+    mockCreate.mockResolvedValue({ choices: [{ message: { content: 'report' } }] });
+    process.env.LLM_MODEL = 'gpt-5.4';
+    try {
+      await callLLM(semiPayload);
+
+      expect(mockCreate).toHaveBeenCalledTimes(1); // family detected, no retry needed
+      const req = mockCreate.mock.calls[0][0];
+      expect(req.model).toBe('gpt-5.4');
+      expect(req.max_completion_tokens).toBe(8192);
+      expect(req.max_tokens).toBeUndefined();
+      expect(req.temperature).toBe(0.25);
+    } finally {
+      delete process.env.LLM_MODEL;
+    }
+  });
+
+  test('adapts on a param-shape 400 for an unrecognized model name, then succeeds', async () => {
+    const err = new Error("Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.");
+    err.status = 400;
+    mockCreate
+      .mockRejectedValueOnce(err)
+      .mockResolvedValueOnce({ choices: [{ message: { content: 'report' } }] });
+    process.env.LLM_MODEL = 'some-new-reasoner-v9'; // not matched by the family regex
+    try {
+      const result = await callLLM(semiPayload);
+
+      expect(result.fullAnalysis).toBe('report');
+      expect(mockCreate).toHaveBeenCalledTimes(2);
+      expect(mockCreate.mock.calls[0][0].max_tokens).toBe(8192);            // first try
+      expect(mockCreate.mock.calls[1][0].max_completion_tokens).toBe(8192); // adapted retry
+      expect(mockCreate.mock.calls[1][0].max_tokens).toBeUndefined();
+    } finally {
+      delete process.env.LLM_MODEL;
     }
   });
 
