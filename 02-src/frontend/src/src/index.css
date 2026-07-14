@@ -2,121 +2,101 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
+/*
+  DiagnosticPro design system — instrument-grade, not SaaS-template.
+  Brand bridge to Intent Solutions: zinc neutrals + restrained orange accent.
+  Product stays light (consumer trust / readability). All colors HSL.
 */
 
 @layer base {
   :root {
-    --background: 0 0% 99%;
-    --foreground: 215 25% 15%;
+    /* Warm off-white paper, near-black ink */
+    --background: 40 20% 98%;
+    --foreground: 240 6% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 15%;
+    --card-foreground: 240 6% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 15%;
+    --popover-foreground: 240 6% 10%;
 
-    --primary: 210 100% 45%;
+    /* Primary = Intent Solutions orange family, dialed for light UI CTAs */
+    --primary: 24 95% 48%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 210 20% 95%;
-    --secondary-foreground: 215 25% 15%;
+    --secondary: 40 12% 94%;
+    --secondary-foreground: 240 6% 16%;
 
-    --muted: 210 15% 96%;
-    --muted-foreground: 215 15% 45%;
+    --muted: 40 10% 95%;
+    --muted-foreground: 240 4% 40%;
 
-    --accent: 142 76% 36%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 24 90% 96%;
+    --accent-foreground: 24 90% 28%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 72% 48%;
     --destructive-foreground: 0 0% 100%;
 
-    --warning: 35 100% 50%;
+    --warning: 32 95% 44%;
     --warning-foreground: 0 0% 100%;
 
-    --success: 142 76% 36%;
+    --success: 152 45% 32%;
     --success-foreground: 0 0% 100%;
 
-    --border: 210 20% 90%;
-    --input: 210 20% 90%;
-    --ring: 210 100% 45%;
+    --border: 40 10% 88%;
+    --input: 40 10% 88%;
+    --ring: 24 95% 48%;
 
-    --radius: 0.75rem;
+    --radius: 0.5rem;
 
-    /* Custom design tokens for repair diagnostic app */
-    --trust-blue: 210 100% 45%;
-    --savings-green: 142 76% 36%;
-    --ripoff-red: 0 84% 60%;
-    --expert-gold: 45 100% 51%;
-    --neutral-slate: 215 15% 45%;
+    /* Legacy token aliases — remapped so old className usage stays coherent */
+    --trust-blue: 24 95% 48%;
+    --savings-green: 152 45% 32%;
+    --ripoff-red: 0 72% 48%;
+    --expert-gold: 32 90% 42%;
+    --neutral-slate: 240 4% 40%;
 
-    /* Gradients */
-    --gradient-trust: linear-gradient(135deg, hsl(210 100% 45%), hsl(210 100% 55%));
-    --gradient-success: linear-gradient(135deg, hsl(142 76% 36%), hsl(142 76% 46%));
-    --gradient-hero: linear-gradient(135deg, hsl(210 100% 45%), hsl(142 76% 36%));
+    --gradient-trust: linear-gradient(135deg, hsl(24 95% 48%), hsl(24 95% 42%));
+    --gradient-success: linear-gradient(135deg, hsl(152 45% 32%), hsl(152 45% 38%));
+    --gradient-hero: none;
 
-    /* Shadows */
-    --shadow-trust: 0 10px 30px -10px hsl(210 100% 45% / 0.3);
-    --shadow-success: 0 10px 30px -10px hsl(142 76% 36% / 0.3);
-    --shadow-card: 0 4px 20px -4px hsl(215 25% 15% / 0.1);
+    --shadow-trust: 0 8px 24px -8px hsl(24 95% 48% / 0.28);
+    --shadow-success: 0 8px 24px -8px hsl(152 45% 32% / 0.2);
+    --shadow-card: 0 1px 2px hsl(240 6% 10% / 0.04), 0 8px 24px -12px hsl(240 6% 10% / 0.08);
 
-    /* Animations */
-    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
     --sidebar-background: 0 0% 98%;
-
     --sidebar-foreground: 240 5.3% 26.1%;
-
     --sidebar-primary: 240 5.9% 10%;
-
     --sidebar-primary-foreground: 0 0% 98%;
-
     --sidebar-accent: 240 4.8% 95.9%;
-
     --sidebar-accent-foreground: 240 5.9% 10%;
-
     --sidebar-border: 220 13% 91%;
-
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --sidebar-ring: 24 95% 48%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
-    --sidebar-background: 240 5.9% 10%;
-    --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 224.3 76.3% 48%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 3.7% 15.9%;
-    --sidebar-accent-foreground: 240 4.8% 95.9%;
-    --sidebar-border: 240 3.7% 15.9%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
+    --background: 240 6% 6%;
+    --foreground: 40 10% 96%;
+    --card: 240 5% 9%;
+    --card-foreground: 40 10% 96%;
+    --popover: 240 5% 9%;
+    --popover-foreground: 40 10% 96%;
+    --primary: 24 95% 54%;
+    --primary-foreground: 240 6% 6%;
+    --secondary: 240 4% 14%;
+    --secondary-foreground: 40 10% 96%;
+    --muted: 240 4% 14%;
+    --muted-foreground: 240 4% 64%;
+    --accent: 24 40% 14%;
+    --accent-foreground: 24 95% 70%;
+    --destructive: 0 62% 40%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 240 4% 16%;
+    --input: 240 4% 16%;
+    --ring: 24 95% 54%;
+    --trust-blue: 24 95% 54%;
+    --savings-green: 152 40% 45%;
   }
 }
 
@@ -125,12 +105,45 @@ All colors MUST be HSL.
     @apply border-border;
   }
 
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-feature-settings: "ss01" on, "cv11" on;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4,
+  .font-display {
+    font-family: Syne, Inter, ui-sans-serif, system-ui, sans-serif;
+    letter-spacing: -0.02em;
+  }
+
+  ::selection {
+    background: hsl(24 95% 48% / 0.18);
   }
 }
 
-/* Whop iframe embedded mode — hide site chrome */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  .hairline {
+    box-shadow: inset 0 0 0 1px hsl(var(--border));
+  }
+
+  .section-label {
+    @apply font-display text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-primary;
+  }
+}
+
+/* Whop iframe embedded mode — hide site chrome (kept for deferred re-enable) */
 .whop-embedded header,
 .whop-embedded footer,
 .whop-embedded nav,
@@ -144,4 +157,17 @@ All colors MUST be HSL.
 .whop-embedded .main-content {
   padding-top: 0 !important;
   margin-top: 0 !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

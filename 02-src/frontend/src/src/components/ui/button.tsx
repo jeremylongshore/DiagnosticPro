@@ -15,10 +15,13 @@ const buttonVariants = cva(
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary/80",
         ghost: "hover:bg-accent hover:text-accent-foreground",
         link: "text-primary underline-offset-4 hover:underline",
-        trust: "bg-trust text-white hover:bg-trust/90 shadow-lg",
-        savings: "bg-savings text-white hover:bg-savings/90 shadow-lg",
-        warning: "bg-warning text-white hover:bg-warning/90 shadow-lg",
-        hero: "bg-gradient-to-r from-trust to-savings text-white hover:opacity-90 shadow-xl px-8 py-6 text-lg font-semibold",
+        trust:
+          "bg-primary text-primary-foreground hover:bg-primary/90 shadow-[var(--shadow-trust)]",
+        savings:
+          "bg-success text-success-foreground hover:bg-success/90 shadow-[var(--shadow-success)]",
+        warning: "bg-warning text-warning-foreground hover:bg-warning/90",
+        hero:
+          "bg-primary text-primary-foreground hover:bg-primary/92 shadow-[var(--shadow-trust)] px-8 py-6 text-base font-semibold rounded-md",
       },
       size: {
         default: "h-10 px-4 py-2",

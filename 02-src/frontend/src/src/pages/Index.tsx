@@ -32,9 +32,8 @@ const Index = () => {
     <div className="min-h-screen bg-background">
       <Header />
       <Hero />
-      <ProblemSection />
-      <HowItWorks />
 
+      {/* Product surface first — form is the product */}
       {currentStep === "form" && <DiagnosticForm onFormSubmit={handleFormSubmit} />}
 
       {currentStep === "review" && formData && (
@@ -47,9 +46,10 @@ const Index = () => {
 
       {currentStep === "success" && <PaymentSuccess />}
 
+      <HowItWorks />
+      <ProblemSection />
       <SuccessStories />
       <Pricing />
-      
       <Footer />
     </div>
   );

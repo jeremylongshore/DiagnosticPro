@@ -269,35 +269,31 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
   };
 
   return (
-    <section className="py-12 bg-muted/30" id="diagnostic-form">
+    <section className="py-14 md:py-16 border-b border-border/70" id="diagnostic-form">
       <div className="container mx-auto px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 mb-4">
-              <Brain className="h-3 w-3 mr-1" />
-              AI-Powered Diagnosis
-            </Badge>
-            <h2 className="text-3xl md:text-5xl font-bold mb-6">
-              Equipment Diagnostic Input
-              <span className="block text-primary">Any Equipment, Any Problem</span>
+        <div className="max-w-3xl mx-auto">
+          <div className="mb-8 md:mb-10 max-w-xl">
+            <p className="section-label mb-3">Diagnosis</p>
+            <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight mb-3">
+              Tell us what&apos;s going on
             </h2>
             <p
-              className={`text-xl text-muted-foreground max-w-3xl mx-auto rounded-lg px-6 py-4 transition-all duration-300 border-2 ${
+              className={`text-muted-foreground leading-relaxed rounded-md px-0 py-1 transition-all duration-300 border-2 ${
                 showFlashingBorder
-                  ? 'animate-flash-border bg-primary/10 text-primary font-semibold'
+                  ? 'animate-flash-border bg-primary/5 text-foreground font-medium px-4 py-3'
                   : 'border-transparent'
               }`}
             >
-              Tell us what's wrong and we'll generate a comprehensive diagnostic report.
-              More details = more accurate diagnosis.
+              Equipment, symptoms, and codes — more detail yields a sharper report. One problem,
+              one $4.99 analysis.
             </p>
           </div>
 
-          <Card className={`shadow-lg transition-all duration-300 ${
+          <Card className={`shadow-[var(--shadow-card)] border-border transition-all duration-300 ${
             showFlashingBorder ? 'border-primary/50 border-2' : ''
           }`}>
             <CardHeader>
-              <CardTitle className="text-2xl">Step 1: Basic Information</CardTitle>
+              <CardTitle className="font-display text-xl tracking-tight">Basic information</CardTitle>
             </CardHeader>
             <CardContent className="space-y-8">
               {/* Equipment Type Grid */}

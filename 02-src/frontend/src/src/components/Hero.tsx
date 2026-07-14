@@ -1,109 +1,93 @@
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Shield, DollarSign, Clock } from "lucide-react";
-import heroImage from "@/assets/hero-diagnostic.jpg";
+
+const scrollToForm = () => {
+  window.location.hash = "#diagnostic-form-flash";
+  setTimeout(() => {
+    document.getElementById("diagnostic-form")?.scrollIntoView({ behavior: "smooth" });
+  }, 80);
+};
 
 const Hero = () => {
   return (
-    <section className="relative min-h-[80vh] flex items-center justify-center overflow-hidden">
-      {/* Background Image */}
+    <section className="relative border-b border-border/70">
+      {/* Quiet technical field — no stock photo, no rainbow gradient */}
       <div
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-10"
-        style={{ backgroundImage: `url(${heroImage})` }}
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.35]"
+        style={{
+          backgroundImage:
+            "radial-gradient(ellipse 80% 60% at 70% -10%, hsl(24 95% 48% / 0.09), transparent 55%), linear-gradient(to bottom, transparent, hsl(var(--background)))",
+        }}
+      />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 opacity-[0.4]"
+        style={{
+          backgroundImage:
+            "linear-gradient(hsl(var(--border) / 0.55) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--border) / 0.55) 1px, transparent 1px)",
+          backgroundSize: "48px 48px",
+          maskImage: "radial-gradient(ellipse 70% 60% at 50% 30%, black, transparent)",
+        }}
       />
 
-      {/* Gradient Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-br from-trust/5 via-background to-savings/5" />
+      <div className="container relative z-10 mx-auto px-4 py-16 md:py-24">
+        <div className="max-w-3xl mx-auto text-center">
+          <p className="section-label mb-5">Equipment diagnostic second opinion</p>
 
-      <div className="container relative z-10 mx-auto px-4 py-12">
-        <div className="max-w-4xl mx-auto text-center">
-          {/* Badges */}
-          <div className="flex flex-wrap justify-center gap-2 mb-6">
-            <Badge variant="outline" className="bg-trust/10 text-trust border-trust/20">
-              <Shield className="h-3 w-3 mr-1" />
-              AI Intelligence
-            </Badge>
-            <Badge variant="outline" className="bg-savings/10 text-savings border-savings/20">
-              <DollarSign className="h-3 w-3 mr-1" />
-              Root Cause Analysis
-            </Badge>
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
-              <Clock className="h-3 w-3 mr-1" />
-              Universal Equipment
-            </Badge>
-          </div>
-
-          {/* Main Headline */}
-          <h1 className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-4">
-            Know What's Wrong
-            <span className="block text-transparent bg-gradient-to-r from-trust to-savings bg-clip-text">
-              Before You Authorize Repairs
-            </span>
+          <h1 className="font-display text-4xl md:text-5xl lg:text-[3.4rem] font-bold tracking-tight text-foreground text-balance mb-5 leading-[1.08]">
+            Know What&apos;s Wrong
+            <span className="block text-foreground/80 mt-1">Before You Authorize Repairs</span>
           </h1>
 
-          {/* Subheadline */}
-          <p className="text-lg md:text-xl text-muted-foreground mb-6 max-w-3xl mx-auto leading-relaxed">
+          <p className="text-base md:text-lg text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed text-balance">
             AI diagnostic second opinion for $4.99. Get a 2,000+ word report with root cause analysis,
-            fair pricing estimates, and word-for-word scripts to use at the shop.
-            Cars, trucks, boats, HVAC, farm equipment, and more.
+            fair pricing estimates, and word-for-word scripts to use at the shop. Cars, trucks,
+            boats, HVAC, farm equipment, and more.
           </p>
 
-          {/* Value Props */}
-          <div className="flex flex-wrap justify-center gap-4 mb-8 text-sm">
-            <div className="flex items-center text-savings">
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Root Cause Detection
-            </div>
-            <div className="flex items-center text-savings">
-              <CheckCircle className="h-4 w-4 mr-2" />
-              Quote Verification
-            </div>
-            <div className="flex items-center text-savings">
-              <CheckCircle className="h-4 w-4 mr-2" />
-              AI-Powered Intelligence
-            </div>
-          </div>
-
-          {/* CTA — Stripe $4.99 only (Whop membership UI deferred) */}
-          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-8">
+          <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-12">
             <Button
               variant="hero"
               size="lg"
-              className="min-w-48"
-              onClick={() => {
-                // Change hash to trigger flash animation, then scroll
-                window.location.hash = '#diagnostic-form-flash';
-
-                setTimeout(() => {
-                  const form = document.getElementById("diagnostic-form");
-                  form?.scrollIntoView({ behavior: "smooth" });
-                }, 100);
-              }}
+              className="min-w-48 cursor-pointer"
+              onClick={scrollToForm}
             >
               Start Diagnosis - $4.99
             </Button>
+            <a
+              href="#how-it-works"
+              className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-200 underline-offset-4 hover:underline"
+            >
+              See how it works
+            </a>
           </div>
 
-          {/* Value Summary */}
-          <div className="pt-6 border-t border-border/50">
-            <p className="text-sm text-muted-foreground mb-3">
-              AI-powered diagnostic second opinion — know what's wrong before you authorize repairs
-            </p>
-            <div className="flex flex-wrap justify-center gap-6 text-xs text-muted-foreground">
-              <div className="text-center">
-                <div className="text-lg font-bold text-savings">2,000+ Words</div>
-                <div>Detailed diagnostic report</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-trust">15 Sections</div>
-                <div>From diagnosis to negotiation</div>
-              </div>
-              <div className="text-center">
-                <div className="text-lg font-bold text-primary">$4.99</div>
-                <div>Less than a coffee</div>
-              </div>
+          <dl className="grid grid-cols-3 gap-4 max-w-lg mx-auto border-t border-border/80 pt-8">
+            <div className="text-center">
+              <dt className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground mb-1">
+                Report
+              </dt>
+              <dd className="font-display text-lg md:text-xl font-semibold tabular-nums">
+                2,000+ Words
+              </dd>
             </div>
-          </div>
+            <div className="text-center border-x border-border/80">
+              <dt className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground mb-1">
+                Structure
+              </dt>
+              <dd className="font-display text-lg md:text-xl font-semibold tabular-nums">
+                15 Sections
+              </dd>
+            </div>
+            <div className="text-center">
+              <dt className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground mb-1">
+                Price
+              </dt>
+              <dd className="font-display text-lg md:text-xl font-semibold tabular-nums text-primary">
+                $4.99
+              </dd>
+            </div>
+          </dl>
         </div>
       </div>
     </section>

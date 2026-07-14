@@ -1,45 +1,49 @@
 import { Button } from "@/components/ui/button";
 
+const scrollToForm = () => {
+  window.location.hash = "#diagnostic-form-flash";
+  setTimeout(() => {
+    document.getElementById("diagnostic-form")?.scrollIntoView({ behavior: "smooth" });
+  }, 80);
+};
+
 const Header = () => {
   return (
-    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-      <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-        <div className="flex items-center">
-          <span className="text-xl font-bold text-foreground">DiagnosticPro</span>
-        </div>
+    <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background/85 backdrop-blur-md supports-[backdrop-filter]:bg-background/75">
+      <div className="container mx-auto px-4 h-14 md:h-16 flex items-center justify-between gap-4">
+        <a href="/" className="flex items-baseline gap-0.5 group">
+          <span className="font-display text-lg md:text-xl font-bold tracking-tight text-foreground">
+            Diagnostic
+          </span>
+          <span className="font-display text-lg md:text-xl font-bold tracking-tight text-primary">
+            Pro
+          </span>
+        </a>
 
-        <nav className="hidden md:flex items-center space-x-6">
+        <nav className="hidden md:flex items-center gap-7">
           <a
             href="#diagnostic-form"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-200"
           >
-            Get Diagnosis
+            Diagnosis
           </a>
           <a
             href="#how-it-works"
-            className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-200"
           >
-            How It Works
+            How it works
+          </a>
+          <a
+            href="#pricing"
+            className="text-sm text-muted-foreground hover:text-foreground transition-colors duration-200"
+          >
+            Pricing
           </a>
         </nav>
 
-        <div className="flex items-center">
-          <Button
-            variant="trust"
-            size="sm"
-            onClick={() => {
-              // Change hash to trigger flash animation, then scroll
-              window.location.hash = '#diagnostic-form-flash';
-              
-              setTimeout(() => {
-                const form = document.getElementById("diagnostic-form");
-                form?.scrollIntoView({ behavior: "smooth" });
-              }, 100);
-            }}
-          >
-            Start Diagnosis - $4.99
-          </Button>
-        </div>
+        <Button variant="default" size="sm" className="font-medium" onClick={scrollToForm}>
+          Start — $4.99
+        </Button>
       </div>
     </header>
   );

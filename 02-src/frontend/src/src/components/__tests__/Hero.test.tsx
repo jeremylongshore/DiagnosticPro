@@ -20,7 +20,6 @@ describe("Hero Component", () => {
     const { getByText, queryByText } = render(<Hero />);
 
     expect(getByText("Start Diagnosis - $4.99")).toBeInTheDocument();
-    // Whop membership CTAs are deferred from the public UI
     expect(queryByText(/Join the Community/)).not.toBeInTheDocument();
     expect(queryByText(/Login with Whop/i)).not.toBeInTheDocument();
   });
@@ -30,6 +29,7 @@ describe("Hero Component", () => {
 
     expect(getByText("2,000+ Words")).toBeInTheDocument();
     expect(getByText("15 Sections")).toBeInTheDocument();
-    expect(getByText("$4.99")).toBeInTheDocument();
+    // Price appears in CTA and stats row
+    expect(getByText("Start Diagnosis - $4.99")).toBeInTheDocument();
   });
 });
