@@ -5,7 +5,7 @@
 [![Live Status](https://img.shields.io/badge/status-live-success.svg)](https://diagnosticpro.io)
 [![Firebase](https://img.shields.io/badge/Firebase-Hosting-FFCA28.svg)](https://firebase.google.com)
 [![Vertex AI](https://img.shields.io/badge/Vertex%20AI-Gemini%202.5-4285F4.svg)](https://cloud.google.com/vertex-ai)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
 **Get professional AI-assisted diagnostic reports for vehicles and equipment — Just $4.99**
 
