@@ -8,9 +8,11 @@
 //   PLAYWRIGHT_BASE_URL=https://test.diagnosticpro.io \
 //   DPRO_STRIPE_TEST_MODE=1 \
 //   DPRO_STRIPE_COUPON=TEST1001 \
+//   DPRO_TEST_EMAIL=jeremy@intentsolutions.io \
 //   pnpm exec playwright test --project=live-journey e2e-live/coupon-free.spec.ts
 //
 // Seed data: e2e-live/fixtures/seed-cases.ts (rich DTC + shop-quote scenarios).
+// Customer email defaults to jeremy@intentsolutions.io (override with DPRO_TEST_EMAIL).
 
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
@@ -26,6 +28,8 @@ const RUN_EPOCH = Date.now();
 const PAY_READY = process.env.DPRO_STRIPE_TEST_MODE === '1';
 const COUPON = (process.env.DPRO_STRIPE_COUPON || 'TEST1001').trim();
 const SEED_ID = process.env.DPRO_SEED_CASE || DEFAULT_SEED.id;
+/** Form + Stripe email for the real operator inbox. */
+const TEST_EMAIL = (process.env.DPRO_TEST_EMAIL || 'jeremy@intentsolutions.io').trim();
 
 const PAY_BLOCKED =
   'blocked: set DPRO_STRIPE_TEST_MODE=1 and target a sk_test backend ' +
@@ -141,7 +145,14 @@ test.describe.configure({ mode: 'serial' });
 test.beforeAll(async () => {
   const { SEED_CASES } = await import('./fixtures/seed-cases');
   seed = SEED_CASES.find((c) => c.id === SEED_ID) ?? DEFAULT_SEED;
-  email = `${seed.emailLocal}+${RUN_EPOCH}@intentsolutions.io`;
+  // Prefer operator inbox so real people can find the submission/report.
+  // Optional unique tag: DPRO_EMAIL_UNIQUE=1 → jeremy+epoch@... for isolation.
+  if (process.env.DPRO_EMAIL_UNIQUE === '1') {
+    const [local, domain] = TEST_EMAIL.split('@');
+    email = `${local}+${seed.id}.${RUN_EPOCH}@${domain}`;
+  } else {
+    email = TEST_EMAIL;
+  }
 });
 
 test.afterEach(async ({}, testInfo) => {

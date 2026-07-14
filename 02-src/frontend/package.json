@@ -15,7 +15,8 @@
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
     "test:live": "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-https://diagnosticpro.io} playwright test --project=live-journey",
-    "test:live:coupon": "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-https://test.diagnosticpro.io} DPRO_STRIPE_TEST_MODE=1 DPRO_STRIPE_COUPON=${DPRO_STRIPE_COUPON:-TEST1001} playwright test --project=live-journey e2e-live/coupon-free.spec.ts"
+    "test:live:coupon": "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-https://test.diagnosticpro.io} DPRO_STRIPE_TEST_MODE=1 DPRO_STRIPE_COUPON=${DPRO_STRIPE_COUPON:-TEST1001} DPRO_TEST_EMAIL=${DPRO_TEST_EMAIL:-jeremy@intentsolutions.io} playwright test --project=live-journey e2e-live/coupon-free.spec.ts",
+    "test:live:test": "PLAYWRIGHT_BASE_URL=${PLAYWRIGHT_BASE_URL:-https://test.diagnosticpro.io} DPRO_STRIPE_TEST_MODE=1 DPRO_TEST_EMAIL=${DPRO_TEST_EMAIL:-jeremy@intentsolutions.io} playwright test --project=live-journey e2e-live/journey.spec.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.0.0",

@@ -94,17 +94,18 @@ export const SEED_CASES: SeedCase[] = [
     label: 'Residential HVAC compressor hard-start / breaker trip',
     equipmentSlug: 'hvac',
     make: 'Trane',
-    model: 'XR16',
+    // Must match a real option in manufacturers.ts (XR16 is not in the catalog).
+    model: 'XR15 (Central AC)',
     year: '2015',
     description:
-      'Outdoor unit hard-starts then trips the 40A double-pole breaker after ~8 minutes of run time. ' +
+      'Trane XR15 outdoor unit hard-starts then trips the 40A double-pole breaker after ~8 minutes of run time. ' +
       'Cooling weak upstairs. Capacitor was replaced last season. Tech quoted full compressor replacement ' +
       'at $3,200 parts+labor. Want to know if start-assist, contactor, or low refrigerant is more likely ' +
       'before committing to a compressor.',
     mileage: '11 seasons',
     errorCodes: 'none displayed',
-    fullName: 'Sam Okonkwo',
-    emailLocal: 'playwright.hvac',
+    fullName: 'Jeremy Longshore',
+    emailLocal: 'jeremy',
     details: {
       previousRepairs: 'Dual-run capacitor replaced 14 months ago; filter changes every 60 days.',
       shopQuoteAmount: '3200',

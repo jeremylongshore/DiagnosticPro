@@ -32,6 +32,8 @@ const RUN_EPOCH = Date.now();
 const PAY_READY = process.env.DPRO_STRIPE_TEST_MODE === '1';
 const WHOP_TOKEN = process.env.DPRO_WHOP_TEST_TOKEN || '';
 const WHOP_EMAIL = process.env.DPRO_WHOP_TEST_EMAIL || '';
+/** Customer email on form + Stripe checkout (defaults to operator inbox). */
+const TEST_EMAIL = (process.env.DPRO_TEST_EMAIL || 'jeremy@intentsolutions.io').trim();
 
 const PAY_BLOCKED_REASON =
   'blocked: payment steps need a target backend running Stripe TEST-mode keys ' +
@@ -156,7 +158,7 @@ test('J1-02 real form submit persists a pending submission', async ({ page }) =>
   await page.locator('#error-codes').fill('P0301');
 
   await page.locator('#full-name').fill('Journey Probe');
-  await page.locator('#email').fill(`journey+${RUN_EPOCH}@intentsolutions.io`);
+  await page.locator('#email').fill(TEST_EMAIL);
 
   // "Review" mounts DiagnosticReview, whose effect POSTs /saveSubmission
   const [saveRes] = await Promise.all([
@@ -190,7 +192,7 @@ test('J1-03 pay CTA renders bound to the submission (client-reference-id)', asyn
   await page.getByRole('option', { name: '2020', exact: true }).click();
   await page.locator('#description').fill('P0301 misfire journey probe — pay CTA render check.');
   await page.locator('#full-name').fill('Journey Probe');
-  await page.locator('#email').fill(`journey+${RUN_EPOCH}@intentsolutions.io`);
+  await page.locator('#email').fill(TEST_EMAIL);
   const [saveRes] = await Promise.all([
     page.waitForResponse(
       (r) => r.url().endsWith('/saveSubmission') && r.request().method() === 'POST',
@@ -240,7 +242,7 @@ test('J1-05 hosted checkout accepts the 4242 test card and redirects to /success
   // Selectors verified against the real hosted-checkout DOM (probe 2026-07-02):
   // direct inputs #email/#cardNumber/#cardExpiry/#cardCvc/#billingName/
   // #billingPostalCode, card accordion radio, Link enrollment checkbox.
-  await page.locator('#email').fill(`journey+${RUN_EPOCH}@intentsolutions.io`);
+  await page.locator('#email').fill(TEST_EMAIL);
   const cardRadio = page.locator('#payment-method-accordion-item-title-card');
   if ((await cardRadio.count()) && !(await cardRadio.isChecked())) await cardRadio.click();
   await page.locator('#cardNumber').fill('4242 4242 4242 4242');
