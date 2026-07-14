@@ -595,7 +595,7 @@ We design and deploy custom AI diagnostic systems for organizations that need pr
 
 ## 📄 License
 
-MIT License — See [LICENSE](LICENSE) for details
+AGPL-3.0 — See [LICENSE](LICENSE) for details
 
 **You're free to:**
 - Study the code and architecture
