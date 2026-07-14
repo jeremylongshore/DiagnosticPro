@@ -2,13 +2,12 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Edit, CheckCircle } from "lucide-react";
+import { Brain, Edit } from "lucide-react";
 import { startAnalysis } from "@/services/diagnostics";
 import { useToast } from "@/components/ui/use-toast";
 import type { FormData } from "./DiagnosticForm";
-import { getWhopAuth, getWhopHeaders, verifyMembership } from "@/lib/whop-auth";
 
-// Stripe integration via Stripe Checkout only (for non-Whop-members)
+// Stripe Checkout only. Whop membership UI is deferred (backend left intact).
 
 interface DiagnosticReviewProps {
   formData: FormData;
@@ -23,66 +22,8 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
   const [orderId, setOrderId] = useState<string | null>(null);
   const [paymentInitiated, setPaymentInitiated] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [memberAnalyzing, setMemberAnalyzing] = useState(false);
   const { toast } = useToast();
   const paymentSectionRef = useRef<HTMLDivElement>(null);
-
-  const whopAuth = getWhopAuth();
-
-  // Handle member diagnostic submission (bypasses Stripe)
-  const handleMemberSubmit = async () => {
-    if (!submissionId) return;
-
-    try {
-      setMemberAnalyzing(true);
-
-      // Re-verify membership is still active
-      const stillMember = await verifyMembership();
-      if (!stillMember) {
-        toast({
-          title: "Membership Expired",
-          description: "Your membership is no longer active. Please renew or pay $4.99 for this diagnostic.",
-          variant: "destructive",
-        });
-        setMemberAnalyzing(false);
-        return;
-      }
-
-      const apiBase = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE || '';
-
-      const response = await fetch(`${apiBase}/api/whop/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getWhopHeaders(),
-        },
-        body: JSON.stringify({ submissionId }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Analysis failed: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      toast({
-        title: "Analysis Started!",
-        description: "Your diagnostic report is being generated. Redirecting...",
-      });
-
-      // Backend already updates Firestore status — no duplicate write needed
-      onPaymentSuccess();
-    } catch (error) {
-      console.error("Member analysis error:", error);
-      toast({
-        title: "Analysis Error",
-        description: error instanceof Error ? error.message : "Failed to start analysis",
-        variant: "destructive",
-      });
-    } finally {
-      setMemberAnalyzing(false);
-    }
-  };
 
   // Set client-reference-id on Buy Button after it loads
   useEffect(() => {
@@ -427,127 +368,65 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
             </CardContent>
           </Card>
 
-          {/* Payment / Member Action Section */}
+          {/* Payment Section — Stripe $4.99 only */}
           <Card ref={paymentSectionRef} className="shadow-lg">
             <CardContent className="p-6">
               <div className="text-center">
-                {whopAuth?.isMember ? (
-                  /* ── Whop Member: Free Diagnostic ── */
-                  <>
-                    <div className="flex items-center justify-center gap-2 mb-4">
-                      <CheckCircle className="h-5 w-5 text-savings" />
-                      <span className="text-sm font-medium text-savings">
-                        PRO Member — Unlimited Diagnostics
-                      </span>
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <img
+                    src="https://js.stripe.com/v3/fingerprinted/img/stripe-badge-transparent@2x.png"
+                    alt="Powered by Stripe"
+                    className="h-6"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Secure payments powered by Stripe
+                  </span>
+                </div>
+                <h3 className="text-xl font-semibold mb-4">AI Diagnostic Analysis</h3>
+                <div className="text-3xl font-bold text-primary mb-2">$4.99</div>
+                <p className="text-muted-foreground mb-6">
+                  Get your comprehensive AI-powered diagnostic report - instant download after payment
+                </p>
+                {saveError ? (
+                  <div className="space-y-4">
+                    <div className="text-destructive text-sm bg-destructive/10 p-3 rounded-lg">
+                      <p className="font-medium">Unable to proceed with payment</p>
+                      <p>{saveError}</p>
                     </div>
-                    <h3 className="text-xl font-semibold mb-4">AI Diagnostic Analysis</h3>
-                    <div className="text-3xl font-bold text-savings mb-2">Included</div>
-                    <p className="text-muted-foreground mb-6">
-                      Your diagnostic report is included with your DiagnosticPro membership
-                    </p>
-                    {saveError ? (
-                      <div className="space-y-4">
-                        <div className="text-destructive text-sm bg-destructive/10 p-3 rounded-lg">
-                          <p className="font-medium">Unable to proceed</p>
-                          <p>{saveError}</p>
-                        </div>
-                        <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
-                          Try Again
-                        </Button>
-                      </div>
-                    ) : isDataSaved && submissionId ? (
-                      <div className="space-y-4">
-                        <Button
-                          onClick={handleMemberSubmit}
-                          disabled={memberAnalyzing}
-                          className="w-full py-6 text-lg bg-savings hover:bg-savings/90 text-savings-foreground"
-                          size="lg"
-                        >
-                          {memberAnalyzing ? "Analyzing..." : "Run Diagnostic — Included with Membership"}
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          Submission ID: {submissionId}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="text-muted-foreground">
-                        {isProcessing ? "Saving your data..." : "Preparing..."}
-                      </div>
-                    )}
-                  </>
+                    <Button
+                      onClick={() => window.location.reload()}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                ) : isDataSaved && submissionId ? (
+                  <div className="space-y-4">
+                    {/* Env vars win so a Stripe account swap only needs a rebuild with new
+                        VITE_STRIPE_* values; publishable keys are public, so a hardcoded
+                        fallback to the current live account is acceptable. */}
+                    <stripe-buy-button
+                      buy-button-id={import.meta.env.VITE_STRIPE_BUY_BUTTON_ID || "buy_btn_1SC6LyJfyCDmId8XPHZozmzJ"}
+                      publishable-key={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "pk_live_51RgbAkJfyCDmId8XfY0H7dLS8v2mjL6887WNfScroA9v6ggvcPbXSQUjrLkY2dVZh26QdbcS3nXegFKnf6C6RMEb00po2qC8Fg"}
+                    >
+                    </stripe-buy-button>
+                    <div className="text-center space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Submission ID: {submissionId || "Not generated"}
+                      </p>
+                    </div>
+                  </div>
                 ) : (
-                  /* ── Non-Member: Stripe $4.99 Payment ── */
-                  <>
-                    <div className="flex items-center justify-center gap-2 mb-4">
-                      <img
-                        src="https://js.stripe.com/v3/fingerprinted/img/stripe-badge-transparent@2x.png"
-                        alt="Powered by Stripe"
-                        className="h-6"
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        Secure payments powered by Stripe
-                      </span>
-                    </div>
-                    <h3 className="text-xl font-semibold mb-4">AI Diagnostic Analysis</h3>
-                    <div className="text-3xl font-bold text-primary mb-2">$4.99</div>
-                    <p className="text-muted-foreground mb-6">
-                      Get your comprehensive AI-powered diagnostic report - instant download after payment
-                    </p>
-                    {saveError ? (
-                      <div className="space-y-4">
-                        <div className="text-destructive text-sm bg-destructive/10 p-3 rounded-lg">
-                          <p className="font-medium">Unable to proceed with payment</p>
-                          <p>{saveError}</p>
-                        </div>
-                        <Button
-                          onClick={() => window.location.reload()}
-                          variant="outline"
-                          className="w-full"
-                        >
-                          Try Again
-                        </Button>
-                      </div>
-                    ) : isDataSaved && submissionId ? (
-                      <div className="space-y-4">
-                        {/* Env vars win so a Stripe account swap only needs a rebuild with new
-                            VITE_STRIPE_* values; publishable keys are public, so a hardcoded
-                            fallback to the current live account is acceptable. */}
-                        <stripe-buy-button
-                          buy-button-id={import.meta.env.VITE_STRIPE_BUY_BUTTON_ID || "buy_btn_1SC6LyJfyCDmId8XPHZozmzJ"}
-                          publishable-key={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "pk_live_51RgbAkJfyCDmId8XfY0H7dLS8v2mjL6887WNfScroA9v6ggvcPbXSQUjrLkY2dVZh26QdbcS3nXegFKnf6C6RMEb00po2qC8Fg"}
-                        >
-                        </stripe-buy-button>
-                        {/* Upsell for non-members */}
-                        <div className="pt-4 border-t border-border/50">
-                          <a
-                            href="https://whop.com/checkout/plan_GFAg4oqAGOEeR"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-primary hover:text-primary/80 underline"
-                          >
-                            Or join DiagnosticPro ($29/mo) for unlimited diagnostics
-                          </a>
-                        </div>
-                        <div className="text-center space-y-2">
-                          <p className="text-xs text-muted-foreground">
-                            Submission ID: {submissionId || "Not generated"}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-muted-foreground">
-                        {isProcessing ? "Saving your data..." : "Preparing payment..."}
-                      </div>
-                    )}
-                  </>
+                  <div className="text-muted-foreground">
+                    {isProcessing ? "Saving your data..." : "Preparing payment..."}
+                  </div>
                 )}
                 <p className="text-xs text-muted-foreground mt-4">
-                  {whopAuth?.isMember
-                    ? "Analysis powered by Vertex AI Gemini. Results typically ready in under 60 seconds."
-                    : "Secure payment processed by Stripe. After payment, you'll get instant access to download your report."}
+                  Secure payment processed by Stripe. After payment, you'll get instant access to download your report.
                 </p>
                 <div className="text-xs text-muted-foreground mt-2">
-                  By {whopAuth?.isMember ? "using this service" : "purchasing"}, you agree to our{" "}
+                  By purchasing, you agree to our{" "}
                   <a href="/terms" className="underline hover:text-primary">
                     Terms of Service
                   </a>{" "}

@@ -6,11 +6,6 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
-import { setupWhopEmbed } from "@/lib/whop-embed";
-
-// Initialize Whop iframe detection
-setupWhopEmbed();
-
 // Lazy load all routes for better performance
 const Index = React.lazy(() => import("./pages/Index"));
 const Terms = React.lazy(() => import("./pages/Terms"));
@@ -21,6 +16,7 @@ const TestMonitor = React.lazy(() => import("./pages/TestMonitor"));
 const PaymentSuccess = React.lazy(() => import("./components/PaymentSuccess"));
 const Report = React.lazy(() => import("./pages/Report"));
 const EquipmentLanding = React.lazy(() => import("./pages/EquipmentLanding"));
+// Whop OAuth callback kept for later; route not linked from the public UI.
 const AuthCallback = React.lazy(() => import("./pages/AuthCallback"));
 
 // Optimized QueryClient configuration

@@ -1,13 +1,9 @@
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, Shield, DollarSign, Clock, Wrench } from "lucide-react";
+import { CheckCircle, Shield, DollarSign, Clock } from "lucide-react";
 import heroImage from "@/assets/hero-diagnostic.jpg";
-import WhopLoginButton from "@/components/WhopLoginButton";
-import { getWhopAuth } from "@/lib/whop-auth";
 
 const Hero = () => {
-  const auth = getWhopAuth();
-
   return (
     <section className="relative min-h-[80vh] flex items-center justify-center overflow-hidden">
       {/* Background Image */}
@@ -68,7 +64,7 @@ const Hero = () => {
             </div>
           </div>
 
-          {/* CTA Buttons */}
+          {/* CTA — Stripe $4.99 only (Whop membership UI deferred) */}
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-8">
             <Button
               variant="hero"
@@ -84,42 +80,9 @@ const Hero = () => {
                 }, 100);
               }}
             >
-              {auth?.isMember ? "Start Diagnosis — Included" : "Start Diagnosis - $4.99"}
+              Start Diagnosis - $4.99
             </Button>
-            {auth?.isMember ? (
-              <span className="inline-flex items-center gap-2 px-6 py-3 bg-savings/10 border border-savings/30 text-savings font-semibold rounded-lg text-base">
-                <CheckCircle className="h-4 w-4" />
-                PRO Member — Unlimited Diagnostics
-              </span>
-            ) : auth ? (
-              <a
-                href="https://whop.com/checkout/plan_GFAg4oqAGOEeR"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-8 py-3 bg-background/80 backdrop-blur border border-primary/30 text-primary font-semibold rounded-lg hover:bg-primary/10 hover:border-primary/50 transition-all text-base"
-              >
-                <Wrench className="h-4 w-4" />
-                Upgrade to PRO — $29/mo Unlimited
-              </a>
-            ) : (
-              <a
-                href="https://whop.com/checkout/plan_GFAg4oqAGOEeR"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 px-8 py-3 bg-background/80 backdrop-blur border border-primary/30 text-primary font-semibold rounded-lg hover:bg-primary/10 hover:border-primary/50 transition-all text-base"
-              >
-                <Wrench className="h-4 w-4" />
-                Join the Community — $29/mo
-              </a>
-            )}
           </div>
-
-          {/* Whop Login — shown when not logged in OR logged-in non-members */}
-          {(!auth || !auth.isMember) && (
-            <div className="flex justify-center mb-6">
-              <WhopLoginButton className="text-sm" />
-            </div>
-          )}
 
           {/* Value Summary */}
           <div className="pt-6 border-t border-border/50">
