@@ -15,7 +15,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import {
-  Brain,
   Smartphone,
   Car,
   Ship,
@@ -692,7 +691,6 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
               {/* Submit */}
               <div className="pt-6 text-center">
                 <Button size="lg" className="min-w-48" onClick={handleSubmit}>
-                  <Brain className="h-4 w-4 mr-2" />
                   Review
                 </Button>
                 <p className="text-sm text-muted-foreground mt-4">

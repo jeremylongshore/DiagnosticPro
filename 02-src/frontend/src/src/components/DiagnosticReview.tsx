@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Edit } from "lucide-react";
+import { Edit } from "lucide-react";
 import { startAnalysis } from "@/services/diagnostics";
 import { useToast } from "@/components/ui/use-toast";
 import type { FormData } from "./DiagnosticForm";
@@ -250,20 +250,16 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
   }, [formData, toast]);
 
   return (
-    <section className="py-12 bg-muted/30">
+    <section className="py-14 md:py-16 border-b border-border/70">
       <div className="container mx-auto px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-8">
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 mb-4">
-              <Brain className="h-3 w-3 mr-1" />
-              Review & Purchase
-            </Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Review Your Diagnostic Information
+        <div className="max-w-3xl mx-auto">
+          <div className="mb-8 md:mb-10 max-w-xl">
+            <p className="section-label mb-3">Review</p>
+            <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight mb-3">
+              Confirm your details
             </h2>
-            <p className="text-lg text-muted-foreground">
-              Please review your information below. Once confirmed, proceed to payment for your AI
-              analysis.
+            <p className="text-muted-foreground leading-relaxed">
+              Check the information below, then pay $4.99 for your diagnostic report.
             </p>
           </div>
 
