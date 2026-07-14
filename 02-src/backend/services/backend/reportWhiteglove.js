@@ -90,7 +90,13 @@ function asNarrative(content) {
 function fieldRow(label, value) {
   const v = escapeMd(value);
   if (!v) return null;
-  return `| ${label} | ${v.replace(/\|/g, '\\|')} |`;
+  // Protect IDs / emails / serials so pandoc does not treat `_` as emphasis
+  // (which produced "qa spacing kenworth" style broken text in the PDF).
+  const needsCode = /[_@\\/]/.test(v) || /^diag_|^cs_|^sample_|^qa_/.test(v);
+  const cell = needsCode
+    ? `\`${v.replace(/`/g, "'")}\``
+    : v.replace(/\|/g, '\\|');
+  return `| ${label} | ${cell} |`;
 }
 
 /**
@@ -104,18 +110,19 @@ function buildReportMarkdown(submission, analysis) {
     .join(' ');
 
   const lines = [];
-  lines.push('% DiagnosticPro whiteglove report');
-  lines.push('');
+  // Do NOT use a leading "% title" line — pandoc treats it as document title
+  // and burns half a page of empty space above the report body.
   lines.push(`# DiagnosticPro Report`);
   lines.push('');
   lines.push(`**Submission:** \`${id}\`  `);
   lines.push(`**Date:** ${date}  `);
   if (equip) lines.push(`**Equipment:** ${escapeMd(equip)}  `);
   lines.push('');
-  lines.push('---');
-  lines.push('');
   lines.push('## Customer & equipment summary');
   lines.push('');
+  // Single whiteglove caption (booktabs longtable). Do not also rely on the
+  // preamble auto-"Table N." injector when an explicit caption is present —
+  // that produced a doubled "Table 1." label on page 1.
   lines.push(': Equipment and intake fields provided with this submission.');
   lines.push('');
   lines.push('| Field | Value |');

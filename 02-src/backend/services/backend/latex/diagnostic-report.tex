@@ -1,18 +1,25 @@
-% DiagnosticPro report preamble — whiteglove-pdf standards.
-% Source of truth for layout: Intent Solutions /whiteglove-pdf skill
-% (booktabs, arraystretch, titlesec, widow/orphan, caption style).
+% DiagnosticPro report preamble — locked to /whiteglove-pdf standards.
+% Numeric spacing values are copied from the skill template
+% (~/.claude/skills/whiteglove-pdf/templates/default.tex). Only the footer
+% branding differs (product URL, not partners.intentsolutions.io).
 % Loaded via pandoc --include-in-header.
 
 % --- Tables -------------------------------------------------------------
+% booktabs: top + header-separator + bottom only. No full grid, no row
+% striping, no vertical rules.
 \usepackage{booktabs}
 \usepackage{longtable}
 \usepackage{array}
 \usepackage{etoolbox}
 
+% Vertical breathing room before/after EVERY longtable.
 \setlength{\LTpre}{2.6em}
 \setlength{\LTpost}{2.6em}
+
+% Row breathing room (default 1.0 is cramped at 11pt).
 \renewcommand{\arraystretch}{1.35}
 
+% Booktabs rule weights — heavy top/bottom, light header separator.
 \setlength{\heavyrulewidth}{0.9pt}
 \setlength{\lightrulewidth}{0.4pt}
 \setlength{\cmidrulewidth}{0.4pt}
@@ -20,6 +27,10 @@
 \setlength{\belowrulesep}{0.55ex}
 
 % --- Captions -----------------------------------------------------------
+% Bold "Table N." + period separator, left-aligned (whiteglove standard).
+% We rely on pandoc `: caption` lines in the source markdown for a single
+% caption per table. Do NOT auto-inject a second "Table N." label above
+% longtable (that doubled captions on page 1).
 \usepackage{caption}
 \captionsetup{
   font={normalsize},
@@ -30,24 +41,15 @@
   skip=0.6em
 }
 
-% Auto "Table N." labels above every longtable (outside the env group).
-\newcounter{istablenum}
-\BeforeBeginEnvironment{longtable}{%
-  \refstepcounter{istablenum}%
-  \par\addvspace{1.0em}%
-  {\noindent\bfseries Table \arabic{istablenum}.\par}%
-  \nopagebreak\addvspace{0.3em}%
-}
-\AfterEndEnvironment{longtable}{%
-  \par\addvspace{1.2em}%
-}
-
 % --- Headings -----------------------------------------------------------
+% Generous breathing room above section headings so they don't crowd a
+% preceding table bottom rule.
 \usepackage{titlesec}
 \titlespacing*{\section}{0pt}{3.4ex plus 1ex minus .2ex}{1.6ex plus .2ex}
 \titlespacing*{\subsection}{0pt}{2.8ex plus 1ex minus .2ex}{1.2ex plus .2ex}
 \titlespacing*{\subsubsection}{0pt}{2.0ex plus 1ex minus .2ex}{1.0ex plus .2ex}
 
+% Prevent orphaned headings at the very bottom of a page.
 \makeatletter
 \@afterindentfalse
 \@beginparpenalty=-\@lowpenalty
@@ -55,13 +57,19 @@
 \@itempenalty=-\@lowpenalty
 \makeatother
 
-% --- Widow / orphan -----------------------------------------------------
+% --- Widow / orphan control --------------------------------------------
 \widowpenalty=10000
 \clubpenalty=10000
 \displaywidowpenalty=10000
 \predisplaypenalty=10000
 
+% --- Body density -------------------------------------------------------
+% Slight paragraph breathing without turning the report into double-space.
+\setlength{\parskip}{0.35em}
+\setlength{\parindent}{0pt}
+
 % --- Page footer (DiagnosticPro product branding) -----------------------
+% Header intentionally blank. Footer: brand | domain | page-of-pages.
 \usepackage{lastpage}
 \usepackage{fancyhdr}
 \pagestyle{fancy}
@@ -82,6 +90,8 @@
 }
 
 % --- Unicode glyph fallbacks -------------------------------------------
+% Latin Modern lacks some BMP symbols; map common ones to math equivalents.
+% Emoji are stripped by scripts/whiteglove-preprocess.py before pandoc.
 \usepackage{newunicodechar}
 \usepackage{amssymb}
 \newunicodechar{≥}{\ensuremath{\geq}}

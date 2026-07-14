@@ -36,6 +36,12 @@ describe('whiteglove report markdown (REQ-005 alignment)', () => {
     expect(md).toContain('# DiagnosticPro Report');
     expect(md).toContain('| Field | Value |');
     expect(md).toContain('Kenworth');
+    // No pandoc title metadata (would waste top-of-page space)
+    expect(md.startsWith('%')).toBe(false);
+    // Single caption convention for the intake table
+    expect(md).toContain(': Equipment and intake fields provided with this submission.');
+    // Submission IDs protected from underscore emphasis
+    expect(md).toMatch(/`diag_1730421300001_9f3ce210`/);
     for (const [, title] of SECTION_ORDER) {
       expect(md).toContain(`## ${title}`);
     }
