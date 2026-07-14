@@ -414,7 +414,39 @@ app.post('/createCheckoutSession', async (req, res) => {
     // token — the /success page resolves session -> submission via
     // GET /checkout/session (the same path the Buy Button flow exercises).
     const frontendBase = (process.env.FRONTEND_URL || 'https://diagnosticpro.io').replace(/\/+$/, '');
-    const session = await stripeClient.checkout.sessions.create({
+
+    // Optional promotion code (e.g. TEST1001 for 100% off in Stripe TEST mode).
+    // When applied server-side we cannot also set allow_promotion_codes (Stripe
+    // rejects that combo). When omitted, allow_promotion_codes lets customers
+    // type a code on the hosted Checkout page.
+    const requestedPromo =
+      (typeof req.body.promotionCode === 'string' && req.body.promotionCode.trim()) ||
+      (typeof req.body.coupon === 'string' && req.body.coupon.trim()) ||
+      '';
+    let appliedPromotionCodeId = null;
+    if (requestedPromo) {
+      const promoList = await stripeClient.promotionCodes.list({
+        code: requestedPromo,
+        active: true,
+        limit: 1,
+      });
+      if (!promoList.data.length) {
+        logStructured({
+          phase,
+          status: 'error',
+          reqId: req.reqId,
+          submissionId,
+          error: { code: 'INVALID_PROMOTION_CODE', message: `Unknown or inactive code: ${requestedPromo}` },
+        });
+        return res.status(400).json({
+          error: `Invalid or inactive promotion code: ${requestedPromo}`,
+          code: 'INVALID_PROMOTION_CODE',
+        });
+      }
+      appliedPromotionCodeId = promoList.data[0].id;
+    }
+
+    const sessionParams = {
       payment_method_types: ['card'],
       line_items: [{
         price_data: {
@@ -432,9 +464,17 @@ app.post('/createCheckoutSession', async (req, res) => {
       success_url: `${frontendBase}/success?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${frontendBase}/cancel?submission_id=${submissionId}`,
       metadata: {
-        submissionId: submissionId
-      }
-    });
+        submissionId: submissionId,
+        ...(requestedPromo ? { promotionCode: requestedPromo } : {}),
+      },
+    };
+    if (appliedPromotionCodeId) {
+      sessionParams.discounts = [{ promotion_code: appliedPromotionCodeId }];
+    } else {
+      sessionParams.allow_promotion_codes = true;
+    }
+
+    const session = await stripeClient.checkout.sessions.create(sessionParams);
 
     logStructured({
       phase,
