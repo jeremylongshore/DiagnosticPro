@@ -103,5 +103,6 @@
   "engines": {
     "node": "20"
   },
-  "main": "lib/index.js"
+  "main": "lib/index.js",
+  "license": "AGPL-3.0-only"
 }
