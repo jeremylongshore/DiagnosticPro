@@ -1,0 +1,97 @@
+% DiagnosticPro report preamble — whiteglove-pdf standards.
+% Source of truth for layout: Intent Solutions /whiteglove-pdf skill
+% (booktabs, arraystretch, titlesec, widow/orphan, caption style).
+% Loaded via pandoc --include-in-header.
+
+% --- Tables -------------------------------------------------------------
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{etoolbox}
+
+\setlength{\LTpre}{2.6em}
+\setlength{\LTpost}{2.6em}
+\renewcommand{\arraystretch}{1.35}
+
+\setlength{\heavyrulewidth}{0.9pt}
+\setlength{\lightrulewidth}{0.4pt}
+\setlength{\cmidrulewidth}{0.4pt}
+\setlength{\aboverulesep}{0.45ex}
+\setlength{\belowrulesep}{0.55ex}
+
+% --- Captions -----------------------------------------------------------
+\usepackage{caption}
+\captionsetup{
+  font={normalsize},
+  labelfont={bf},
+  labelsep=period,
+  justification=raggedright,
+  singlelinecheck=false,
+  skip=0.6em
+}
+
+% Auto "Table N." labels above every longtable (outside the env group).
+\newcounter{istablenum}
+\BeforeBeginEnvironment{longtable}{%
+  \refstepcounter{istablenum}%
+  \par\addvspace{1.0em}%
+  {\noindent\bfseries Table \arabic{istablenum}.\par}%
+  \nopagebreak\addvspace{0.3em}%
+}
+\AfterEndEnvironment{longtable}{%
+  \par\addvspace{1.2em}%
+}
+
+% --- Headings -----------------------------------------------------------
+\usepackage{titlesec}
+\titlespacing*{\section}{0pt}{3.4ex plus 1ex minus .2ex}{1.6ex plus .2ex}
+\titlespacing*{\subsection}{0pt}{2.8ex plus 1ex minus .2ex}{1.2ex plus .2ex}
+\titlespacing*{\subsubsection}{0pt}{2.0ex plus 1ex minus .2ex}{1.0ex plus .2ex}
+
+\makeatletter
+\@afterindentfalse
+\@beginparpenalty=-\@lowpenalty
+\@endparpenalty=-\@lowpenalty
+\@itempenalty=-\@lowpenalty
+\makeatother
+
+% --- Widow / orphan -----------------------------------------------------
+\widowpenalty=10000
+\clubpenalty=10000
+\displaywidowpenalty=10000
+\predisplaypenalty=10000
+
+% --- Page footer (DiagnosticPro product branding) -----------------------
+\usepackage{lastpage}
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0.4pt}
+\fancyfoot[L]{\footnotesize DiagnosticPro \,\textbullet\, Intent Solutions}
+\fancyfoot[C]{\footnotesize diagnosticpro.io}
+\fancyfoot[R]{\footnotesize Page \thepage\ of \pageref*{LastPage}}
+
+\fancypagestyle{plain}{%
+  \fancyhf{}%
+  \renewcommand{\headrulewidth}{0pt}%
+  \renewcommand{\footrulewidth}{0.4pt}%
+  \fancyfoot[L]{\footnotesize DiagnosticPro \,\textbullet\, Intent Solutions}%
+  \fancyfoot[C]{\footnotesize diagnosticpro.io}%
+  \fancyfoot[R]{\footnotesize Page \thepage\ of \pageref*{LastPage}}%
+}
+
+% --- Unicode glyph fallbacks -------------------------------------------
+\usepackage{newunicodechar}
+\usepackage{amssymb}
+\newunicodechar{≥}{\ensuremath{\geq}}
+\newunicodechar{≤}{\ensuremath{\leq}}
+\newunicodechar{≠}{\ensuremath{\neq}}
+\newunicodechar{≈}{\ensuremath{\approx}}
+\newunicodechar{✓}{\ensuremath{\checkmark}}
+\newunicodechar{✗}{\ensuremath{\times}}
+\newunicodechar{→}{\ensuremath{\rightarrow}}
+\newunicodechar{←}{\ensuremath{\leftarrow}}
+\newunicodechar{↔}{\ensuremath{\leftrightarrow}}
+\newunicodechar{·}{\ensuremath{\cdot}}
+\newunicodechar{×}{\ensuremath{\times}}

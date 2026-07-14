@@ -106,11 +106,10 @@ afterAll(() => {
 
 async function renderToFile(sub, analysis, fileName) {
   const filePath = path.join(tmpRoot, fileName);
-  const stream = await generateDiagnosticProPDF(sub, analysis, filePath);
-  await new Promise((resolve, reject) => {
-    stream.on('finish', resolve);
-    stream.on('error', reject);
-  });
+  // Writes file and resolves when complete (whiteglove or pdfkit).
+  const result = await generateDiagnosticProPDF(sub, analysis, filePath);
+  expect(result.path).toBe(filePath);
+  expect(result.bytes).toBeGreaterThan(0);
   return filePath;
 }
 

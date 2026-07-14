@@ -847,9 +847,43 @@ class DiagnosticPDFGenerator {
 // EXPORT FUNCTION
 // ============================================
 
+const {
+  canRenderWhiteglove,
+  generateWhiteglovePDF,
+} = require('./reportWhiteglove.js');
+
+/**
+ * Generate a diagnostic PDF.
+ *
+ * Preferred path: /whiteglove-pdf standards (markdown → pandoc + xelatex,
+ * booktabs/titlesec/widow-orphan). Fallback: legacy pdfkit generator when
+ * pandoc/xelatex are unavailable (local unit tests without TeX).
+ *
+ * Always writes `filePath` and resolves when the file is complete.
+ * Returns { path, engine, bytes } for callers (no longer a Node stream).
+ */
 async function generateDiagnosticProPDF(submission, analysis, filePath) {
+  const forcePdfkit = process.env.PDF_ENGINE === 'pdfkit';
+
+  if (!forcePdfkit && canRenderWhiteglove()) {
+    console.log('[pdf] engine=whiteglove (pandoc + LaTeX)');
+    const result = generateWhiteglovePDF(submission, analysis, filePath);
+    console.log(`[pdf] whiteglove wrote ${result.bytes} bytes via ${result.engine}`);
+    return { path: filePath, engine: result.engine, bytes: result.bytes };
+  }
+
+  console.log('[pdf] engine=pdfkit (legacy fallback — install pandoc+xelatex for whiteglove)');
   const generator = new DiagnosticPDFGenerator();
-  return await generator.generatePDF(submission, analysis, filePath);
+  const stream = await generator.generatePDF(submission, analysis, filePath);
+  await new Promise((resolve, reject) => {
+    stream.on('finish', resolve);
+    stream.on('error', reject);
+  });
+  const bytes = fs.existsSync(filePath) ? fs.statSync(filePath).size : 0;
+  return { path: filePath, engine: 'pdfkit', bytes };
 }
 
-module.exports = { generateDiagnosticProPDF };
+module.exports = {
+  generateDiagnosticProPDF,
+  canRenderWhiteglove,
+};

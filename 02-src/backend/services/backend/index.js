@@ -1738,19 +1738,13 @@ async function generatePDFReport(submissionId, analysis, payload) {
           ...parsedSections
         };
 
-        // Use the new clean PDF generator (async function returns a stream)
-        const stream = await generateDiagnosticProPDF(submission, enrichedAnalysis, tempPath);
-
-        stream.on('finish', () => {
-          // Read the generated file and return as buffer
-          const fs = require('fs');
-          const pdfData = fs.readFileSync(tempPath);
-          // Clean up temp file
-          fs.unlinkSync(tempPath);
-          resolve(pdfData);
-        });
-
-        stream.on('error', reject);
+        // Whiteglove-grade PDF (pandoc+LaTeX) with pdfkit fallback.
+        // generateDiagnosticProPDF writes tempPath and resolves when complete.
+        await generateDiagnosticProPDF(submission, enrichedAnalysis, tempPath);
+        const fs = require('fs');
+        const pdfData = fs.readFileSync(tempPath);
+        try { fs.unlinkSync(tempPath); } catch (_) { /* ignore */ }
+        resolve(pdfData);
 
       } catch (error) {
         reject(error);

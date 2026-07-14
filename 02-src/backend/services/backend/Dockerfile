@@ -17,6 +17,19 @@ RUN npm ci --omit=dev
 FROM node:20-slim
 WORKDIR /app
 ENV NODE_ENV=production
+# Whiteglove PDF stack: pandoc + xelatex (booktabs/titlesec reports).
+# Mirrors /whiteglove-pdf skill standards used across Intent Solutions.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      pandoc \
+      python3 \
+      texlive-xetex \
+      texlive-fonts-recommended \
+      texlive-latex-recommended \
+      texlive-latex-extra \
+      texlive-plain-generic \
+      lmodern \
+    && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/node_modules ./node_modules
 COPY . .
 EXPOSE 8080
