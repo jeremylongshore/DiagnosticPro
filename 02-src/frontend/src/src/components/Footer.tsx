@@ -26,7 +26,7 @@ const Footer = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-10 text-sm">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-10 text-sm">
             <div>
               <p className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-3">
                 Product
@@ -45,6 +45,33 @@ const Footer = () => {
                 <li>
                   <a href="#pricing" className="hover:text-foreground transition-colors">
                     Pricing
+                  </a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <p className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-3">
+                Company
+              </p>
+              <ul className="space-y-2 text-muted-foreground">
+                <li>
+                  <a
+                    href="https://intentsolutions.io"
+                    className="hover:text-foreground transition-colors"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    intentsolutions.io
+                  </a>
+                </li>
+                <li>
+                  <a
+                    href="https://github.com/jeremylongshore"
+                    className="hover:text-foreground transition-colors"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    github.com/jeremylongshore
                   </a>
                 </li>
               </ul>
@@ -82,9 +109,27 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="max-w-5xl mx-auto mt-10 pt-6 border-t border-border/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
+        <div className="max-w-5xl mx-auto mt-10 pt-6 border-t border-border/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-muted-foreground">
           <p>© {new Date().getFullYear()} Intent Solutions Inc. All rights reserved.</p>
-          <p className="tabular-nums">diagnosticpro.io</p>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <a
+              href="https://intentsolutions.io"
+              className="hover:text-foreground transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              intentsolutions.io
+            </a>
+            <a
+              href="https://github.com/jeremylongshore"
+              className="hover:text-foreground transition-colors"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              GitHub
+            </a>
+            <span className="tabular-nums">diagnosticpro.io</span>
+          </div>
         </div>
       </div>
     </footer>
