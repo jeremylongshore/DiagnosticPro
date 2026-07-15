@@ -1428,6 +1428,7 @@ function getEquipmentPromptContext(equipmentType, payload) {
 //                    of the 2026-07-02 blind A/B eval (18/18 vs v2.0,
 //                    +11.4/+10.8 weighted — tests/prompt-eval/RESULTS.md).
 const { V3B_SYSTEM, V3B_USER_TEMPLATE } = require('./promptV3.js');
+const { buildCustomerDataBlock } = require('./evidence/promptEvidence');
 function llmFrameworkVersion() {
   return process.env.LLM_FRAMEWORK_VERSION || 'v2.0';
 }
@@ -1477,7 +1478,8 @@ async function createChatCompletionAdaptive(openai, { model, messages, maxTokens
 // switching to Groq (fast/cheap), Ollama (fully local self-hosted), xAI Grok,
 // vLLM, or any other /v1 chat-completions server is a config change, not code.
 // Keeps the exact same 15-section prompt contract and return shape.
-async function callLLM(payload) {
+// opts.photoItems: optional derived vision captions fused into CUSTOMER_DATA_BLOCK.
+async function callLLM(payload, opts = {}) {
   // OpenAI gpt-4o is the default. Override via LLM_BASE_URL / LLM_MODEL / LLM_API_KEY.
   const apiKey = process.env.LLM_API_KEY || secrets.LLM_API_KEY ||
                  process.env.OPENAI_API_KEY || secrets.OPENAI_API_KEY ||
@@ -1488,6 +1490,8 @@ async function callLLM(payload) {
   const modelName = process.env.LLM_MODEL || 'gpt-4o'; // OpenAI gpt-4o. Strong long-form structured diagnostic reports.
 
   const detectedCodes = extractDiagnosticCodes(payload);
+  const photoItems = Array.isArray(opts.photoItems) ? opts.photoItems : [];
+  const customerDataBlock = buildCustomerDataBlock(payload, detectedCodes, photoItems);
 
   // No mock path. This function ALWAYS talks to the real provider — a canned
   // report must never be able to reach the analyses table (dataset poison).
@@ -1503,24 +1507,7 @@ async function callLLM(payload) {
   const prompt = `You are DiagnosticPro's MASTER TECHNICIAN. Use ALL the diagnostic data provided to give the most accurate analysis possible. Reference specific error codes, mileage patterns, and equipment type in your diagnosis.
 
 CUSTOMER DATA PROVIDED:
-- Vehicle: ${payload.make || 'N/A'} ${payload.model || 'N/A'} ${payload.year || 'N/A'}
-- Equipment Type: ${payload.equipmentType || 'N/A'}
-- Mileage/Hours: ${payload.mileageHours || 'N/A'}
-- Serial Number: ${payload.serialNumber || 'N/A'}
-- Problem: ${payload.problemDescription || 'N/A'}
-- Symptoms: ${payload.symptoms || 'N/A'}
-- Extracted Error Codes: ${(extractDiagnosticCodes(payload).join(', ')) || 'None auto-detected'}
-- Raw Error/Code Text: ${payload.errorCodes || 'None provided'}
-- When Started: ${payload.whenStarted || 'N/A'}
-- Frequency: ${payload.frequency || 'N/A'}
-- Urgency Level: ${payload.urgencyLevel || 'N/A'}
-- Location/Environment: ${payload.locationEnvironment || 'N/A'}
-- Usage Pattern: ${payload.usagePattern || 'N/A'}
-- Previous Repairs: ${payload.previousRepairs || 'N/A'}
-- Modifications: ${payload.modifications || 'N/A'}
-- Troubleshooting Done: ${payload.troubleshootingSteps || 'N/A'}
-- Shop Quote: ${payload.shopQuoteAmount || 'N/A'}
-- Shop Recommendation: ${payload.shopRecommendation || 'N/A'}
+${customerDataBlock}
 
 IMPORTANT AUTHORING RULES:
 1. ${equipmentContext.diagnosticFrame}
@@ -1625,24 +1612,6 @@ Return your response as a comprehensive diagnostic report following this structu
   let systemContent = 'You are DiagnosticPro\'s MASTER TECHNICIAN. Output ONLY the requested 15-section report with no extra preamble or markdown wrappers beyond the numbered headings.';
   let userContent = prompt;
   if (frameworkVersion.startsWith('v3')) {
-    const customerDataBlock = `- Vehicle: ${payload.make || 'N/A'} ${payload.model || 'N/A'} ${payload.year || 'N/A'}
-- Equipment Type: ${payload.equipmentType || 'N/A'}
-- Mileage/Hours: ${payload.mileageHours || 'N/A'}
-- Serial Number: ${payload.serialNumber || 'N/A'}
-- Problem: ${payload.problemDescription || 'N/A'}
-- Symptoms: ${payload.symptoms || 'N/A'}
-- Extracted Error Codes: ${(detectedCodes.join(', ')) || 'None auto-detected'}
-- Raw Error/Code Text: ${payload.errorCodes || 'None provided'}
-- When Started: ${payload.whenStarted || 'N/A'}
-- Frequency: ${payload.frequency || 'N/A'}
-- Urgency Level: ${payload.urgencyLevel || 'N/A'}
-- Location/Environment: ${payload.locationEnvironment || 'N/A'}
-- Usage Pattern: ${payload.usagePattern || 'N/A'}
-- Previous Repairs: ${payload.previousRepairs || 'N/A'}
-- Modifications: ${payload.modifications || 'N/A'}
-- Troubleshooting Done: ${payload.troubleshootingSteps || 'N/A'}
-- Shop Quote: ${payload.shopQuoteAmount || 'N/A'}
-- Shop Recommendation: ${payload.shopRecommendation || 'N/A'}`;
     const subs = {
       '{{CUSTOMER_DATA_BLOCK}}': customerDataBlock,
       '{{DIAGNOSTIC_FRAME}}': equipmentContext.diagnosticFrame,

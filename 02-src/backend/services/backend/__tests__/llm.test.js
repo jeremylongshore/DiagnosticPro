@@ -226,6 +226,55 @@ describe('callLLM with the OpenAI client mocked', () => {
       process.env.LLM_API_KEY = savedKey;
     }
   });
+
+  test('v3 fuses inline photo seed captions into CUSTOMER_DATA_BLOCK (PHOTO EVIDENCE)', async () => {
+    const { EVIDENCE_SEEDS } = require('./fixtures/evidence-seeds');
+    const seed = EVIDENCE_SEEDS['auto-p0301-misfire'];
+    mockCreate.mockResolvedValue({ choices: [{ message: { content: 'report' } }] });
+    process.env.LLM_FRAMEWORK_VERSION = 'v3.0';
+    try {
+      await callLLM(seed.payload, { photoItems: seed.photoItems });
+
+      expect(mockCreate).toHaveBeenCalledTimes(1);
+      const user = mockCreate.mock.calls[0][0].messages[1].content;
+      expect(user).toContain('PHOTO EVIDENCE');
+      expect(user).toContain(seed.photoItems[0].caption.slice(0, 40));
+      expect(user).toContain('OCR: P0301');
+      expect(user).toContain('Toyota Camry 2020');
+      expect(user).toContain('=== BEGIN EXEMPLAR');
+    } finally {
+      delete process.env.LLM_FRAMEWORK_VERSION;
+    }
+  });
+
+  test('without photoItems the user prompt has no PHOTO EVIDENCE section', async () => {
+    const { EVIDENCE_SEEDS } = require('./fixtures/evidence-seeds');
+    mockCreate.mockResolvedValue({ choices: [{ message: { content: 'report' } }] });
+    process.env.LLM_FRAMEWORK_VERSION = 'v3.0';
+    try {
+      await callLLM(EVIDENCE_SEEDS['auto-p0301-misfire'].payload);
+
+      const user = mockCreate.mock.calls[0][0].messages[1].content;
+      expect(user).not.toContain('PHOTO EVIDENCE');
+      expect(user).toContain('Toyota Camry 2020');
+    } finally {
+      delete process.env.LLM_FRAMEWORK_VERSION;
+    }
+  });
+
+  test('v2 also includes PHOTO EVIDENCE when photoItems are provided', async () => {
+    const { EVIDENCE_SEEDS } = require('./fixtures/evidence-seeds');
+    const seed = EVIDENCE_SEEDS['hvac-hard-start'];
+    mockCreate.mockResolvedValue({ choices: [{ message: { content: 'report' } }] });
+    delete process.env.LLM_FRAMEWORK_VERSION;
+
+    await callLLM(seed.payload, { photoItems: seed.photoItems });
+
+    const user = mockCreate.mock.calls[0][0].messages[1].content;
+    expect(user).toContain('PHOTO EVIDENCE');
+    expect(user).toContain('XR15');
+    expect(user).not.toContain('BEGIN EXEMPLAR');
+  });
 });
 
 describe('extractDiagnosticCodes edge cases', () => {
