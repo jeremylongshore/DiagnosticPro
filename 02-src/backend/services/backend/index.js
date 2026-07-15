@@ -3,6 +3,9 @@ const cors = require('cors');
 const rateLimit = require('express-rate-limit');
 const stripe = require('stripe');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const PDFDocument = require('pdfkit');
 // Using production-grade PDF generator with validation and proper pagination
 const { generateDiagnosticProPDF } = require('./reportPdfProduction.js');
@@ -13,6 +16,11 @@ const OpenAI = require('openai');
 
 // Self-hosted SQLite (replaces Firestore)
 const { getDb } = require('./db');
+const {
+  buildCustomerDataBlock,
+  validatePhotoUpload,
+  DEFAULT_MAX_BYTES
+} = require('./evidence/promptEvidence');
 
 // Structured logging function
 function logStructured(data) {
@@ -212,6 +220,9 @@ function extractDiagnosticCodes(payload = {}) {
 // Pure self-host: no REPORT_BUCKET requirement. Local FS only.
 const REPORT_BUCKET = process.env.REPORT_BUCKET; // legacy only
 const USE_GCS_REPORTS = false; // force local for perfect self-host
+// Production sets this to the private /data/uploads volume. It is never
+// exposed by an Express static route or returned to the browser as a URL.
+const EVIDENCE_UPLOADS_DIR = process.env.EVIDENCE_UPLOADS_DIR || '/data/uploads';
 
 // GCS is fully removed for self-host. Local FS only.
 
@@ -231,13 +242,14 @@ const WHOP_REDIRECT_URI = 'https://diagnosticpro.io/auth/callback';
 app.use(cors({
   origin: ['https://diagnosticpro.io', 'https://diagnostic-pro-prod.web.app', 'https://diagpro-gw-3tbssksx.uc.gateway.dev'],
   credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'x-api-key', 'x-dp-reqid', 'Authorization', 'x-whop-token']
 }));
 
 // Rate limiters
 const submissionLimiter = rateLimit({ windowMs: 60000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many submissions, try again later', code: 'RATE_LIMITED' } });
 const analysisLimiter = rateLimit({ windowMs: 60000, max: 5, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many analysis requests, try again later', code: 'RATE_LIMITED' } });
+const evidenceLimiter = rateLimit({ windowMs: 60000, max: 30, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many evidence requests, try again later', code: 'RATE_LIMITED' } });
 const generalLimiter = rateLimit({ windowMs: 60000, max: 60, standardHeaders: true, legacyHeaders: false });
 app.use(generalLimiter);
 
@@ -275,6 +287,183 @@ app.post('/api/webhooks/whop', express.raw({ type: 'application/json' }), attach
 
 app.use(express.json({ limit: '10mb' }));
 app.use(attachRequestId);
+
+// Accept one small image at a time. Files first live in memory so we can
+// validate their signature and hash before anything touches the uploads
+// volume. The route writes them atomically to a private submission directory.
+const evidenceUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: DEFAULT_MAX_BYTES, files: 1, fields: 4, parts: 6 }
+});
+
+function isValidSubmissionId(submissionId) {
+  return typeof submissionId === 'string' && /^diag_\d{13}_[0-9a-f]{8}$/.test(submissionId);
+}
+
+function detectedImageMime(buffer) {
+  if (!Buffer.isBuffer(buffer)) return null;
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return 'image/png';
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
+
+function evidenceExtension(mime) {
+  return { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' }[mime];
+}
+
+function evidenceError(res, status, code, error) {
+  return res.status(status).json({ error, code });
+}
+
+function findPendingEvidenceSubmission(submissionId) {
+  if (!isValidSubmissionId(submissionId)) return { error: 'invalid' };
+  const submission = db.prepare(
+    'SELECT id, status FROM diagnostic_submissions WHERE id = ?'
+  ).get(submissionId);
+  if (!submission) return { error: 'missing' };
+  if (submission.status !== 'pending') return { error: 'locked' };
+  return { submission };
+}
+
+// POST /evidence/:submissionId — attach one optional photo after the form is
+// saved and before payment. There is deliberately no GET-by-file endpoint.
+app.post('/evidence/:submissionId', evidenceLimiter, (req, res) => {
+  const { submissionId } = req.params;
+  const lookup = findPendingEvidenceSubmission(submissionId);
+  if (lookup.error === 'invalid') return evidenceError(res, 400, 'INVALID_SUBMISSION_ID', 'Invalid submission ID');
+  if (lookup.error === 'missing') return evidenceError(res, 404, 'SUBMISSION_NOT_FOUND', 'Submission not found');
+  if (lookup.error === 'locked') return evidenceError(res, 409, 'EVIDENCE_LOCKED', 'Photos can only be changed before payment');
+
+  evidenceUpload.single('photo')(req, res, (uploadError) => {
+    if (uploadError) {
+      if (uploadError.code === 'LIMIT_FILE_SIZE') {
+        return evidenceError(res, 413, 'FILE_TOO_LARGE', 'Photo must be 2 MiB or smaller');
+      }
+      return evidenceError(res, 400, 'INVALID_UPLOAD', 'Upload exactly one photo');
+    }
+    if (!req.file) return evidenceError(res, 400, 'PHOTO_REQUIRED', 'A photo file is required');
+
+    try {
+      const existingCount = db.prepare(
+        "SELECT COUNT(*) AS count FROM evidence WHERE submission_id = ? AND status != 'deleted'"
+      ).get(submissionId).count;
+      const validation = validatePhotoUpload({
+        mime: req.file.mimetype,
+        bytes: req.file.size,
+        existingCount
+      });
+      if (!validation.ok) {
+        const status = validation.error === 'file_too_large' ? 413 : 400;
+        return evidenceError(res, status, validation.error.toUpperCase(), validation.error.replaceAll('_', ' '));
+      }
+
+      const mime = detectedImageMime(req.file.buffer);
+      if (!mime || mime !== req.file.mimetype.toLowerCase()) {
+        return evidenceError(res, 400, 'INVALID_IMAGE', 'Photo content does not match its image type');
+      }
+
+      const evidenceId = `ev_${crypto.randomUUID()}`;
+      const filename = `${evidenceId}${evidenceExtension(mime)}`;
+      const relativePath = path.join(submissionId, filename);
+      const submissionDir = path.join(EVIDENCE_UPLOADS_DIR, submissionId);
+      const filePath = path.join(submissionDir, filename);
+      const now = new Date().toISOString();
+      const sha256 = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
+
+      fs.mkdirSync(submissionDir, { recursive: true, mode: 0o700 });
+      fs.writeFileSync(filePath, req.file.buffer, { flag: 'wx', mode: 0o600 });
+      try {
+        db.prepare(`
+          INSERT INTO evidence
+            (id, submission_id, kind, path, original_name, mime, bytes, sha256, status, created_at, updated_at)
+          VALUES (?, ?, 'photo', ?, ?, ?, ?, ?, 'uploaded', ?, ?)
+        `).run(
+          evidenceId,
+          submissionId,
+          relativePath,
+          path.basename(req.file.originalname || 'photo'),
+          mime,
+          req.file.size,
+          sha256,
+          now,
+          now
+        );
+      } catch (dbError) {
+        fs.rmSync(filePath, { force: true });
+        throw dbError;
+      }
+
+      return res.status(201).json({
+        evidence: {
+          id: evidenceId,
+          kind: 'photo',
+          mime,
+          bytes: req.file.size,
+          status: 'uploaded',
+          createdAt: now
+        }
+      });
+    } catch (error) {
+      logStructured({ phase: 'evidenceUpload', status: 'error', reqId: req.reqId, submissionId, error: { code: 'INTERNAL_ERROR', message: error.message } });
+      return evidenceError(res, 500, 'INTERNAL_ERROR', 'Unable to store photo');
+    }
+  });
+});
+
+// Metadata only: clients can render their local selected-photo list, but the
+// private image bytes are never served by this application.
+app.get('/evidence/:submissionId', evidenceLimiter, (req, res) => {
+  const { submissionId } = req.params;
+  if (!isValidSubmissionId(submissionId)) return evidenceError(res, 400, 'INVALID_SUBMISSION_ID', 'Invalid submission ID');
+  const submission = db.prepare('SELECT id FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+  if (!submission) return evidenceError(res, 404, 'SUBMISSION_NOT_FOUND', 'Submission not found');
+  const evidence = db.prepare(`
+    SELECT id, kind, mime, bytes, status, created_at AS createdAt
+    FROM evidence WHERE submission_id = ? AND status != 'deleted' ORDER BY created_at ASC
+  `).all(submissionId);
+  return res.json({ evidence });
+});
+
+// DELETE /evidence/:submissionId/:evidenceId — customers can remove an
+// attachment while the associated submission is still unpaid/pending.
+app.delete('/evidence/:submissionId/:evidenceId', evidenceLimiter, (req, res) => {
+  const { submissionId, evidenceId } = req.params;
+  const lookup = findPendingEvidenceSubmission(submissionId);
+  if (lookup.error === 'invalid') return evidenceError(res, 400, 'INVALID_SUBMISSION_ID', 'Invalid submission ID');
+  if (lookup.error === 'missing') return evidenceError(res, 404, 'SUBMISSION_NOT_FOUND', 'Submission not found');
+  if (lookup.error === 'locked') return evidenceError(res, 409, 'EVIDENCE_LOCKED', 'Photos can only be changed before payment');
+
+  const evidence = db.prepare(
+    "SELECT id, path FROM evidence WHERE id = ? AND submission_id = ? AND status != 'deleted'"
+  ).get(evidenceId, submissionId);
+  if (!evidence) return evidenceError(res, 404, 'EVIDENCE_NOT_FOUND', 'Photo not found');
+
+  try {
+    const uploadRoot = path.resolve(EVIDENCE_UPLOADS_DIR);
+    const filePath = path.resolve(EVIDENCE_UPLOADS_DIR, evidence.path);
+    if (!filePath.startsWith(`${uploadRoot}${path.sep}`)) {
+      throw new Error('evidence path escaped upload root');
+    }
+    fs.rmSync(filePath, { force: true });
+    const now = new Date().toISOString();
+    db.prepare("UPDATE evidence SET status = 'deleted', updated_at = ? WHERE id = ?").run(now, evidence.id);
+    return res.status(204).end();
+  } catch (error) {
+    logStructured({ phase: 'evidenceDelete', status: 'error', reqId: req.reqId, submissionId, evidenceId, error: { code: 'INTERNAL_ERROR', message: error.message } });
+    return evidenceError(res, 500, 'INTERNAL_ERROR', 'Unable to delete photo');
+  }
+});
 
 // ENDPOINT: Save submission BEFORE payment
 app.post('/saveSubmission', submissionLimiter, async (req, res) => {
@@ -1428,7 +1617,6 @@ function getEquipmentPromptContext(equipmentType, payload) {
 //                    of the 2026-07-02 blind A/B eval (18/18 vs v2.0,
 //                    +11.4/+10.8 weighted — tests/prompt-eval/RESULTS.md).
 const { V3B_SYSTEM, V3B_USER_TEMPLATE } = require('./promptV3.js');
-const { buildCustomerDataBlock } = require('./evidence/promptEvidence');
 function llmFrameworkVersion() {
   return process.env.LLM_FRAMEWORK_VERSION || 'v2.0';
 }

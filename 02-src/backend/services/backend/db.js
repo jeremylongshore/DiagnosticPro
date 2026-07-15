@@ -78,6 +78,28 @@ function initSchema(db) {
     CREATE INDEX IF NOT EXISTS idx_analyses_submission ON analyses(submission_id);
     CREATE INDEX IF NOT EXISTS idx_analyses_status ON analyses(status);
 
+    -- Customer-uploaded diagnostic photos. The actual file remains in the
+    -- private uploads volume; this table intentionally stores only metadata
+    -- and a volume-relative path, never a public URL.
+    CREATE TABLE IF NOT EXISTS evidence (
+      id TEXT PRIMARY KEY,
+      submission_id TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'photo',
+      path TEXT NOT NULL,
+      original_name TEXT,
+      mime TEXT NOT NULL,
+      bytes INTEGER NOT NULL,
+      sha256 TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'uploaded',
+      derived_json TEXT,
+      created_at TEXT NOT NULL,
+      updated_at TEXT NOT NULL,
+      FOREIGN KEY (submission_id) REFERENCES diagnostic_submissions(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_evidence_submission ON evidence(submission_id);
+    CREATE INDEX IF NOT EXISTS idx_evidence_submission_status ON evidence(submission_id, status);
+
     -- Whop user records (tokens stored as in original; move to secrets rotation if needed)
     CREATE TABLE IF NOT EXISTS whop_users (
       id TEXT PRIMARY KEY,
