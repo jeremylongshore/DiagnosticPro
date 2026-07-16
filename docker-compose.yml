@@ -21,8 +21,8 @@
 #   2. The dist/ is served by Caddy (recommended) or the example frontend service below.
 #   Set VITE_API_BASE='' (empty) for same-origin API calls (Caddy proxies /saveSubmission etc to backend).
 #
-# See: ~/000-projects/intentsolutions-vps-runbook/docs/onboard-new-repo-deploy.md
-#      ~/000-projects/intentsolutions-vps-runbook/docs/manual-deploy.md
+# See: ~/000-projects/intent-os/ops/deploy/
+#      ~/000-projects/intent-os/ops/host/
 #      Caddy block example in runbook or /etc/caddy/sites/diagnosticpro.caddy
 
 services:

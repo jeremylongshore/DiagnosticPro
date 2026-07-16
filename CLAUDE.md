@@ -17,7 +17,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 DiagnosticPro is a customer-facing equipment diagnostic platform. Customers submit a form describing their vehicle/equipment problem, pay $4.99 via Stripe (or free for Whop members), and receive a 2000+ word PDF report with a proprietary 15-section AI analysis via configurable OpenAI-compatible LLM (DeepSeek is the default; easily switch to Ollama or other /v1 endpoints for fully self-hosted on VPS). Production domain: `diagnosticpro.io`.
 
-The app is being migrated to full self-host on the Intent Solutions production VPS (intentsolutions @ 167.86.106.29) per the VPS-as-the-home runbook (Stage D). Backend container behind Caddy; frontend static via Caddy or container. See intentsolutions-vps-runbook for deploy/Caddy/sops patterns. Firebase may remain for hosting/DB polling during hybrid phase; Vertex AI has been removed.
+The app is being migrated to full self-host on the Intent Solutions production VPS (Stage D). Backend container behind Caddy; frontend static via Caddy or container. Current deploy, Caddy, host, and secret-boundary authority is `intent-solutions-io/intent-os/ops/` under D90. Firebase may remain for hosting/DB polling during hybrid phase; Vertex AI has been removed.
 
 ## Commands
 
