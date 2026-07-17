@@ -21,6 +21,13 @@ const {
   validatePhotoUpload,
   DEFAULT_MAX_BYTES
 } = require('./evidence/promptEvidence');
+const {
+  resolveVisionConfig,
+  makeVisionProvider,
+  describeImages,
+  evidenceFileReader,
+  applyVisionResults
+} = require('./evidence/vision.js');
 
 // Structured logging function
 function logStructured(data) {
@@ -1429,8 +1436,69 @@ async function processAnalysis(submissionId, payload, reqId) {
     `).run(submissionId, submissionId, procNow, procNow,
            process.env.LLM_MODEL || 'gpt-4o', reqId || null, llmFrameworkVersion());
 
-    // Call the LLM (OpenAI gpt-4o via the OpenAI-compatible client)
-    const analysis = await callLLM(payload);
+    // Photo-evidence vision pass (post-pay, optional). Reads `uploaded` evidence
+    // rows, captions + OCRs them via the configured vision provider, and passes
+    // only successfully-captioned photos into the downstream LLM call. Vision
+    // never throws out of this block — degraded path keeps the text-only report.
+    let photoItems = [];
+    try {
+      const visionRows = db.prepare(
+        "SELECT id, path, mime, original_name FROM evidence WHERE submission_id = ? AND kind = 'photo' AND status = 'uploaded'"
+      ).all(submissionId);
+      if (visionRows.length > 0) {
+        const visionCfg = resolveVisionConfig();
+        if (visionCfg.apiKey) {
+          const readFile = evidenceFileReader();
+          const providerClient = new OpenAI({ apiKey: visionCfg.apiKey, baseURL: visionCfg.baseURL });
+          const provider = makeVisionProvider({ openai: providerClient, modelName: visionCfg.modelName });
+          const results = await describeImages({
+            rows: visionRows,
+            readFile,
+            caption: provider.caption,
+            log: (e) => logStructured({ phase: 'evidenceVision', status: 'warn', ...e })
+          });
+          const touched = applyVisionResults({ results, db });
+          logStructured({
+            phase: 'evidenceVision',
+            status: 'ok',
+            reqId,
+            submissionId,
+            attempted: visionRows.length,
+            ready: results.filter((r) => r.ok).length,
+            failed: results.filter((r) => !r.ok).length,
+            touched
+          });
+          photoItems = results
+            .filter((r) => r.ok)
+            .map((r) => ({
+              label: r.derived.label || null,
+              caption: r.derived.caption,
+              ocr_text: r.derived.ocr_text || null
+            }));
+        } else {
+          logStructured({
+            phase: 'evidenceVision',
+            status: 'skipped_no_vision_key',
+            reqId,
+            submissionId,
+            rows: visionRows.length
+          });
+        }
+      }
+    } catch (visionErr) {
+      // Never let vision failures break the analysis — degraded to text-only.
+      logStructured({
+        phase: 'evidenceVision',
+        status: 'degraded',
+        reqId,
+        submissionId,
+        error: { message: visionErr?.message || String(visionErr) }
+      });
+    }
+
+    // Call the LLM (OpenAI gpt-4o via the OpenAI-compatible client). photoItems
+    // flows into CUSTOMER_DATA_BLOCK via buildCustomerDataBlock when present.
+    const analysis = await callLLM(payload, { photoItems });
 
     // Generate PDF report AND upload to Cloud Storage (all in one)
     const reportData = await generatePDFReport(submissionId, analysis, payload);
