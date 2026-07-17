@@ -41,6 +41,11 @@ services:
       - NODE_ENV=production
       - PORT=8080
       - DB_PATH=/data/diagnosticpro.db
+      # Photo-evidence storage — MUST live on the persistent volume or uploads
+      # are lost on container restart. Sweeper (EVIDENCE_ORPHAN_TTL_HOURS) deletes
+      # unpaid pending submissions after the TTL window.
+      - EVIDENCE_UPLOADS_DIR=/data/uploads
+      - EVIDENCE_ORPHAN_TTL_HOURS=48
       # LLM (OpenAI gpt-4o default) — real values come from .env (SOPS-materialized)
       # - LLM_BASE_URL=https://api.openai.com/v1
       # - LLM_MODEL=gpt-4o
