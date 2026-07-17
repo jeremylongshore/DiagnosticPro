@@ -102,6 +102,49 @@ describe('makeVisionProvider', () => {
   test('rejects invalid client', () => {
     expect(() => makeVisionProvider({ openai: {}, modelName: 'x' })).toThrow();
   });
+
+  test('retries with max_completion_tokens when openai returns 400 max_tokens', async () => {
+    // First call: 400 with "max_tokens is not supported" -> retry with max_completion_tokens.
+    // Second call: success.
+    let calls = 0;
+    const seenBodies = [];
+    const stubCreate = async (body) => {
+      calls += 1;
+      seenBodies.push(body);
+      if (calls === 1) {
+        const err = new Error("400 Unsupported parameter: 'max_tokens' is not supported with this model. Use 'max_completion_tokens' instead.");
+        err.status = 400;
+        throw err;
+      }
+      return { choices: [{ message: { content: JSON.stringify({ caption: 'captured.', ocr_text: 'P0301' }) } }] };
+    };
+    const openai = { chat: { completions: { create: stubCreate } } };
+    const provider = makeVisionProvider({ openai, modelName: 'gpt-4o' });
+    const item = await provider.caption(Buffer.from([0xff, 0xd8]), 'image/jpeg', 'dash.jpg');
+    expect(item?.caption).toBe('captured.');
+    expect(calls).toBe(2);
+    const secondBody = seenBodies[seenBodies.length - 1];
+    expect(secondBody.max_completion_tokens).toBe(600);
+    expect(secondBody.max_tokens).toBeUndefined();
+  });
+
+  test('retries the OTHER direction when openai 400s on max_completion_tokens', async () => {
+    let calls = 0;
+    const stubCreate = async (body) => {
+      calls += 1;
+      if (calls === 1) {
+        const err = new Error("400 Unsupported parameter: 'max_completion_tokens' is not supported with this model.");
+        err.status = 400;
+        throw err;
+      }
+      return { choices: [{ message: { content: JSON.stringify({ caption: 'ok', ocr_text: null }) } }] };
+    };
+    const openai = { chat: { completions: { create: stubCreate } } };
+    const provider = makeVisionProvider({ openai, modelName: 'gpt-5' });
+    const item = await provider.caption(Buffer.from([0xff, 0xd8]), 'image/jpeg', 'x.jpg');
+    expect(item?.caption).toBe('ok');
+    expect(calls).toBe(2);
+  });
 });
 
 describe('describeImages', () => {

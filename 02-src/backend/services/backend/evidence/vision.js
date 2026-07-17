@@ -50,7 +50,43 @@ function makeVisionProvider({ openai, modelName, create }) {
   if (!openai || typeof openai.chat?.completions?.create !== 'function') {
     throw new TypeError('vision provider requires an openai-compatible client');
   }
-  const doCreate = create || ((messages) => openai.chat.completions.create({ model: modelName, messages, max_tokens: 600 }));
+  // gpt-4o + newer models reject `max_tokens` and want `max_completion_tokens`;
+  // older models reject the inverse. Mirror the adaptive wrapper used by the
+  // text-LLM call (createChatCompletionAdaptive in index.js) so the vision
+  // call survives a 400 by retrying once with the other shape.
+  // Custom `create` callbacks receive the full request body so tests can
+  // assert on shape; the default calls the openai-compatible client with the
+  // body that the adaptive wrapper built (which is what carries either
+  // max_tokens or max_completion_tokens on each retry).
+  const doCreate = create || ((body) => openai.chat.completions.create(body));
+
+  async function callWithAdaptiveShape(messages) {
+    const usesMaxCompletion = /^(gpt-5|o\d)/i.test(modelName);
+    const state = { maxCompletion: usesMaxCompletion };
+    const build = () => {
+      const body = { model: modelName, messages };
+      if (state.maxCompletion) body.max_completion_tokens = 600;
+      else body.max_tokens = 600;
+      return body;
+    };
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+      try {
+        return await doCreate(build());
+      } catch (err) {
+        const msg = String(err?.message || '').toLowerCase();
+        const is400 = err?.status === 400 || err?.statusCode === 400;
+        if (!is400) throw err;
+        // A 400 mentioning EITHER token-name flips state and retries — most
+        // real-world messages reference both ("Use 'max_completion_tokens'
+        // instead") but some only reference the one we just sent.
+        const mentionsEither = msg.includes('max_completion_tokens') || msg.includes('max_tokens');
+        if (!mentionsEither) throw err;
+        state.maxCompletion = !state.maxCompletion;
+        continue;
+      }
+    }
+    return doCreate(build());
+  }
 
   async function caption(buffer, mime, name) {
     if (!buffer || !Buffer.isBuffer(buffer) || buffer.length === 0) return null;
@@ -63,7 +99,7 @@ function makeVisionProvider({ openai, modelName, create }) {
       'Do not diagnose. Do not speculate beyond what is visible.'
     ].join('\n');
 
-    const resp = await doCreate([
+    const resp = await callWithAdaptiveShape([
       { role: 'system', content: systemPrompt },
       {
         role: 'user',
