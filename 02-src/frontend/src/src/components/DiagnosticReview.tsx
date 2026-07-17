@@ -64,7 +64,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
         // Add other relevant fields
       };
 
-      // Start the analysis using Firebase Cloud Function
+      // Start the analysis via the self-hosted backend
       const analysisResult = await startAnalysis(submissionId, diagnosticData);
 
       if (analysisResult.success) {

@@ -1,7 +1,7 @@
 /**
- * Centralized API client using Firebase Functions proxy for private Cloud Run
- * Handles auth headers and proxy routing
- * Updated for self-host: relative URLs when no base (VPS + Caddy).
+ * Centralized API client.
+ * Updated for self-host: relative URLs when no base (VPS + Caddy proxies
+ * the API paths). For pure self-host the browser calls same-origin.
  */
 import { getEnv } from '../lib/env';
 

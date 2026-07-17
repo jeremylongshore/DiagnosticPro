@@ -62,7 +62,7 @@ interface SubmissionResponse {
 }
 
 /**
- * Submit diagnostic form - primary entry point (uses backend API, no direct Firestore)
+ * Submit diagnostic form - primary entry point (talks to the self-hosted backend)
  */
 export async function submitDiagnosticForm(data: DiagnosticFormData): Promise<SubmissionResponse> {
   try {

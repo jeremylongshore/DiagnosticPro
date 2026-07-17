@@ -1,17 +1,19 @@
 /**
- * Reports service - Direct download via GCS signed URLs
+ * Reports service - Self-hosted local FS download via the backend API.
+ * (Previously routed through GCS signed URLs + Cloud Run; that codepath was
+ * retired with the 2026 self-host migration.)
  */
 
 export interface DiagnosticStatus {
   id: string;
   status: 'pending' | 'processing' | 'ready' | 'failed';
-  gcsPath?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 /**
- * Download report by getting signed URL from Cloud Run backend
+ * Download a finished report by asking the backend for a (short-lived) signed
+ * URL to the local PDF on the self-hosted VPS volume.
  */
 export async function downloadReport(id: string): Promise<void> {
   const { getEnv } = await import('../lib/env');
@@ -40,7 +42,7 @@ export async function downloadReport(id: string): Promise<void> {
 }
 
 /**
- * Get diagnostic status for polling - now via backend API (no direct Firestore)
+ * Get diagnostic status for polling via the backend API.
  */
 export async function getDiagnosticStatus(diagnosticId: string): Promise<{ data: DiagnosticStatus | null; status: number; error?: string }> {
   try {

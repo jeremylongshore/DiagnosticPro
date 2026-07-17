@@ -203,6 +203,12 @@ describe('post-pay vision-then-fuse end-to-end', () => {
     });
   });
 
+  // The T4 tests drive the full /analyzeDiagnostic pipeline, which runs the
+  // whiteglove PDF generator (pandoc + xelatex). Both calls are mocked at the
+  // `openai` module boundary, so they take ~1s when load is light but can blow
+  // past 5s on a busy machine. 30s is conservative but stable.
+  jest.setTimeout(30000);
+
   test('captioned photo fuses into the analysis report (status=ready + photoItems seen by LLM)', async () => {
     const submissionId = await createPendingSubmission();
     const upload = await attachPng(request(app).post(`/evidence/${submissionId}`), 'dash.png');

@@ -224,10 +224,10 @@ function extractDiagnosticCodes(payload = {}) {
   return Array.from(codes);
 }
 
-// Self-hosted reports: local FS is primary. GCS is optional legacy fallback only.
-// Pure self-host: no REPORT_BUCKET requirement. Local FS only.
-const REPORT_BUCKET = process.env.REPORT_BUCKET; // legacy only
-const USE_GCS_REPORTS = false; // force local for perfect self-host
+// Self-hosted reports: local FS only. The previous GCS REPORT_BUCKET
+// codepath is fully removed (2026 self-host migration); this env var is
+// tolerated so legacy deployments keep booting but never read.
+const REPORT_BUCKET = process.env.REPORT_BUCKET; // tolerated, never read
 // Production sets this to the private /data/uploads volume. It is never
 // exposed by an Express static route or returned to the browser as a URL.
 const EVIDENCE_UPLOADS_DIR = process.env.EVIDENCE_UPLOADS_DIR || '/data/uploads';
@@ -1508,7 +1508,6 @@ async function processAnalysis(submissionId, payload, reqId) {
     logStructured({
       phase: 'saveReport',
       status: 'ok',
-      bucket: REPORT_BUCKET,
       path: reportData.fileName,
       submissionId,
       size: reportData.buffer.length

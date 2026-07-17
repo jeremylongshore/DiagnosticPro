@@ -45,7 +45,8 @@
       "global": {
         "lines": 60
       }
-    }
+    },
+    "maxWorkers": 1
   },
   "license": "AGPL-3.0-only"
 }
