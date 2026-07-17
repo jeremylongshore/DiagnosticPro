@@ -28,6 +28,7 @@ const {
   evidenceFileReader,
   applyVisionResults
 } = require('./evidence/vision.js');
+const { startSweeper } = require('./evidence/sweeper.js');
 
 // Structured logging function
 function logStructured(data) {
@@ -2416,6 +2417,20 @@ if (require.main === module) {
         console.log('  POST /api/whop/analyze');
         console.log('  GET  /healthz');
       });
+
+      // Boot the orphan-evidence sweeper (best-effort, non-blocking).
+      // Interval is unref'd so it never holds the process open during tests.
+      const uploadsDir = process.env.EVIDENCE_UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+      const ttlHours = Number(process.env.EVIDENCE_ORPHAN_TTL_HOURS) || 48;
+      if (process.env.NODE_ENV !== 'test' && process.env.EVIDENCE_SWEEPER_DISABLED !== '1') {
+        startSweeper({
+          db: getDb(),
+          uploadsDir,
+          ttlHours,
+          log: (e) => logStructured({ ...e, ts: new Date().toISOString() })
+        });
+        console.log(`🧹 Evidence sweeper armed: ttl=${ttlHours}h uploadsDir=${uploadsDir}`);
+      }
     } catch (error) {
       console.error('❌ Failed to load secrets:', error);
       console.error('Falling back to environment variables');
@@ -2436,6 +2451,20 @@ if (require.main === module) {
       app.listen(PORT, () => {
         console.log(`🚀 DiagnosticPro Backend running on port ${PORT} (using env vars)`);
       });
+
+      // Boot the orphan-evidence sweeper (best-effort, non-blocking) in the
+      // fallback path too so dev parity matches the secrets-loaded path.
+      const uploadsDir = process.env.EVIDENCE_UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+      const ttlHours = Number(process.env.EVIDENCE_ORPHAN_TTL_HOURS) || 48;
+      if (process.env.NODE_ENV !== 'test' && process.env.EVIDENCE_SWEEPER_DISABLED !== '1') {
+        startSweeper({
+          db: getDb(),
+          uploadsDir,
+          ttlHours,
+          log: (e) => logStructured({ ...e, ts: new Date().toISOString() })
+        });
+        console.log(`🧹 Evidence sweeper armed: ttl=${ttlHours}h uploadsDir=${uploadsDir}`);
+      }
     }
   })();
 }
