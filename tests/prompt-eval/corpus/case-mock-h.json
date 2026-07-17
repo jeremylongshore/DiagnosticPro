@@ -1,0 +1,29 @@
+{
+  "id": "mock-h",
+  "payload": {
+    "equipmentType": "automotive",
+    "make": "Subaru",
+    "model": "Outback",
+    "year": "2012",
+    "symptoms": "Owner wrote a multi-paragraph forum post about intermittent stumble, random CEL, weird noises.",
+    "errorCodes": "P0420, P0456",
+    "problemDescription": "Long narrative: swapped plugs, cleaned throttle body, replaced gas cap twice, different fuel brands, log after log describing ambient temps, trips to mountains, mentions possible rodent damage, includes copy-pasted advice from other users about O2 sensors, catalytic converter, evap leaks, smell of exhaust when parked, references to unrelated suspension clunks, includes vehicle history of minor accident, battery replaced last winter, more speculation about spark knock, question about ECU reflash. Overall extremely verbose.",
+    "fullName": "DIY Forum Poster",
+    "email": "diy.forum@example.com"
+  },
+  "meta": {
+    "sourceFile": "tests/mocks/mock_H_forum_essay.json",
+    "sourceSubmissionId": "diag_mock_H",
+    "expectedCodes": [
+      "P0420",
+      "P0456"
+    ],
+    "tags": [
+      "automotive",
+      "verbose-narrative",
+      "emissions",
+      "evap",
+      "noise-filtering"
+    ]
+  }
+}

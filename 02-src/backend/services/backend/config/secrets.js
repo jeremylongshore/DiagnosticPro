@@ -1,98 +1,59 @@
 /**
- * Google Secret Manager Integration
- * Fetches secrets securely from Google Cloud Secret Manager
+ * Secret loading for the self-hosted VPS deployment.
+ *
+ * Secrets are provided as process environment variables, materialized at deploy
+ * time from the SOPS-encrypted `.env.sops` (age) via `scripts/sops-env`. There is
+ * NO Google Secret Manager dependency any more — GCP has been fully removed from
+ * this product. See docker-compose.yml + the VPS runbook for how the env is
+ * populated on the host.
+ *
+ * The module interface (getSecret / loadSecrets / clearCache) is unchanged so
+ * index.js needs no edits; only the backing store moved from GCP → env.
  */
-
-const { SecretManagerServiceClient } = require('@google-cloud/secret-manager');
-
-// Initialize Secret Manager client
-const secretClient = new SecretManagerServiceClient();
-
-// Cache for secrets to avoid repeated API calls
-const secretCache = new Map();
-const CACHE_TTL = 3600000; // 1 hour in milliseconds
 
 /**
- * Fetch a secret from Google Secret Manager
- * @param {string} secretName - Name of the secret
- * @param {string} version - Version of the secret (default: 'latest')
- * @returns {Promise<string>} - Secret value
+ * Read a single secret from the process environment.
+ * @param {string} secretName - env var name
+ * @param {string} _version - accepted for interface compatibility; ignored
+ * @returns {Promise<string|undefined>} the value, or undefined if unset
  */
-async function getSecret(secretName, version = 'latest') {
-  const cacheKey = `${secretName}:${version}`;
-
-  // Check cache first
-  const cached = secretCache.get(cacheKey);
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.value;
-  }
-
-  try {
-    const projectId = process.env.GOOGLE_CLOUD_PROJECT || 'diagnostic-pro-prod';
-    const name = `projects/${projectId}/secrets/${secretName}/versions/${version}`;
-
-    const [response] = await secretClient.accessSecretVersion({ name });
-    const secretValue = response.payload.data.toString('utf8');
-
-    // Cache the secret
-    secretCache.set(cacheKey, {
-      value: secretValue,
-      timestamp: Date.now()
-    });
-
-    return secretValue;
-  } catch (error) {
-    console.error(`Failed to fetch secret ${secretName}:`, error.message);
-
-    // Fallback to environment variable if Secret Manager fails
-    const envVar = process.env[secretName];
-    if (envVar) {
-      console.warn(`Using fallback environment variable for ${secretName}`);
-      return envVar;
-    }
-
-    throw new Error(`Secret ${secretName} not found in Secret Manager or environment`);
-  }
+async function getSecret(secretName, _version = 'latest') {
+  return process.env[secretName];
 }
 
 /**
- * Load all required secrets at startup
- * @returns {Promise<Object>} - Object containing all secrets
+ * Load all secrets the app expects, straight from the environment.
+ * Optional secrets resolve to undefined when absent (never throws).
+ * @returns {Promise<Object>} secrets object
  */
 async function loadSecrets() {
-  try {
-    const secrets = await Promise.all([
-      getSecret('STRIPE_SECRET_KEY'),
-      getSecret('STRIPE_WEBHOOK_SECRET'),
-      getSecret('FIREBASE_API_KEY'),
-      getSecret('API_GATEWAY_KEY'),
-      getSecret('WHOP_API_KEY').catch(() => null),
-      getSecret('WHOP_WEBHOOK_SECRET').catch(() => null)
-    ]);
-
-    return {
-      STRIPE_SECRET_KEY: secrets[0],
-      STRIPE_WEBHOOK_SECRET: secrets[1],
-      FIREBASE_API_KEY: secrets[2],
-      API_GATEWAY_KEY: secrets[3],
-      WHOP_API_KEY: secrets[4],
-      WHOP_WEBHOOK_SECRET: secrets[5]
-    };
-  } catch (error) {
-    console.error('Failed to load secrets:', error);
-    throw error;
-  }
+  return {
+    STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
+    STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
+    FIREBASE_API_KEY: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
+    API_GATEWAY_KEY: process.env.API_GATEWAY_KEY || process.env.VITE_API_KEY,
+    WHOP_API_KEY: process.env.WHOP_API_KEY,
+    WHOP_WEBHOOK_SECRET: process.env.WHOP_WEBHOOK_SECRET,
+    // LLM: OpenAI (gpt-4o) via the OpenAI-compatible client. LLM_API_KEY is the
+    // canonical name; OPENAI/DEEPSEEK/GROQ kept as fallbacks so a provider swap
+    // stays a pure env change.
+    LLM_API_KEY: process.env.LLM_API_KEY || process.env.OPENAI_API_KEY ||
+                 process.env.DEEPSEEK_API_KEY || process.env.GROQ_API_KEY,
+    DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
+    GROQ_API_KEY: process.env.GROQ_API_KEY,
+  };
 }
 
 /**
- * Clear the secret cache (useful for testing or forcing refresh)
+ * No-op cache clear (kept for interface compatibility; there is no cache now
+ * that secrets come straight from the environment).
  */
 function clearCache() {
-  secretCache.clear();
+  // intentionally empty — env vars are read live, nothing is cached
 }
 
 module.exports = {
   getSecret,
   loadSecrets,
-  clearCache
+  clearCache,
 };

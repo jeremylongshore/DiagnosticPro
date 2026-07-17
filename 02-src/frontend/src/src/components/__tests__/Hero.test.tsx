@@ -16,11 +16,12 @@ describe("Hero Component", () => {
     expect(getByText(/AI diagnostic second opinion for \$4\.99/)).toBeInTheDocument();
   });
 
-  it("shows the call-to-action buttons", () => {
-    const { getByText } = render(<Hero />);
+  it("shows the call-to-action button", () => {
+    const { getByText, queryByText } = render(<Hero />);
 
     expect(getByText("Start Diagnosis - $4.99")).toBeInTheDocument();
-    expect(getByText(/Join the Community/)).toBeInTheDocument();
+    expect(queryByText(/Join the Community/)).not.toBeInTheDocument();
+    expect(queryByText(/Login with Whop/i)).not.toBeInTheDocument();
   });
 
   it("displays value summary stats", () => {
@@ -28,6 +29,7 @@ describe("Hero Component", () => {
 
     expect(getByText("2,000+ Words")).toBeInTheDocument();
     expect(getByText("15 Sections")).toBeInTheDocument();
-    expect(getByText("$4.99")).toBeInTheDocument();
+    // Price appears in CTA and stats row
+    expect(getByText("Start Diagnosis - $4.99")).toBeInTheDocument();
   });
 });

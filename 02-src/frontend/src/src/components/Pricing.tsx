@@ -1,69 +1,52 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { CheckCircle, MessageSquare, Video, Shield, Crown } from "lucide-react";
+
+const included = [
+  "Root cause ranking grounded in your symptoms and codes",
+  "Fair pricing ranges for common repair paths",
+  "Verification steps a shop should run before big parts",
+  "Negotiation scripts you can use verbatim",
+  "Cars, trucks, boats, HVAC, farm equipment, and more",
+];
 
 const Pricing = () => {
   return (
-    <section id="pricing" className="py-12">
+    <section id="pricing" className="py-16 md:py-20 border-b border-border/70 bg-muted/30">
       <div className="container mx-auto px-4">
-        <div className="max-w-2xl mx-auto">
+        <div className="max-w-lg mx-auto">
           <div className="text-center mb-8">
-            <h2 className="text-2xl md:text-3xl font-bold mb-4">Equipment Diagnostic Service</h2>
-            <p className="text-lg text-muted-foreground">
-              AI-powered diagnosis with quote verification
-            </p>
+            <p className="section-label mb-3">Pricing</p>
+            <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight">
+              Simple. One report.
+            </h2>
           </div>
 
-          <Card className="text-center shadow-lg">
-            <CardHeader className="py-6">
-              <div className="w-12 h-12 mx-auto mb-4 bg-trust/10 rounded-full flex items-center justify-center">
-                <Shield className="h-6 w-6 text-trust" />
-              </div>
-              <CardTitle className="text-xl">Diagnostic Analysis</CardTitle>
-              <div className="text-3xl font-bold text-trust">$4.99</div>
-              <p className="text-sm text-muted-foreground">Complete diagnostic report</p>
-            </CardHeader>
+          <div className="rounded-lg border border-border bg-card p-8 shadow-[var(--shadow-card)] text-center">
+            <p className="text-sm text-muted-foreground mb-2">Diagnostic analysis</p>
+            <p className="font-display text-5xl font-bold tracking-tight tabular-nums text-foreground mb-1">
+              $4.99
+            </p>
+            <p className="text-sm text-muted-foreground mb-8">Pay once · PDF delivered after analysis</p>
 
-            <CardContent className="space-y-4 py-6">
-              <ul className="space-y-2 text-left">
-                <li className="flex items-start text-sm">
-                  <CheckCircle className="h-4 w-4 mr-3 mt-0.5 flex-shrink-0 text-trust" />
-                  <span>AI root cause analysis</span>
+            <ul className="space-y-3 text-left mb-8">
+              {included.map((item) => (
+                <li key={item} className="flex gap-3 text-sm text-foreground/90">
+                  <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-primary" aria-hidden />
+                  <span>{item}</span>
                 </li>
-                <li className="flex items-start text-sm">
-                  <CheckCircle className="h-4 w-4 mr-3 mt-0.5 flex-shrink-0 text-trust" />
-                  <span>Cars, trucks, boats, HVAC, farm equipment, and more</span>
-                </li>
-                <li className="flex items-start text-sm">
-                  <CheckCircle className="h-4 w-4 mr-3 mt-0.5 flex-shrink-0 text-trust" />
-                  <span>Repair quote verification</span>
-                </li>
-                <li className="flex items-start text-sm">
-                  <CheckCircle className="h-4 w-4 mr-3 mt-0.5 flex-shrink-0 text-trust" />
-                  <span>Detailed diagnostic report</span>
-                </li>
-                <li className="flex items-start text-sm">
-                  <CheckCircle className="h-4 w-4 mr-3 mt-0.5 flex-shrink-0 text-trust" />
-                  <span>Repair recommendations</span>
-                </li>
-              </ul>
+              ))}
+            </ul>
 
-              <div className="pt-4">
-                <Button
-                  variant="trust"
-                  className="w-full"
-                  size="lg"
-                  onClick={() => {
-                    const form = document.getElementById("diagnostic-form");
-                    form?.scrollIntoView({ behavior: "smooth" });
-                  }}
-                >
-                  Start Diagnosis - $4.99
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
+            <Button
+              variant="hero"
+              size="lg"
+              className="w-full cursor-pointer"
+              onClick={() => {
+                document.getElementById("diagnostic-form")?.scrollIntoView({ behavior: "smooth" });
+              }}
+            >
+              Start Diagnosis - $4.99
+            </Button>
+          </div>
         </div>
       </div>
     </section>

@@ -1,0 +1,97 @@
+{
+  "generatedAt": "2026-07-02",
+  "baseline": "v2__gpt-4o",
+  "winner": "v3-b",
+  "shipRecommendation": "Ship v3-b (few-shot exemplar) as the gpt-4o prompt behind an LLM_FRAMEWORK_VERSION env flag: it beats v2.0 in 18/18 blind judgments (9 cases x 2 judges, 0 losses, 0 ties) with a mean weighted margin of +11.4 (gpt-5.4 judge) / +10.8 (deepseek judge) - about 2x the cross-judge noise - at +$0.008 and +6s per report; promote only after the e2e-live journey suite passes with the flag on. Step 2: evaluate v3-b on gpt-5.4 as the model-upgrade candidate (cross-family-confirmed 9-0-0, +44 to +47 margins) pending a ~3x cost check. deepseek-v4-pro is a cost-play fallback only, only with v3-b (cross-family judge: 8-1; other candidates coin-flip), after fixing its 8/36 truncation-at-cap problem.",
+  "rule": "A candidate ships only if it beats v2.0 on the weighted rubric consistently across cases and judges; margins within judge noise do not ship. When the two judges disagree on direction, the cross-family judge (different provider family from the generation model) is authoritative; same-family judgments count only when the cross-family judge concurs.",
+  "judges": {
+    "openai": "gpt-5.4",
+    "deepseek": "deepseek-chat (second independent-family judge; planned anthropic/claude-sonnet-5 judge blocked by exhausted Anthropic API credits)"
+  },
+  "weightedScores": {
+    "v3-a__gpt-4o":           { "openai": { "candidate": 53.56, "baseline": 52.44, "wlt": "5-4-0" }, "deepseek": { "candidate": 64.67, "baseline": 60.5,  "wlt": "6-3-0" }, "cases": 9 },
+    "v3-b__gpt-4o":           { "openai": { "candidate": 64.72, "baseline": 53.33, "wlt": "9-0-0" }, "deepseek": { "candidate": 68.5,  "baseline": 57.67, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-c__gpt-4o":           { "openai": { "candidate": 53.06, "baseline": 50.56, "wlt": "6-3-0" }, "deepseek": { "candidate": 60.22, "baseline": 58.72, "wlt": "4-4-1" }, "cases": 9 },
+    "v3-d__gpt-4o":           { "openai": { "candidate": 64.22, "baseline": 51.94, "wlt": "7-2-0" }, "deepseek": { "candidate": 71.56, "baseline": 56.11, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-a__gpt-5.4":          { "openai": { "candidate": 85.39, "baseline": 47.67, "wlt": "9-0-0" }, "deepseek": { "candidate": 91.22, "baseline": 45.61, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-b__gpt-5.4":          { "openai": { "candidate": 87.89, "baseline": 48.11, "wlt": "9-0-0" }, "deepseek": { "candidate": 91.39, "baseline": 45.39, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-c__gpt-5.4":          { "openai": { "candidate": 86.17, "baseline": 48.44, "wlt": "9-0-0" }, "deepseek": { "candidate": 91.83, "baseline": 47.72, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-d__gpt-5.4":          { "openai": { "candidate": 89.78, "baseline": 44.39, "wlt": "9-0-0" }, "deepseek": { "candidate": 94.72, "baseline": 48.06, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-a__deepseek-v4-pro":  { "openai": { "candidate": 60.44, "baseline": 53.33, "wlt": "4-5-0" }, "deepseek": { "candidate": 89.56, "baseline": 47.17, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-b__deepseek-v4-pro":  { "openai": { "candidate": 68.39, "baseline": 52.28, "wlt": "8-1-0" }, "deepseek": { "candidate": 91.11, "baseline": 49.83, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-c__deepseek-v4-pro":  { "openai": { "candidate": 63.72, "baseline": 52.61, "wlt": "4-5-0" }, "deepseek": { "candidate": 90.44, "baseline": 48.28, "wlt": "9-0-0" }, "cases": 9 },
+    "v3-d__deepseek-v4-pro":  { "openai": { "candidate": 62.61, "baseline": 50.56, "wlt": "5-4-0" }, "deepseek": { "candidate": 91.5,  "baseline": 47.11, "wlt": "9-0-0" }, "cases": 9 }
+  },
+  "judgeAgreement": {
+    "v3-a__gpt-4o": 0.67,
+    "v3-b__gpt-4o": 1.0,
+    "v3-c__gpt-4o": 0.56,
+    "v3-d__gpt-4o": 0.78,
+    "v3-a__gpt-5.4": 1.0,
+    "v3-b__gpt-5.4": 1.0,
+    "v3-c__gpt-5.4": 1.0,
+    "v3-d__gpt-5.4": 1.0,
+    "v3-a__deepseek-v4-pro": 0.44,
+    "v3-b__deepseek-v4-pro": 0.89,
+    "v3-c__deepseek-v4-pro": 0.44,
+    "v3-d__deepseek-v4-pro": 0.56
+  },
+  "modelStats": {
+    "gpt-4o":          { "meanChars": 7265,  "meanWords": 1115, "meanOutTokens": 1505, "meanInTokens": 2662, "meanMs": 19641, "truncated": 0, "n": 36 },
+    "gpt-5.4":         { "meanChars": 22386, "meanWords": 3456, "meanOutTokens": 4728, "meanInTokens": 2661, "meanMs": 61548, "truncated": 0, "n": 36 },
+    "deepseek-v4-pro": { "meanChars": 19410, "meanWords": 3118, "meanOutTokens": 6877, "meanReasoningTokens": 2496, "meanInTokens": 2705, "meanMs": 7809, "msUnreliable": "15/36 recorded latencies <600ms for 4.6k-8.2k-token completions - instrumentation artifact; treat as unmeasured", "truncated": 8, "n": 36 }
+  },
+  "crossFamilyVerdict": {
+    "principle": "When the two judges disagree on direction, the cross-family judge (different provider family from the generation model) is authoritative; same-family judgments count only when the cross-family judge concurs.",
+    "crossFamilyJudgeByModel": { "gpt-4o": "deepseek", "gpt-5.4": "deepseek", "deepseek-v4-pro": "openai" },
+    "deepseekV4ProSelfPreference": {
+      "v3-a": { "sameFamily": "9-0-0 (+42.4)", "crossFamily": "4-5-0 (+7.1)" },
+      "v3-b": { "sameFamily": "9-0-0 (+41.3)", "crossFamily": "8-1-0 (+16.1)" },
+      "v3-c": { "sameFamily": "9-0-0 (+42.2)", "crossFamily": "4-5-0 (+11.1)" },
+      "v3-d": { "sameFamily": "9-0-0 (+44.4)", "crossFamily": "5-4-0 (+12.1)" },
+      "evidence": "On both sub-900-word truncated deepseek outputs (v3-a/mock-g, v3-d/mock-h) the cross-family gpt-5.4 judge preferred the complete baseline ('severely incomplete, breaks the required 15-section format') while the same-family deepseek-chat judge still preferred the truncated deepseek report."
+    },
+    "mirrorCheck": "On gpt-5.4 generation cells the deepseek-chat judge is cross-family and fully concurs: 9-0-0 on all four candidates with margins +44.1 to +46.7 (agreement 1.00). The deepseek judge crowns another family when earned; its 36-0 same-family sweep over the cross-family judge's objection is the anomaly.",
+    "verdicts": {
+      "gpt-4o": "v3-b ships: 18/18 both judges, margins +11.4/+10.8 vs ~5.3-pt cross-judge noise on that cell (7.1 grid-wide).",
+      "gpt-5.4": "Validated quality upgrade (cross-family judge 9-0-0, +44 to +47 on every candidate); self-judge caveat mitigated by cross-family agreement; pending ~3x cost check.",
+      "deepseek-v4-pro": "NOT a validated upgrade: cross-family judge has v3-a/c/d at coin-flip vs baseline; only v3-b clears (8-1, +16.1). Cost-play fallback only, with v3-b only, after fixing 8/36 truncation-at-8192-cap (reasoning tokens eat the budget) and re-benching latency."
+    },
+    "bestCellsRanking": [
+      { "cell": "v3-d__gpt-5.4",          "judge": "deepseek", "wlt": "9-0-0", "margin": 46.7, "candidateMean": 94.72 },
+      { "cell": "v3-b__gpt-5.4",          "judge": "deepseek", "wlt": "9-0-0", "margin": 46.0, "candidateMean": 91.39 },
+      { "cell": "v3-a__gpt-5.4",          "judge": "deepseek", "wlt": "9-0-0", "margin": 45.6, "candidateMean": 91.22 },
+      { "cell": "v3-c__gpt-5.4",          "judge": "deepseek", "wlt": "9-0-0", "margin": 44.1, "candidateMean": 91.83 },
+      { "cell": "v3-d__gpt-4o",           "judge": "deepseek", "wlt": "9-0-0", "margin": 15.4, "candidateMean": 71.56 },
+      { "cell": "v3-b__gpt-4o",           "judge": "deepseek", "wlt": "9-0-0", "margin": 10.8, "candidateMean": 68.5 },
+      { "cell": "v3-b__deepseek-v4-pro",  "judge": "openai",   "wlt": "8-1-0", "margin": 16.1, "candidateMean": 68.39 }
+    ]
+  },
+  "rolloutLadder": [
+    "1. Now: v3-b on gpt-4o - pure prompt swap behind LLM_FRAMEWORK_VERSION env flag, framework_version row stamping, promote after e2e-live journey suite passes flag-on.",
+    "2. Next: v3-b on gpt-5.4 as the model-upgrade candidate pending cost check (~$0.079/report, ~60s - roughly 3x the winner on both).",
+    "3. Fallback only: deepseek-v4-pro with v3-b as a cost play (~$0.010/report) - cross-family judge ambivalent on the model overall; fix token budget (8/36 truncated) and re-bench latency first."
+  ],
+  "costPerReportUSD": {
+    "v2__gpt-4o": 0.016,
+    "v3-b__gpt-4o": 0.025,
+    "v3-b__gpt-5.4": 0.079,
+    "v3-b__deepseek-v4-pro": 0.01,
+    "pricingBasisPer1M": { "gpt-4o": [2.5, 10.0], "gpt-5.4": [2.5, 15.0], "deepseek-v4-pro": [0.42, 1.25], "note": "deepseek-v4-pro pricing assumed from vendor price-point lineage (deepseek-chat $0.27/$1.10, deepseek-reasoner $0.55/$2.19); plausible but verify against the live price sheet before budgeting" }
+  },
+  "retiredCells": {
+    "reason": "claude-sonnet-5 generation track died mid-run (Anthropic credits exhausted); 14/36 outputs (v3-a 5, v3-b 6, v3-c 3, v3-d 0), 5/14 truncated at max_tokens 8192, non-random case survival. Excluded from verdict; replaced in the grid by deepseek-v4-pro.",
+    "v3-a__claude-sonnet-5": { "openai": { "candidate": 68.5,  "baseline": 53.6,  "wlt": "4-1-0" }, "deepseek": { "candidate": 91.9, "baseline": 48.4,  "wlt": "5-0-0" }, "cases": 5, "agreement": 0.8,  "truncated": 0 },
+    "v3-b__claude-sonnet-5": { "openai": { "candidate": 72.17, "baseline": 47.25, "wlt": "6-0-0" }, "deepseek": { "candidate": 90.0, "baseline": 45.5,  "wlt": "6-0-0" }, "cases": 6, "agreement": 1.0,  "truncated": 2 },
+    "v3-c__claude-sonnet-5": { "openai": { "candidate": 59.67, "baseline": 50.83, "wlt": "2-1-0" }, "deepseek": { "candidate": 86.5, "baseline": 50.33, "wlt": "3-0-0" }, "cases": 3, "agreement": 0.67, "truncated": 3 },
+    "outputStatsPartial": { "meanChars": 14625, "meanWords": 2290, "meanOutTokens": 7845, "meanMs": 95227, "estCostPerReportUSD": 0.132, "n": 14 }
+  },
+  "notes": [
+    "Regenerated 2026-07-02 from raw scores/*.jsonl + outputs/*.json after the deepseek-v4-pro grid completed; no API calls.",
+    "v3-d fails the consistency bar on gpt-4o (lost mock-d and mock-g under the gpt-5.4 judge for fabricated specifics) despite larger mean margins; best graft donor for cost-basis discipline.",
+    "v3-a and v3-c margins on gpt-4o are within cross-judge noise; do not ship.",
+    "Word-target reality check: no complete-grid model sits in the 2000-2500-word band. gpt-4o never reaches 2000 (mean 1115, max 1457); gpt-5.4 (mean 3456) and deepseek-v4-pro (mean 3118, 33/36 clear 2000 when not truncated) overshoot. Only retired claude-sonnet-5 centered in the band (7/14, median 2315).",
+    "deepseek-v4-pro recorded latencies are unreliable (15/36 sub-600ms for multi-thousand-token completions); treat as unmeasured pending re-bench.",
+    "Rollout: env-flagged LLM_FRAMEWORK_VERSION with per-row framework_version stamping; promote only after e2e-live journey suite passes with the flag on."
+  ]
+}

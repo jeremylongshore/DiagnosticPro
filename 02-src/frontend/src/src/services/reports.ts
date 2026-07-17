@@ -1,33 +1,32 @@
 /**
- * Reports service - Direct download via GCS signed URLs
+ * Reports service - Self-hosted local FS download via the backend API.
+ * (Previously routed through GCS signed URLs + Cloud Run; that codepath was
+ * retired with the 2026 self-host migration.)
  */
 
 export interface DiagnosticStatus {
   id: string;
   status: 'pending' | 'processing' | 'ready' | 'failed';
-  gcsPath?: string;
   createdAt: string;
   updatedAt: string;
 }
 
 /**
- * Download report by getting signed URL from Cloud Run backend
+ * Download a finished report by asking the backend for a (short-lived) signed
+ * URL to the local PDF on the self-hosted VPS volume.
  */
 export async function downloadReport(id: string): Promise<void> {
-  const apiBase = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE;
-  if (!apiBase) {
-    throw new Error('No API base configured');
-  }
+  const { getEnv } = await import('../lib/env');
+  const apiBase = getEnv('VITE_API_GATEWAY_URL') || getEnv('VITE_API_BASE') || '';
+  const url = apiBase 
+    ? `${apiBase}/reports/signed-url?submissionId=${encodeURIComponent(id)}`
+    : `/reports/signed-url?submissionId=${encodeURIComponent(id)}`;
 
-  const response = await fetch(
-    `${apiBase}/reports/signed-url?submissionId=${encodeURIComponent(id)}`,
-    {
-      method: 'GET',
-      headers: {
-        'x-api-key': import.meta.env.VITE_API_KEY || ''
-      }
-    }
-  );
+  const headers: Record<string, string> = {};
+  const apiKey = getEnv('VITE_API_KEY');
+  if (apiKey) headers['x-api-key'] = apiKey;
+
+  const response = await fetch(url, { method: 'GET', headers });
 
   if (!response.ok) {
     throw new Error('Report not ready yet');
@@ -43,42 +42,39 @@ export async function downloadReport(id: string): Promise<void> {
 }
 
 /**
- * Get diagnostic status for polling - Firebase Firestore version
+ * Get diagnostic status for polling via the backend API.
  */
 export async function getDiagnosticStatus(diagnosticId: string): Promise<{ data: DiagnosticStatus | null; status: number; error?: string }> {
   try {
-    const { db } = await import('../config/firebase');
-    const { doc, getDoc } = await import('firebase/firestore');
+    const { getEnv } = await import('../lib/env');
+    // Empty base = same-origin relative path (self-host: Caddy proxies API paths)
+    const apiBase = getEnv('VITE_API_GATEWAY_URL') || getEnv('VITE_API_BASE') || '';
 
-    const docRef = doc(db, 'diagnosticSubmissions', diagnosticId);
-    const docSnap = await getDoc(docRef);
+    const response = await fetch(`${apiBase}/analysisStatus`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ submissionId: diagnosticId })
+    });
 
-    if (!docSnap.exists()) {
-      return {
-        data: null,
-        status: 404,
-        error: 'Diagnostic submission not found'
-      };
+    if (!response.ok) {
+      return { data: null, status: response.status, error: 'Submission not found' };
     }
 
-    const data = docSnap.data();
-
-    // Cloud Run backend writes `status` field; legacy Functions wrote `analysisStatus`
-    const rawStatus = data.status || data.analysisStatus || 'pending';
+    const result = await response.json();
+    const rawStatus = result.status || 'pending';
     const normalizedStatus = rawStatus === 'completed' ? 'ready' : rawStatus;
 
     return {
       data: {
         id: diagnosticId,
         status: normalizedStatus as DiagnosticStatus['status'],
-        gcsPath: data.reportPath,
-        createdAt: data.createdAt?.toDate?.()?.toISOString() || data.createdAt,
-        updatedAt: data.completedAt?.toDate?.()?.toISOString() || data.analysisCompletedAt?.toDate?.()?.toISOString() || data.updatedAt
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
       },
       status: 200
     };
   } catch (error) {
-    console.error('Error getting diagnostic status from Firestore:', error);
+    console.error('Error getting diagnostic status from API:', error);
     return {
       data: null,
       status: 500,

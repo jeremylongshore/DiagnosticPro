@@ -1,0 +1,71 @@
+{
+  "run": "JOURNEY-1782974302733",
+  "baseUrl": "https://test.diagnosticpro.io",
+  "startedAt": "2026-07-02T06:38:22.733Z",
+  "finishedAt": "2026-07-02T06:40:12.904Z",
+  "gates": {
+    "stripeTestMode": true,
+    "whopMemberToken": false
+  },
+  "summary": {
+    "passed": 4,
+    "failed": 1
+  },
+  "journeyState": {
+    "submissionId": "diag_1782974309384_a303a5d9",
+    "checkoutSessionId": "cs_test_a1bkD2khcibLBEIDhGhhEOnbIVblD6Llb3xPnxM9Xj7JcGWwluSeKDbaw7",
+    "whopSubmissionId": ""
+  },
+  "steps": [
+    {
+      "id": "J1-01",
+      "name": "J1-01 landing page serves 200 with the diagnostic form and CTA",
+      "status": "passed",
+      "ms": 2055,
+      "evidence": {
+        "http": 200,
+        "title": "DiagnosticPro.io - Professional Automotive Diagnostic Solutions"
+      }
+    },
+    {
+      "id": "J1-02",
+      "name": "J1-02 real form submit persists a pending submission",
+      "status": "passed",
+      "ms": 4205,
+      "evidence": {
+        "submissionId": "diag_1782974309384_a303a5d9",
+        "http": 200,
+        "dbStatus": "pending"
+      }
+    },
+    {
+      "id": "J1-03",
+      "name": "J1-03 pay CTA renders bound to the submission (client-reference-id)",
+      "status": "passed",
+      "ms": 4050,
+      "evidence": {
+        "ctaSubmissionId": "diag_1782974313676_b143746d",
+        "pkMode": "live",
+        "buyButtonId": "buy_btn_1SC6LyJfyCDmId8XPHZozmzJ"
+      }
+    },
+    {
+      "id": "J1-04",
+      "name": "J1-04 server-created checkout session returns a Stripe-hosted URL",
+      "status": "passed",
+      "ms": 842,
+      "evidence": {
+        "sessionId": "cs_test_a1bkD2khcibLBEIDhGhhEOnbIVblD6Llb3xPnxM9Xj7JcGWwluSeKDbaw7",
+        "mode": "test",
+        "http": 200
+      }
+    },
+    {
+      "id": "J1-05",
+      "name": "J1-05 hosted checkout accepts the 4242 test card and redirects to /success",
+      "status": "failed",
+      "ms": 95734,
+      "error": "TimeoutError: page.waitForURL: Timeout 90000ms exceeded.\n=========================== logs ===========================\nwaiting for navigation until \"load\"\n============================================================"
+    }
+  ]
+}

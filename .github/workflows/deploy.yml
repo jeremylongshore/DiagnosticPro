@@ -1,0 +1,74 @@
+name: Deploy
+
+# Production deploy of diagnosticpro.io to the Intent Solutions Contabo VPS
+# (intentsolutions, 167.86.106.29). Wraps the canonical reusable workflow at
+# jeremylongshore/.github/.github/workflows/vps-deploy.yml (docker variant),
+# pinned by 40-char SHA for supply-chain hardening.
+#
+# Replaces the old deploy-cloudrun.yml (Cloud Run + Firebase Hosting) — GCP is
+# gone. See the VPS runbook docs/onboard-new-repo-deploy.md + manual-deploy.md.
+#
+# NOTE (2026-07): first deploys are MANUAL until OPS-b78 (Tailscale OIDC 403,
+# since 2026-05-25) is resolved and the per-repo OIDC trust
+# `repo:jeremylongshore/DiagnosticPro:*` is granted. This workflow is staged and
+# will run push-to-deploy once that trust + the 4 GH secrets below are in place.
+#
+# To upgrade the reusable workflow: bump the SHA after reviewing the diff at
+# https://github.com/jeremylongshore/.github/commits/main
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  id-token: write # required by the reusable workflow for Tailscale OIDC
+
+concurrency:
+  group: deploy-vps-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    name: pre-deploy build gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Frontend build (belt-and-suspenders before deploy)
+        working-directory: 02-src/frontend
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm run build
+      - name: Backend syntax check
+        working-directory: 02-src/backend/services/backend
+        run: |
+          npm ci --no-audit --no-fund
+          node --check index.js
+
+  deploy:
+    needs: test
+    uses: jeremylongshore/.github/.github/workflows/vps-deploy.yml@53d6be37d6c046818157b954acb33667ac095dd8
+    with:
+      variant: docker
+      srv-path: /srv/diagnosticpro
+      health-check-url: https://diagnosticpro.io/healthz
+      vps-tailnet-ip: 100.88.144.55
+      vps-public-ip: 167.86.106.29
+      vps-host: intentsolutions
+      vps-user: intentsolutions
+      smoke-validation: '.status == "ok"'
+    secrets:
+      # Explicit pass-through (secrets: inherit did not forward reliably to the
+      # cross-repo reusable workflow — see braves deploy.yml note).
+      TS_OIDC_CLIENT_ID: ${{ secrets.TS_OIDC_CLIENT_ID }}
+      TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
+      VPS_DEPLOY_KEY: ${{ secrets.VPS_DEPLOY_KEY }}
+      VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}

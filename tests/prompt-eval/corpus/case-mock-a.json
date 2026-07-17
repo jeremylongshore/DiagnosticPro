@@ -1,0 +1,29 @@
+{
+  "id": "mock-a",
+  "payload": {
+    "equipmentType": "automotive",
+    "make": "Toyota",
+    "model": "Camry",
+    "year": "2018",
+    "symptoms": "MIL on, reduced power under load, noticeable rough idle after cold start.",
+    "errorCodes": "P0301, P0171",
+    "problemDescription": "Customer reports coil #1 replaced 10k miles ago. Spark plugs original. Fuel trims lean on both banks.",
+    "fullName": "Alex Rivera",
+    "email": "driver.a@example.com"
+  },
+  "meta": {
+    "sourceFile": "tests/mocks/mock_A_vehicle_high_confidence.json",
+    "sourceSubmissionId": "diag_mock_A",
+    "expectedCodes": [
+      "P0301",
+      "P0171"
+    ],
+    "tags": [
+      "automotive",
+      "gasoline",
+      "misfire",
+      "lean-codes",
+      "high-confidence"
+    ]
+  }
+}

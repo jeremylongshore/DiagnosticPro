@@ -1,22 +1,40 @@
 const express = require('express');
 const cors = require('cors');
 const rateLimit = require('express-rate-limit');
-const { Firestore } = require('@google-cloud/firestore');
-const { Storage } = require('@google-cloud/storage');
-const { GoogleAuth } = require('google-auth-library');
 const stripe = require('stripe');
 const crypto = require('crypto');
+const fs = require('fs');
+const path = require('path');
+const multer = require('multer');
 const PDFDocument = require('pdfkit');
 // Using production-grade PDF generator with validation and proper pagination
 const { generateDiagnosticProPDF } = require('./reportPdfProduction.js');
-// Google Secret Manager integration
+// Secrets from the process env (materialized from SOPS at deploy time; no GCP)
 const { loadSecrets } = require('./config/secrets.js');
+// OpenAI-compatible client. Default provider is OpenAI gpt-4o; Groq/Ollama/any /v1 via env.
+const OpenAI = require('openai');
+
+// Self-hosted SQLite (replaces Firestore)
+const { getDb } = require('./db');
+const {
+  buildCustomerDataBlock,
+  validatePhotoUpload,
+  DEFAULT_MAX_BYTES
+} = require('./evidence/promptEvidence');
+const {
+  resolveVisionConfig,
+  makeVisionProvider,
+  describeImages,
+  evidenceFileReader,
+  applyVisionResults
+} = require('./evidence/vision.js');
+const { startSweeper } = require('./evidence/sweeper.js');
 
 // Structured logging function
 function logStructured(data) {
   console.log(JSON.stringify({
     timestamp: new Date().toISOString(),
-    service: 'diagnosticpro-vertex-ai-backend',
+    service: 'diagnosticpro-llm-backend',
     ...data
   }));
 }
@@ -33,13 +51,23 @@ function validateSubmissionPayload(payload) {
   const errors = [];
 
   // Required fields (minimum for AI analysis)
-  const requiredFields = ['equipmentType', 'model', 'symptoms'];
+  const requiredFields = ['equipmentType', 'model'];
 
   // Check for required fields only - allow all other fields to pass through
   for (const field of requiredFields) {
     if (!payload[field] || typeof payload[field] !== 'string' || payload[field].trim() === '') {
       errors.push(`Field '${field}' is required and must be a non-empty string`);
     }
+  }
+
+  // The AI needs SOME symptom text, but in the real UI the symptom checkboxes
+  // are optional (hidden behind "Add Details") while the always-visible
+  // free-text is problemDescription. Requiring `symptoms` alone 400-rejected
+  // every customer who only filled the description — the buy button never
+  // rendered and the sale was lost (caught live by journey step J1-02).
+  const hasText = (v) => typeof v === 'string' && v.trim() !== '';
+  if (!hasText(payload.symptoms) && !hasText(payload.problemDescription)) {
+    errors.push("Field 'symptoms' or 'problemDescription' is required and must be a non-empty string");
   }
 
   // NO FIELD RESTRICTIONS - Accept any additional fields from UI
@@ -56,7 +84,7 @@ function validateSubmissionPayload(payload) {
 const app = express();
 const PORT = process.env.PORT || 8080;
 
-// Parse Gemini free-form analysis into sectioned structure the PDF generator expects
+// Parse LLM (DeepSeek etc.) free-form analysis into sectioned structure the PDF generator expects
 function parseFullAnalysis(fullAnalysis = '') {
   if (typeof fullAnalysis !== 'string' || !fullAnalysis.trim()) {
     return {};
@@ -196,18 +224,22 @@ function extractDiagnosticCodes(payload = {}) {
   return Array.from(codes);
 }
 
-// Validate required environment variables
-const REPORT_BUCKET = process.env.REPORT_BUCKET;
-if (!REPORT_BUCKET) {
-  throw new Error('REPORT_BUCKET environment variable is required');
-}
+// Self-hosted reports: local FS only. The previous GCS REPORT_BUCKET
+// codepath is fully removed (2026 self-host migration); this env var is
+// tolerated so legacy deployments keep booting but never read.
+const REPORT_BUCKET = process.env.REPORT_BUCKET; // tolerated, never read
+// Production sets this to the private /data/uploads volume. It is never
+// exposed by an Express static route or returned to the browser as a URL.
+const EVIDENCE_UPLOADS_DIR = process.env.EVIDENCE_UPLOADS_DIR || '/data/uploads';
 
-// Initialize services (will be updated with secrets after loadSecrets())
-const firestore = new Firestore();
-const storage = new Storage();
-const reportsBucket = storage.bucket(REPORT_BUCKET);
+// GCS is fully removed for self-host. Local FS only.
+
+// Initialize other services
 let stripeClient; // Will be initialized after loading secrets
 let secrets = {}; // Global secrets object
+
+// SQLite DB (lazy init on first use)
+const db = getDb();
 
 // Whop integration constants
 const WHOP_APP_ID = process.env.WHOP_APP_ID || 'app_NyelCJC762qXb6';
@@ -218,13 +250,14 @@ const WHOP_REDIRECT_URI = 'https://diagnosticpro.io/auth/callback';
 app.use(cors({
   origin: ['https://diagnosticpro.io', 'https://diagnostic-pro-prod.web.app', 'https://diagpro-gw-3tbssksx.uc.gateway.dev'],
   credentials: true,
-  methods: ['GET', 'POST', 'OPTIONS'],
+  methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'x-api-key', 'x-dp-reqid', 'Authorization', 'x-whop-token']
 }));
 
 // Rate limiters
 const submissionLimiter = rateLimit({ windowMs: 60000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many submissions, try again later', code: 'RATE_LIMITED' } });
 const analysisLimiter = rateLimit({ windowMs: 60000, max: 5, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many analysis requests, try again later', code: 'RATE_LIMITED' } });
+const evidenceLimiter = rateLimit({ windowMs: 60000, max: 30, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many evidence requests, try again later', code: 'RATE_LIMITED' } });
 const generalLimiter = rateLimit({ windowMs: 60000, max: 60, standardHeaders: true, legacyHeaders: false });
 app.use(generalLimiter);
 
@@ -232,17 +265,213 @@ app.use(generalLimiter);
 app.get('/healthz', (req, res) => {
   res.status(200).json({
     status: 'ok',
-    service: 'diagnosticpro-vertex-ai-backend',
-    version: '1.0.0'
+    service: 'diagnosticpro-llm-backend',
+    version: '2.3.0'
   });
+});
+
+// Local reports download (self-host, replaces GCS signed URLs)
+app.get('/reports/download/:submissionId', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const { submissionId } = req.params;
+  const reportsDir = process.env.REPORTS_DIR || path.join(process.cwd(), 'reports');
+  const filePath = path.join(reportsDir, `${submissionId}.pdf`);
+  if (!fs.existsSync(filePath)) {
+    return res.status(404).json({ error: 'Report not found' });
+  }
+  res.setHeader('Content-Type', 'application/pdf');
+  res.setHeader('Content-Disposition', `attachment; filename="diagnostic-${submissionId}.pdf"`);
+  fs.createReadStream(filePath).pipe(res);
 });
 
 // Capture raw body for Stripe webhook signature verification
 // Must be registered BEFORE express.json() middleware
 app.post('/stripeWebhookForward', express.raw({ type: 'application/json' }), attachRequestId);
 
+// Capture raw body for Whop webhook signature verification (HMAC must run
+// over the exact bytes Whop sent, not a re-serialized JSON.stringify)
+app.post('/api/webhooks/whop', express.raw({ type: 'application/json' }), attachRequestId);
+
 app.use(express.json({ limit: '10mb' }));
 app.use(attachRequestId);
+
+// Accept one small image at a time. Files first live in memory so we can
+// validate their signature and hash before anything touches the uploads
+// volume. The route writes them atomically to a private submission directory.
+const evidenceUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: DEFAULT_MAX_BYTES, files: 1, fields: 4, parts: 6 }
+});
+
+function isValidSubmissionId(submissionId) {
+  return typeof submissionId === 'string' && /^diag_\d{13}_[0-9a-f]{8}$/.test(submissionId);
+}
+
+function detectedImageMime(buffer) {
+  if (!Buffer.isBuffer(buffer)) return null;
+  if (buffer.length >= 3 && buffer[0] === 0xff && buffer[1] === 0xd8 && buffer[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (buffer.length >= 8 && buffer.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return 'image/png';
+  }
+  if (
+    buffer.length >= 12 &&
+    buffer.subarray(0, 4).toString('ascii') === 'RIFF' &&
+    buffer.subarray(8, 12).toString('ascii') === 'WEBP'
+  ) {
+    return 'image/webp';
+  }
+  return null;
+}
+
+function evidenceExtension(mime) {
+  return { 'image/jpeg': '.jpg', 'image/png': '.png', 'image/webp': '.webp' }[mime];
+}
+
+function evidenceError(res, status, code, error) {
+  return res.status(status).json({ error, code });
+}
+
+function findPendingEvidenceSubmission(submissionId) {
+  if (!isValidSubmissionId(submissionId)) return { error: 'invalid' };
+  const submission = db.prepare(
+    'SELECT id, status FROM diagnostic_submissions WHERE id = ?'
+  ).get(submissionId);
+  if (!submission) return { error: 'missing' };
+  if (submission.status !== 'pending') return { error: 'locked' };
+  return { submission };
+}
+
+// POST /evidence/:submissionId — attach one optional photo after the form is
+// saved and before payment. There is deliberately no GET-by-file endpoint.
+app.post('/evidence/:submissionId', evidenceLimiter, (req, res) => {
+  const { submissionId } = req.params;
+  const lookup = findPendingEvidenceSubmission(submissionId);
+  if (lookup.error === 'invalid') return evidenceError(res, 400, 'INVALID_SUBMISSION_ID', 'Invalid submission ID');
+  if (lookup.error === 'missing') return evidenceError(res, 404, 'SUBMISSION_NOT_FOUND', 'Submission not found');
+  if (lookup.error === 'locked') return evidenceError(res, 409, 'EVIDENCE_LOCKED', 'Photos can only be changed before payment');
+
+  evidenceUpload.single('photo')(req, res, (uploadError) => {
+    if (uploadError) {
+      if (uploadError.code === 'LIMIT_FILE_SIZE') {
+        return evidenceError(res, 413, 'FILE_TOO_LARGE', 'Photo must be 2 MiB or smaller');
+      }
+      return evidenceError(res, 400, 'INVALID_UPLOAD', 'Upload exactly one photo');
+    }
+    if (!req.file) return evidenceError(res, 400, 'PHOTO_REQUIRED', 'A photo file is required');
+
+    try {
+      const existingCount = db.prepare(
+        "SELECT COUNT(*) AS count FROM evidence WHERE submission_id = ? AND status != 'deleted'"
+      ).get(submissionId).count;
+      const validation = validatePhotoUpload({
+        mime: req.file.mimetype,
+        bytes: req.file.size,
+        existingCount
+      });
+      if (!validation.ok) {
+        const status = validation.error === 'file_too_large' ? 413 : 400;
+        return evidenceError(res, status, validation.error.toUpperCase(), validation.error.replaceAll('_', ' '));
+      }
+
+      const mime = detectedImageMime(req.file.buffer);
+      if (!mime || mime !== req.file.mimetype.toLowerCase()) {
+        return evidenceError(res, 400, 'INVALID_IMAGE', 'Photo content does not match its image type');
+      }
+
+      const evidenceId = `ev_${crypto.randomUUID()}`;
+      const filename = `${evidenceId}${evidenceExtension(mime)}`;
+      const relativePath = path.join(submissionId, filename);
+      const submissionDir = path.join(EVIDENCE_UPLOADS_DIR, submissionId);
+      const filePath = path.join(submissionDir, filename);
+      const now = new Date().toISOString();
+      const sha256 = crypto.createHash('sha256').update(req.file.buffer).digest('hex');
+
+      fs.mkdirSync(submissionDir, { recursive: true, mode: 0o700 });
+      fs.writeFileSync(filePath, req.file.buffer, { flag: 'wx', mode: 0o600 });
+      try {
+        db.prepare(`
+          INSERT INTO evidence
+            (id, submission_id, kind, path, original_name, mime, bytes, sha256, status, created_at, updated_at)
+          VALUES (?, ?, 'photo', ?, ?, ?, ?, ?, 'uploaded', ?, ?)
+        `).run(
+          evidenceId,
+          submissionId,
+          relativePath,
+          path.basename(req.file.originalname || 'photo'),
+          mime,
+          req.file.size,
+          sha256,
+          now,
+          now
+        );
+      } catch (dbError) {
+        fs.rmSync(filePath, { force: true });
+        throw dbError;
+      }
+
+      return res.status(201).json({
+        evidence: {
+          id: evidenceId,
+          kind: 'photo',
+          mime,
+          bytes: req.file.size,
+          status: 'uploaded',
+          createdAt: now
+        }
+      });
+    } catch (error) {
+      logStructured({ phase: 'evidenceUpload', status: 'error', reqId: req.reqId, submissionId, error: { code: 'INTERNAL_ERROR', message: error.message } });
+      return evidenceError(res, 500, 'INTERNAL_ERROR', 'Unable to store photo');
+    }
+  });
+});
+
+// Metadata only: clients can render their local selected-photo list, but the
+// private image bytes are never served by this application.
+app.get('/evidence/:submissionId', evidenceLimiter, (req, res) => {
+  const { submissionId } = req.params;
+  if (!isValidSubmissionId(submissionId)) return evidenceError(res, 400, 'INVALID_SUBMISSION_ID', 'Invalid submission ID');
+  const submission = db.prepare('SELECT id FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+  if (!submission) return evidenceError(res, 404, 'SUBMISSION_NOT_FOUND', 'Submission not found');
+  const evidence = db.prepare(`
+    SELECT id, kind, mime, bytes, status, created_at AS createdAt
+    FROM evidence WHERE submission_id = ? AND status != 'deleted' ORDER BY created_at ASC
+  `).all(submissionId);
+  return res.json({ evidence });
+});
+
+// DELETE /evidence/:submissionId/:evidenceId — customers can remove an
+// attachment while the associated submission is still unpaid/pending.
+app.delete('/evidence/:submissionId/:evidenceId', evidenceLimiter, (req, res) => {
+  const { submissionId, evidenceId } = req.params;
+  const lookup = findPendingEvidenceSubmission(submissionId);
+  if (lookup.error === 'invalid') return evidenceError(res, 400, 'INVALID_SUBMISSION_ID', 'Invalid submission ID');
+  if (lookup.error === 'missing') return evidenceError(res, 404, 'SUBMISSION_NOT_FOUND', 'Submission not found');
+  if (lookup.error === 'locked') return evidenceError(res, 409, 'EVIDENCE_LOCKED', 'Photos can only be changed before payment');
+
+  const evidence = db.prepare(
+    "SELECT id, path FROM evidence WHERE id = ? AND submission_id = ? AND status != 'deleted'"
+  ).get(evidenceId, submissionId);
+  if (!evidence) return evidenceError(res, 404, 'EVIDENCE_NOT_FOUND', 'Photo not found');
+
+  try {
+    const uploadRoot = path.resolve(EVIDENCE_UPLOADS_DIR);
+    const filePath = path.resolve(EVIDENCE_UPLOADS_DIR, evidence.path);
+    if (!filePath.startsWith(`${uploadRoot}${path.sep}`)) {
+      throw new Error('evidence path escaped upload root');
+    }
+    fs.rmSync(filePath, { force: true });
+    const now = new Date().toISOString();
+    db.prepare("UPDATE evidence SET status = 'deleted', updated_at = ? WHERE id = ?").run(now, evidence.id);
+    return res.status(204).end();
+  } catch (error) {
+    logStructured({ phase: 'evidenceDelete', status: 'error', reqId: req.reqId, submissionId, evidenceId, error: { code: 'INTERNAL_ERROR', message: error.message } });
+    return evidenceError(res, 500, 'INTERNAL_ERROR', 'Unable to delete photo');
+  }
+});
 
 // ENDPOINT: Save submission BEFORE payment
 app.post('/saveSubmission', submissionLimiter, async (req, res) => {
@@ -271,27 +500,31 @@ app.post('/saveSubmission', submissionLimiter, async (req, res) => {
     // Generate submission ID
     submissionId = `diag_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
 
-    // Prepare Firestore document - SAVE COMPLETE PAYLOAD
-    // Store entire payload from UI to handle current and future fields
-    const submissionData = {
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      status: 'pending',
-      priceCents: 499,
-      payload: {
-        ...payload, // Spread entire payload to capture ALL UI fields
-        // Ensure empty strings for missing optional fields for consistency
-        make: payload.make || '',
-        year: payload.year || '',
-        notes: payload.notes || ''
-      },
-      reqId: req.reqId,
-      uiVersion: '1.0', // Track UI version for future compatibility
-      payloadKeyCount: Object.keys(payload).length // Track number of fields for debugging
+    // Prepare document for SQLite (replaces Firestore)
+    const now = new Date().toISOString();
+    const submissionPayload = {
+      ...payload,
+      make: payload.make || '',
+      year: payload.year || '',
+      notes: payload.notes || ''
     };
 
-    // Save to Firestore
-    await firestore.collection('diagnosticSubmissions').doc(submissionId).set(submissionData);
+    const stmt = db.prepare(`
+      INSERT OR REPLACE INTO diagnostic_submissions
+      (id, status, price_cents, payload, req_id, ui_version, payload_key_count, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    stmt.run(
+      submissionId,
+      'pending',
+      499,
+      JSON.stringify(submissionPayload),
+      req.reqId,
+      '1.0',
+      Object.keys(payload).length,
+      now,
+      now
+    );
 
     // Success logging
     logStructured({
@@ -338,9 +571,9 @@ app.post('/createCheckoutSession', async (req, res) => {
       });
     }
 
-    // Verify submission exists and status is valid
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId).get();
-    if (!submissionRef.exists) {
+    // Verify submission exists and status is valid (SQLite)
+    const row = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (!row) {
       logStructured({
         phase,
         status: 'error',
@@ -354,7 +587,10 @@ app.post('/createCheckoutSession', async (req, res) => {
       });
     }
 
-    const submissionData = submissionRef.data();
+    const submissionData = {
+      ...row,
+      payload: row.payload ? JSON.parse(row.payload) : {}
+    };
     if (!['pending', 'failed'].includes(submissionData.status)) {
       logStructured({
         phase,
@@ -369,7 +605,45 @@ app.post('/createCheckoutSession', async (req, res) => {
       });
     }
 
-    const session = await stripeClient.checkout.sessions.create({
+    // Redirect base is env-driven so a test-mode deployment (e.g.
+    // test.diagnosticpro.io with sk_test) sends payers back to ITSELF, never
+    // to the live host. {CHECKOUT_SESSION_ID} is Stripe's literal template
+    // token — the /success page resolves session -> submission via
+    // GET /checkout/session (the same path the Buy Button flow exercises).
+    const frontendBase = (process.env.FRONTEND_URL || 'https://diagnosticpro.io').replace(/\/+$/, '');
+
+    // Optional promotion code (e.g. TEST1001 for 100% off in Stripe TEST mode).
+    // When applied server-side we cannot also set allow_promotion_codes (Stripe
+    // rejects that combo). When omitted, allow_promotion_codes lets customers
+    // type a code on the hosted Checkout page.
+    const requestedPromo =
+      (typeof req.body.promotionCode === 'string' && req.body.promotionCode.trim()) ||
+      (typeof req.body.coupon === 'string' && req.body.coupon.trim()) ||
+      '';
+    let appliedPromotionCodeId = null;
+    if (requestedPromo) {
+      const promoList = await stripeClient.promotionCodes.list({
+        code: requestedPromo,
+        active: true,
+        limit: 1,
+      });
+      if (!promoList.data.length) {
+        logStructured({
+          phase,
+          status: 'error',
+          reqId: req.reqId,
+          submissionId,
+          error: { code: 'INVALID_PROMOTION_CODE', message: `Unknown or inactive code: ${requestedPromo}` },
+        });
+        return res.status(400).json({
+          error: `Invalid or inactive promotion code: ${requestedPromo}`,
+          code: 'INVALID_PROMOTION_CODE',
+        });
+      }
+      appliedPromotionCodeId = promoList.data[0].id;
+    }
+
+    const sessionParams = {
       payment_method_types: ['card'],
       line_items: [{
         price_data: {
@@ -384,12 +658,20 @@ app.post('/createCheckoutSession', async (req, res) => {
       }],
       mode: 'payment',
       client_reference_id: submissionId,
-      success_url: `https://diagnosticpro.io/success?submission_id=${submissionId}`,
-      cancel_url: `https://diagnosticpro.io/cancel?submission_id=${submissionId}`,
+      success_url: `${frontendBase}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${frontendBase}/cancel?submission_id=${submissionId}`,
       metadata: {
-        submissionId: submissionId
-      }
-    });
+        submissionId: submissionId,
+        ...(requestedPromo ? { promotionCode: requestedPromo } : {}),
+      },
+    };
+    if (appliedPromotionCodeId) {
+      sessionParams.discounts = [{ promotion_code: appliedPromotionCodeId }];
+    } else {
+      sessionParams.allow_promotion_codes = true;
+    }
+
+    const session = await stripeClient.checkout.sessions.create(sessionParams);
 
     logStructured({
       phase,
@@ -428,13 +710,12 @@ app.post('/analysisStatus', async (req, res) => {
   try {
     const { submissionId } = req.body;
 
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId).get();
-    if (!submissionRef.exists) {
+    const row = db.prepare('SELECT status FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (!row) {
       return res.status(404).json({ error: 'Submission not found' });
     }
 
-    const submissionData = submissionRef.data();
-    const status = submissionData.status || 'pending';
+    const status = row.status || 'pending';
 
     res.json({ status });
 
@@ -449,29 +730,44 @@ app.post('/analyzeDiagnostic', analysisLimiter, async (req, res) => {
   try {
     const { submissionId, force } = req.body;
 
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId);
-    const submissionDoc = await submissionRef.get();
-
-    if (!submissionDoc.exists) {
+    const row = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (!row) {
       return res.status(404).json({ error: 'Submission not found' });
     }
 
-    const submissionData = submissionDoc.data();
+    const submissionData = {
+      ...row,
+      payload: row.payload ? JSON.parse(row.payload) : {}
+    };
 
     // Allow re-trigger if force=true or stuck for >10 minutes
     const stuckThreshold = 10 * 60 * 1000;
     const isStuck = submissionData.status === 'processing' &&
-      submissionData.processingStartedAt &&
-      (Date.now() - new Date(submissionData.processingStartedAt).getTime()) > stuckThreshold;
+      submissionData.processing_started_at &&
+      (Date.now() - new Date(submissionData.processing_started_at).getTime()) > stuckThreshold;
 
     if ((submissionData.status === 'processing' || submissionData.status === 'ready') && !force && !isStuck) {
-      return res.json({ status: submissionData.status, message: 'Already processed' });
+      // ok/path/analysisId are the fields the frontend startAnalysis() checks;
+      // status/message kept for backward compat
+      return res.json({
+        ok: true,
+        analysisId: submissionId,
+        path: submissionData.report_url || `/reports/download/${submissionId}`,
+        status: submissionData.status,
+        message: 'Already processed'
+      });
     }
 
     // Start analysis
     await processAnalysis(submissionId, submissionData.payload);
 
-    res.json({ status: 'processing', message: 'Analysis started' });
+    res.json({
+      ok: true,
+      analysisId: submissionId,
+      path: `/reports/download/${submissionId}`,
+      status: 'processing',
+      message: 'Analysis started'
+    });
 
   } catch (error) {
     console.error('❌ Analyze diagnostic error:', error);
@@ -489,70 +785,51 @@ app.get('/view/:submissionId', async (req, res) => {
       return res.status(400).json({ error: 'submissionId is required' });
     }
 
-    // Check if submission exists and is ready
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId).get();
-    if (!submissionRef.exists) {
+    // Check if submission exists and is ready (SQLite)
+    const subRow = db.prepare('SELECT status FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (!subRow) {
       return res.status(404).json({ error: 'Submission not found' });
     }
-
-    const submissionData = submissionRef.data();
-    if (submissionData.status !== 'ready') {
+    if (subRow.status !== 'ready') {
       return res.status(400).json({
         error: 'Report not ready yet',
-        status: submissionData.status
+        status: subRow.status
       });
     }
 
     // Check if analysis record exists
-    const analysisRef = await firestore.collection('analysis').doc(submissionId).get();
-    if (!analysisRef.exists) {
+    const analysisRow = db.prepare('SELECT report_path FROM analyses WHERE id = ?').get(submissionId);
+    if (!analysisRow) {
       return res.status(404).json({ error: 'Analysis record not found' });
     }
 
-    const analysisData = analysisRef.data();
-    const reportPath = analysisData.reportPath;
+    // Serve local report directly (perfect self-host, no GCS)
+    const fs = require('fs');
+    const pathMod = require('path');
+    const reportsDir = process.env.REPORTS_DIR || pathMod.join(process.cwd(), 'reports');
+    const localPdf = pathMod.join(reportsDir, `${submissionId}.pdf`);
 
-    if (!reportPath) {
-      return res.status(404).json({
-        error: 'Report path not found',
-        code: 'MISSING_REPORT_PATH'
-      });
+    if (!fs.existsSync(localPdf)) {
+      return res.status(404).json({ error: 'Report file not found on disk' });
     }
-
-    // Generate fresh signed URL and redirect
-    const file = reportsBucket.file(reportPath);
-
-    const [url] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + 15 * 60 * 1000, // 15 minutes
-      // No contentType for read URLs
-    });
 
     logStructured({
       phase: 'viewReport',
       status: 'ok',
-      bucket: REPORT_BUCKET,
-      reportPath,
+      storage: 'local',
       submissionId
     });
 
-    // Update analysis record with stable view URL for tracking
-    await firestore.collection('analysis').doc(submissionId).update({
-      publicViewUrl: `/view/${submissionId}`,
-      lastViewedAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
+    // Update analysis (SQLite)
+    const updateStmt = db.prepare(`
+      UPDATE analyses SET public_view_url = ?, last_viewed_at = ?, updated_at = ? WHERE id = ?
+    `);
+    updateStmt.run(`/view/${submissionId}`, new Date().toISOString(), new Date().toISOString(), submissionId);
 
-    logStructured({
-      phase,
-      status: 'ok',
-      reqId: req.reqId || 'anonymous',
-      submissionId
-    });
-
-    // Redirect to signed URL for immediate viewing
-    res.redirect(302, url);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="diagnostic-report-${submissionId}.pdf"`);
+    fs.createReadStream(localPdf).pipe(res);
+    return;
 
   } catch (error) {
     logStructured({
@@ -652,13 +929,13 @@ app.get('/reports/signed-url', async (req, res) => {
       return res.status(400).json({ error: 'submissionId query parameter is required' });
     }
 
-    // Check if submission exists and is ready
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId).get();
-    if (!submissionRef.exists) {
+    // Check if submission exists and is ready (SQLite)
+    const subRow = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (!subRow) {
       return res.status(404).json({ error: 'Submission not found' });
     }
 
-    const submissionData = submissionRef.data();
+    const submissionData = { ...subRow, payload: subRow.payload ? JSON.parse(subRow.payload) : {} };
     if (submissionData.status !== 'ready') {
       return res.status(400).json({
         error: 'Report not ready yet',
@@ -667,51 +944,35 @@ app.get('/reports/signed-url', async (req, res) => {
     }
 
     // Check if analysis record exists
-    const analysisRef = await firestore.collection('analysis').doc(submissionId).get();
-    if (!analysisRef.exists) {
+    const analysisRow = db.prepare('SELECT * FROM analyses WHERE id = ?').get(submissionId);
+    if (!analysisRow) {
       return res.status(404).json({ error: 'Analysis record not found' });
     }
 
-    const analysisData = analysisRef.data();
-    const reportPath = analysisData.reportPath;
+    const reportPath = analysisRow.report_path;
 
-    if (!reportPath) {
-      return res.status(404).json({
-        error: 'Report path not found',
-        code: 'MISSING_REPORT_PATH'
-      });
-    }
+    // Prefer local file serving for self-host
+    const fs = require('fs');
+    const path = require('path');
+    const reportsDir = process.env.REPORTS_DIR || path.join(process.cwd(), 'reports');
+    const localFile = path.join(reportsDir, `${submissionId}.pdf`);
 
-    // Generate signed URLs (15 minutes)
-    const file = reportsBucket.file(reportPath);
-
-    const [downloadUrl] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + 15 * 60 * 1000,
-      responseDisposition: `attachment; filename="${submissionId}.pdf"`,
-      // No contentType for read URLs
-    });
-
-    const [viewUrl] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + 15 * 60 * 1000,
-      responseDisposition: `inline; filename="${submissionId}.pdf"`,
-      // No contentType for read URLs
-    });
+    const downloadUrl = `/reports/download/${submissionId}`;
+    const viewUrl = `/view/${submissionId}`;  // uses the local serve we added
 
     logStructured({
       phase,
       status: 'ok',
       reqId: req.reqId,
-      submissionId
+      submissionId,
+      storage: 'local'
     });
 
     res.json({
       downloadUrl,
       viewUrl,
-      expiresInSeconds: 900
+      expiresInSeconds: 3600,
+      local: true
     });
 
   } catch (error) {
@@ -739,50 +1000,28 @@ app.get('/reports/status', async (req, res) => {
       return res.status(400).json({ error: 'Invalid submissionId', code: 'BAD_ID' });
     }
 
-    // Check if PDF exists in storage
-    const file = reportsBucket.file(`reports/${submissionId}.pdf`);
-    const [exists] = await file.exists();
+    // Prefer local FS (self-host)
+    const fs = require('fs');
+    const path = require('path');
+    const reportsDir = process.env.REPORTS_DIR || path.join(process.cwd(), 'reports');
+    const localFile = path.join(reportsDir, `${submissionId}.pdf`);
 
-    if (exists) {
-      // Generate signed URLs
-      const [downloadUrl] = await file.getSignedUrl({
-        version: 'v4',
-        action: 'read',
-        expires: Date.now() + 15 * 60 * 1000,
-        responseDisposition: `attachment; filename="${submissionId}.pdf"`,
-        contentType: 'application/pdf'
-      });
-
-      const [viewUrl] = await file.getSignedUrl({
-        version: 'v4',
-        action: 'read',
-        expires: Date.now() + 15 * 60 * 1000,
-        responseDisposition: `inline; filename="${submissionId}.pdf"`,
-        contentType: 'application/pdf'
-      });
-
-      logStructured({
-        phase,
-        status: 'ready',
-        reqId: req.reqId,
-        submissionId
-      });
-
-      return res.json({ status: 'ready', downloadUrl, viewUrl });
+    if (fs.existsSync(localFile)) {
+      const downloadUrl = `/reports/download/${submissionId}`;
+      return res.json({ status: 'ready', downloadUrl, viewUrl: downloadUrl, local: true });
     }
 
-    // Check submission status in Firestore
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId).get();
-    if (submissionRef.exists) {
-      const submissionData = submissionRef.data();
+    // Check DB status only
+    const subRow = db.prepare('SELECT status FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (subRow) {
       logStructured({
         phase,
         status: 'processing',
         reqId: req.reqId,
         submissionId,
-        submissionStatus: submissionData.status
+        submissionStatus: subRow.status
       });
-      return res.status(202).json({ status: 'processing', submissionStatus: submissionData.status });
+      return res.status(202).json({ status: 'processing', submissionStatus: subRow.status });
     }
 
     logStructured({
@@ -817,8 +1056,16 @@ app.post('/reports/ensure', async (req, res) => {
     }
 
     // Check if PDF already exists
-    const file = reportsBucket.file(`reports/${submissionId}.pdf`);
-    const [exists] = await file.exists();
+    // GCS removed - local FS only path
+    const fs = require('fs');
+    const path = require('path');
+    const reportsDir = process.env.REPORTS_DIR || path.join(process.cwd(), 'reports');
+    const localFile = path.join(reportsDir, `${submissionId}.pdf`);
+    // local FS check (GCS removed)
+    const fsCheck = require('fs');
+    const pathCheck = require('path');
+    const dir = process.env.REPORTS_DIR || pathCheck.join(process.cwd(), 'reports');
+    const exists = fsCheck.existsSync(pathCheck.join(dir, `${submissionId}.pdf`));
 
     if (exists) {
       logStructured({
@@ -831,29 +1078,27 @@ app.post('/reports/ensure', async (req, res) => {
     }
 
     // Get submission data for reprocessing
-    const submissionRef = firestore.collection('diagnosticSubmissions').doc(submissionId);
-    const submissionDoc = await submissionRef.get();
+    // note: direct ref no longer used, using db.prepare
+    const subRow = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
 
-    if (!submissionDoc.exists) {
+    if (!subRow) {
       return res.status(404).json({ error: 'Submission not found', code: 'NOT_FOUND' });
     }
 
-    const submissionData = submissionDoc.data();
+    const submissionData = { ...subRow, payload: subRow.payload ? JSON.parse(subRow.payload) : {} };
 
     // Update status to requeued if failed
     if (submissionData.status === 'failed' || submissionData.status === 'error') {
-      await submissionRef.update({
-        status: 'requeued',
-        updatedAt: new Date().toISOString(),
-        retryCount: (submissionData.retryCount || 0) + 1
-      });
+      db.prepare(`
+        UPDATE diagnostic_submissions SET status = 'requeued', updated_at = ?, retry_count = ? WHERE id = ?
+      `).run(new Date().toISOString(), (submissionData.retry_count || 0) + 1, submissionId);
 
       logStructured({
         phase,
         status: 'requeued',
         reqId: req.reqId,
         submissionId,
-        retryCount: (submissionData.retryCount || 0) + 1
+        retryCount: (submissionData.retry_count || 0) + 1
       });
 
       // Trigger analysis asynchronously
@@ -902,12 +1147,12 @@ app.post('/getDownloadUrl', async (req, res) => {
     }
 
     // Check if submission exists and is ready
-    const submissionRef = await firestore.collection('diagnosticSubmissions').doc(submissionId).get();
-    if (!submissionRef.exists) {
+    const subRow = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+    if (!subRow) {
       return res.status(404).json({ error: 'Submission not found' });
     }
 
-    const submissionData = submissionRef.data();
+    const submissionData = subRow ? { ...subRow, payload: subRow.payload ? JSON.parse(subRow.payload) : {} } : {};
     if (submissionData.status !== 'ready') {
       return res.status(400).json({
         error: 'Report not ready yet',
@@ -916,13 +1161,12 @@ app.post('/getDownloadUrl', async (req, res) => {
     }
 
     // Check if analysis record exists
-    const analysisRef = await firestore.collection('analysis').doc(submissionId).get();
-    if (!analysisRef.exists) {
+    const analysisRow = db.prepare('SELECT report_path FROM analyses WHERE id = ?').get(submissionId);
+    if (!analysisRow) {
       return res.status(404).json({ error: 'Analysis record not found' });
     }
 
-    const analysisData = analysisRef.data();
-    const reportPath = analysisData.reportPath; // Should be "reports/{submissionId}.pdf"
+    const reportPath = analysisRow.report_path; // Should be "reports/{submissionId}.pdf"
 
     if (!reportPath) {
       logStructured({
@@ -938,30 +1182,16 @@ app.post('/getDownloadUrl', async (req, res) => {
       });
     }
 
-    // Generate signed URLs (15 minutes = 900 seconds)
-    const file = reportsBucket.file(reportPath);
-
-    const [downloadUrl] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + 15 * 60 * 1000,
-      responseDisposition: `attachment; filename="${submissionId}.pdf"`,
-      // No contentType for read URLs
-    });
-
-    const [viewUrl] = await file.getSignedUrl({
-      version: 'v4',
-      action: 'read',
-      expires: Date.now() + 15 * 60 * 1000,
-      responseDisposition: `inline; filename="${submissionId}.pdf"`,
-      // No contentType for read URLs
-    });
+    // Self-host: local FS URLs served by this backend (GCS signed URLs removed)
+    const downloadUrl = `/reports/download/${submissionId}`;
+    const viewUrl = `/view/${submissionId}`;
 
     logStructured({
       phase,
       status: 'ok',
       reqId: req.reqId,
-      submissionId
+      submissionId,
+      storage: 'local'
     });
 
     res.json({
@@ -969,7 +1199,8 @@ app.post('/getDownloadUrl', async (req, res) => {
       viewUrl,
       expiresInSeconds: 900,
       submissionId,
-      reportPath
+      reportPath,
+      local: true
     });
 
   } catch (error) {
@@ -1084,23 +1315,40 @@ app.post('/stripeWebhookForward', async (req, res) => {
         });
       }
 
-      // Update submission to paid
-      const submissionRef = firestore.collection('diagnosticSubmissions').doc(submissionId);
-      await submissionRef.update({
-        status: 'paid',
-        updatedAt: new Date().toISOString(),
-        stripeSessionId: session.id,
-        paidAt: new Date().toISOString(),
-        amountPaidCents: 499
-      });
+      // Idempotency guard: Stripe can replay events. If this submission is
+      // already paid (or further along) AND an analysis row exists, do NOT
+      // reset it to 'queued' or re-run the LLM — just ACK the webhook.
+      const existingSub = db.prepare('SELECT status FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+      const existingAnalysis = db.prepare('SELECT id FROM analyses WHERE id = ?').get(submissionId);
+      if (existingSub && existingAnalysis && ['paid', 'processing', 'ready'].includes(existingSub.status)) {
+        logStructured({
+          phase,
+          status: 'duplicate_ignored',
+          reqId: req.reqId,
+          submissionId,
+          eventId,
+          submissionStatus: existingSub.status,
+          message: 'Replayed checkout.session.completed — already paid with analysis record, skipping re-queue'
+        });
+        return res.json({ received: true, duplicate: true });
+      }
 
-      // Create analysis record
-      await firestore.collection('analysis').doc(submissionId).set({
-        updatedAt: new Date().toISOString(),
-        status: 'queued',
-        model: 'gemini-1.5-flash-002',
-        reqId: req.reqId
-      });
+      // Update submission to paid (SQLite)
+      const paidNow = new Date().toISOString();
+      db.prepare(`
+        UPDATE diagnostic_submissions SET status = 'paid', updated_at = ?, stripe_session_id = ?, paid_at = ?, amount_paid_cents = ? WHERE id = ?
+      `).run(paidNow, session.id, paidNow, session.amount_total ?? 499, submissionId);
+
+      // Create analysis record (upsert — never REPLACE, which nulls unnamed columns)
+      db.prepare(`
+        INSERT INTO analyses (id, submission_id, status, created_at, updated_at, model, req_id)
+        VALUES (?, ?, 'queued', ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+          status = 'queued',
+          updated_at = excluded.updated_at,
+          model = excluded.model,
+          req_id = excluded.req_id
+      `).run(submissionId, submissionId, paidNow, paidNow, process.env.LLM_MODEL || 'gpt-4o', req.reqId);
 
       logStructured({
         phase,
@@ -1112,9 +1360,9 @@ app.post('/stripeWebhookForward', async (req, res) => {
       });
 
       // Start analysis process (async)
-      const submissionDoc = await submissionRef.get();
-      if (submissionDoc.exists) {
-        const submissionData = submissionDoc.data();
+      const subRow = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
+      if (subRow) {
+        const submissionData = { ...subRow, payload: subRow.payload ? JSON.parse(subRow.payload) : {} };
         processAnalysis(submissionId, submissionData.payload, req.reqId).catch(error => {
           logStructured({
             phase: 'queueAnalyze',
@@ -1164,23 +1412,94 @@ async function processAnalysis(submissionId, payload, reqId) {
       submissionId
     });
 
-    // Update submission status to processing
-    await firestore.collection('diagnosticSubmissions').doc(submissionId).update({
-      status: 'processing',
-      updatedAt: new Date().toISOString(),
-      processingStartedAt: new Date().toISOString()
-    });
+    // Update submission status to processing (SQLite)
+    const procNow = new Date().toISOString();
+    db.prepare(`
+      UPDATE diagnostic_submissions SET status = 'processing', updated_at = ?, processing_started_at = ? WHERE id = ?
+    `).run(procNow, procNow, submissionId);
 
-    // Create analysis record with running status
-    await firestore.collection('analysis').doc(submissionId).set({
-      status: 'running',
-      submissionId: submissionId,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    });
+    // Create-or-update the analysis record at run start WITHOUT clobbering
+    // attribution. The old INSERT OR REPLACE deleted + reinserted the row,
+    // nulling every unnamed column — it wiped `model`/`req_id`/`paid_via`
+    // written at queue time on every stored report (dataset poison; the first
+    // live paid report shipped with model=NULL because of it). The upsert
+    // stamps the model actually about to be used + the framework version,
+    // and leaves paid_via/created_at intact on existing rows.
+    db.prepare(`
+      INSERT INTO analyses (id, submission_id, status, created_at, updated_at, model, req_id, framework_version)
+      VALUES (?, ?, 'running', ?, ?, ?, ?, ?)
+      ON CONFLICT(id) DO UPDATE SET
+        status = 'running',
+        updated_at = excluded.updated_at,
+        model = excluded.model,
+        req_id = COALESCE(analyses.req_id, excluded.req_id),
+        framework_version = excluded.framework_version
+    `).run(submissionId, submissionId, procNow, procNow,
+           process.env.LLM_MODEL || 'gpt-4o', reqId || null, llmFrameworkVersion());
 
-    // Call Vertex AI Gemini
-    const analysis = await callVertexAI(payload);
+    // Photo-evidence vision pass (post-pay, optional). Reads `uploaded` evidence
+    // rows, captions + OCRs them via the configured vision provider, and passes
+    // only successfully-captioned photos into the downstream LLM call. Vision
+    // never throws out of this block — degraded path keeps the text-only report.
+    let photoItems = [];
+    try {
+      const visionRows = db.prepare(
+        "SELECT id, path, mime, original_name FROM evidence WHERE submission_id = ? AND kind = 'photo' AND status = 'uploaded'"
+      ).all(submissionId);
+      if (visionRows.length > 0) {
+        const visionCfg = resolveVisionConfig();
+        if (visionCfg.apiKey) {
+          const readFile = evidenceFileReader();
+          const providerClient = new OpenAI({ apiKey: visionCfg.apiKey, baseURL: visionCfg.baseURL });
+          const provider = makeVisionProvider({ openai: providerClient, modelName: visionCfg.modelName });
+          const results = await describeImages({
+            rows: visionRows,
+            readFile,
+            caption: provider.caption,
+            log: (e) => logStructured({ phase: 'evidenceVision', status: 'warn', ...e })
+          });
+          const touched = applyVisionResults({ results, db });
+          logStructured({
+            phase: 'evidenceVision',
+            status: 'ok',
+            reqId,
+            submissionId,
+            attempted: visionRows.length,
+            ready: results.filter((r) => r.ok).length,
+            failed: results.filter((r) => !r.ok).length,
+            touched
+          });
+          photoItems = results
+            .filter((r) => r.ok)
+            .map((r) => ({
+              label: r.derived.label || null,
+              caption: r.derived.caption,
+              ocr_text: r.derived.ocr_text || null
+            }));
+        } else {
+          logStructured({
+            phase: 'evidenceVision',
+            status: 'skipped_no_vision_key',
+            reqId,
+            submissionId,
+            rows: visionRows.length
+          });
+        }
+      }
+    } catch (visionErr) {
+      // Never let vision failures break the analysis — degraded to text-only.
+      logStructured({
+        phase: 'evidenceVision',
+        status: 'degraded',
+        reqId,
+        submissionId,
+        error: { message: visionErr?.message || String(visionErr) }
+      });
+    }
+
+    // Call the LLM (OpenAI gpt-4o via the OpenAI-compatible client). photoItems
+    // flows into CUSTOMER_DATA_BLOCK via buildCustomerDataBlock when present.
+    const analysis = await callLLM(payload, { photoItems });
 
     // Generate PDF report AND upload to Cloud Storage (all in one)
     const reportData = await generatePDFReport(submissionId, analysis, payload);
@@ -1189,30 +1508,23 @@ async function processAnalysis(submissionId, payload, reqId) {
     logStructured({
       phase: 'saveReport',
       status: 'ok',
-      bucket: REPORT_BUCKET,
       path: reportData.fileName,
       submissionId,
       size: reportData.buffer.length
     });
 
-    // Update analysis to ready
-    await firestore.collection('analysis').doc(submissionId).update({
-      status: 'ready',
-      updatedAt: new Date().toISOString(),
-      reportPath: reportData.fileName,
-      fullAnalysis: analysis.fullAnalysis,
-      sections: parsedSectionsForStorage,
-      detectedCodes: analysis.detectedCodes || []
-    });
+    // Update analysis to ready (SQLite)
+    const readyNow = new Date().toISOString();
+    db.prepare(`
+      UPDATE analyses SET status = 'ready', updated_at = ?, report_path = ?, full_analysis = ?, sections = ?, detected_codes = ?
+      WHERE id = ?
+    `).run(readyNow, reportData.fileName, analysis.fullAnalysis, JSON.stringify(parsedSectionsForStorage), JSON.stringify(analysis.detectedCodes || []), submissionId);
 
     // Update submission to ready with report URL
-    await firestore.collection('diagnosticSubmissions').doc(submissionId).update({
-      status: 'ready',
-      reportUrl: reportData.publicUrl,
-      updatedAt: new Date().toISOString(),
-      completedAt: new Date().toISOString(),
-      analysisSummary: analysis.summary || null
-    });
+    db.prepare(`
+      UPDATE diagnostic_submissions SET status = 'ready', report_url = ?, updated_at = ?, completed_at = ?, analysis_summary = ?
+      WHERE id = ?
+    `).run(reportData.publicUrl, readyNow, readyNow, analysis.summary || null, submissionId);
 
     logStructured({
       phase: 'runAnalyze',
@@ -1239,20 +1551,16 @@ async function processAnalysis(submissionId, payload, reqId) {
       error: { code: 'ANALYSIS_ERROR', message: error.message }
     });
 
-    // Update submission to failed
-    await firestore.collection('diagnosticSubmissions').doc(submissionId).update({
-      status: 'failed',
-      updatedAt: new Date().toISOString(),
-      lastError: error.message,
-      errorAt: new Date().toISOString()
-    });
+    // Update submission to failed (SQLite)
+    const failNow = new Date().toISOString();
+    db.prepare(`
+      UPDATE diagnostic_submissions SET status = 'failed', updated_at = ?, last_error = ?, error_at = ? WHERE id = ?
+    `).run(failNow, error.message, failNow, submissionId);
 
     // Update analysis to failed
-    await firestore.collection('analysis').doc(submissionId).update({
-      status: 'failed',
-      updatedAt: new Date().toISOString(),
-      lastError: error.message
-    });
+    db.prepare(`
+      UPDATE analyses SET status = 'failed', updated_at = ?, last_error = ? WHERE id = ?
+    `).run(failNow, error.message, submissionId);
 
     throw error;
   }
@@ -1368,42 +1676,94 @@ function getEquipmentPromptContext(equipmentType, payload) {
   return configs[equipmentType] || defaultConfig;
 }
 
-// FUNCTION: Call Vertex AI Gemini
-async function callVertexAI(payload) {
-  const { VertexAI } = require('@google-cloud/vertexai');
+// Report framework version — SELECTS the prompt in callLLM and is stamped on
+// every analyses row (dataset versioning), so attribution can never drift from
+// the prompt actually used. Read live from env (not module-load) so a
+// container env flip + restart is the entire rollout switch.
+//   v2.0 (default) — the original 15-Section Analysis Framework prompt below.
+//   v3.x           — candidate v3-b "few-shot exemplar" (promptV3.js), winner
+//                    of the 2026-07-02 blind A/B eval (18/18 vs v2.0,
+//                    +11.4/+10.8 weighted — tests/prompt-eval/RESULTS.md).
+const { V3B_SYSTEM, V3B_USER_TEMPLATE } = require('./promptV3.js');
+function llmFrameworkVersion() {
+  return process.env.LLM_FRAMEWORK_VERSION || 'v2.0';
+}
 
-  const vertex = new VertexAI({
-    project: process.env.GCP_PROJECT || 'diagnostic-pro-prod',
-    location: process.env.VAI_LOCATION || 'us-central1'
-  });
+// Chat-completion call that adapts to per-model param quirks so LLM_MODEL is a
+// pure config switch. Newer OpenAI models (gpt-5.x, o-series) reject `max_tokens`
+// and require `max_completion_tokens`; some reasoning models also reject a
+// non-default `temperature`. We pick the right shape by model family up front,
+// then defensively retry once each on a param-shape 400 (either direction) —
+// mirroring the eval harness (tests/prompt-eval/lib/common.mjs) so production
+// sends the SAME request the judges scored. Any other error propagates.
+async function createChatCompletionAdaptive(openai, { model, messages, maxTokens, temperature }) {
+  const usesMaxCompletionTokens = /^(gpt-5|o\d)/i.test(model);
+  const state = { maxCompletion: usesMaxCompletionTokens, dropTemp: false };
 
-  const model = vertex.getGenerativeModel({
-    model: process.env.VAI_MODEL || 'gemini-2.5-flash'
-  });
+  const build = () => {
+    const body = { model, messages };
+    if (!state.dropTemp) body.temperature = temperature;
+    if (state.maxCompletion) body.max_completion_tokens = maxTokens;
+    else body.max_tokens = maxTokens;
+    return body;
+  };
+
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      return await openai.chat.completions.create(build());
+    } catch (err) {
+      const msg = String(err?.message || '').toLowerCase();
+      const is400 = err?.status === 400 || err?.statusCode === 400;
+      if (is400 && !state.maxCompletion && msg.includes('max_completion_tokens')) {
+        state.maxCompletion = true;
+        continue;
+      }
+      if (is400 && !state.dropTemp && msg.includes('temperature')) {
+        state.dropTemp = true;
+        continue;
+      }
+      throw err;
+    }
+  }
+  // Final attempt with whatever adaptations stuck (let a real error surface).
+  return openai.chat.completions.create(build());
+}
+
+// FUNCTION: Call the LLM (OpenAI gpt-4o via the OpenAI-compatible client).
+// Provider is fully env-driven — LLM_BASE_URL / LLM_MODEL / LLM_API_KEY — so
+// switching to Groq (fast/cheap), Ollama (fully local self-hosted), xAI Grok,
+// vLLM, or any other /v1 chat-completions server is a config change, not code.
+// Keeps the exact same 15-section prompt contract and return shape.
+// opts.photoItems: optional derived vision captions fused into CUSTOMER_DATA_BLOCK.
+async function callLLM(payload, opts = {}) {
+  // OpenAI gpt-4o is the default. Override via LLM_BASE_URL / LLM_MODEL / LLM_API_KEY.
+  const apiKey = process.env.LLM_API_KEY || secrets.LLM_API_KEY ||
+                 process.env.OPENAI_API_KEY || secrets.OPENAI_API_KEY ||
+                 process.env.DEEPSEEK_API_KEY || secrets.DEEPSEEK_API_KEY ||
+                 process.env.GROQ_API_KEY || secrets.GROQ_API_KEY;
+
+  const baseURL = process.env.LLM_BASE_URL || 'https://api.openai.com/v1';
+  const modelName = process.env.LLM_MODEL || 'gpt-4o'; // OpenAI gpt-4o. Strong long-form structured diagnostic reports.
+
+  const detectedCodes = extractDiagnosticCodes(payload);
+  const photoItems = Array.isArray(opts.photoItems) ? opts.photoItems : [];
+  const customerDataBlock = buildCustomerDataBlock(payload, detectedCodes, photoItems);
+
+  // No mock path. This function ALWAYS talks to the real provider — a canned
+  // report must never be able to reach the analyses table (dataset poison).
+  // Tests mock the `openai` module boundary in jest, never a prod-code branch.
+  if (!apiKey) {
+    throw new Error('No LLM_API_KEY (or DEEPSEEK_API_KEY) configured. Set via env or SOPS secrets for self-hosted / VPS deployment.');
+  }
+
+  const openai = new OpenAI({ apiKey, baseURL });
 
   // DiagnosticPro Proprietary 15-Section Analysis Framework v2.0
   const equipmentContext = getEquipmentPromptContext(payload.equipmentType, payload);
   const prompt = `You are DiagnosticPro's MASTER TECHNICIAN. Use ALL the diagnostic data provided to give the most accurate analysis possible. Reference specific error codes, mileage patterns, and equipment type in your diagnosis.
 
 CUSTOMER DATA PROVIDED:
-- Vehicle: ${payload.make || 'N/A'} ${payload.model || 'N/A'} ${payload.year || 'N/A'}
-- Equipment Type: ${payload.equipmentType || 'N/A'}
-- Mileage/Hours: ${payload.mileageHours || 'N/A'}
-- Serial Number: ${payload.serialNumber || 'N/A'}
-- Problem: ${payload.problemDescription || 'N/A'}
-- Symptoms: ${payload.symptoms || 'N/A'}
-- Extracted Error Codes: ${(extractDiagnosticCodes(payload).join(', ')) || 'None auto-detected'}
-- Raw Error/Code Text: ${payload.errorCodes || 'None provided'}
-- When Started: ${payload.whenStarted || 'N/A'}
-- Frequency: ${payload.frequency || 'N/A'}
-- Urgency Level: ${payload.urgencyLevel || 'N/A'}
-- Location/Environment: ${payload.locationEnvironment || 'N/A'}
-- Usage Pattern: ${payload.usagePattern || 'N/A'}
-- Previous Repairs: ${payload.previousRepairs || 'N/A'}
-- Modifications: ${payload.modifications || 'N/A'}
-- Troubleshooting Done: ${payload.troubleshootingSteps || 'N/A'}
-- Shop Quote: ${payload.shopQuoteAmount || 'N/A'}
-- Shop Recommendation: ${payload.shopRecommendation || 'N/A'}
+${customerDataBlock}
 
 IMPORTANT AUTHORING RULES:
 1. ${equipmentContext.diagnosticFrame}
@@ -1499,22 +1859,47 @@ Provide your analysis using the following EXACT 15-section structure. Every sect
 
 Return your response as a comprehensive diagnostic report following this structure exactly. Be specific, technical, and reference the customer's provided data throughout your analysis.`;
 
-  const response = await model.generateContent(prompt);
-  const text = response.response.candidates[0].content.parts[0].text;
+  // Framework selection. v2.0 = the literal above (byte-frozen eval baseline —
+  // do not edit it without re-benching). v3.x = candidate v3-b rendered with
+  // the SAME substitutions the eval harness used (renderCandidate in
+  // tests/prompt-eval/lib/common.mjs), so production output matches what the
+  // judges scored.
+  const frameworkVersion = llmFrameworkVersion();
+  let systemContent = 'You are DiagnosticPro\'s MASTER TECHNICIAN. Output ONLY the requested 15-section report with no extra preamble or markdown wrappers beyond the numbered headings.';
+  let userContent = prompt;
+  if (frameworkVersion.startsWith('v3')) {
+    const subs = {
+      '{{CUSTOMER_DATA_BLOCK}}': customerDataBlock,
+      '{{DIAGNOSTIC_FRAME}}': equipmentContext.diagnosticFrame,
+      '{{ERROR_CODE_GUIDANCE}}': equipmentContext.errorCodeGuidance,
+      '{{SOURCE_GUIDANCE}}': equipmentContext.sourceGuidance,
+      '{{SAFETY_CONSIDERATIONS}}': equipmentContext.safetyConsiderations
+    };
+    const render = (tpl) => Object.entries(subs).reduce((out, [k, v]) => out.split(k).join(v), tpl);
+    systemContent = render(V3B_SYSTEM);
+    userContent = render(V3B_USER_TEMPLATE);
+  }
 
-  // Debug logging to see what Vertex AI actually returns
-  console.log(`Vertex AI raw response for analysis:`, text);
+  const chat = await createChatCompletionAdaptive(openai, {
+    model: modelName,
+    messages: [
+      { role: 'system', content: systemContent },
+      { role: 'user', content: userContent }
+    ],
+    maxTokens: 8192,
+    temperature: 0.25
+  });
 
-  // The new proprietary prompt returns a comprehensive text report, not JSON
-  console.log(`Vertex AI comprehensive analysis length: ${text.length} characters`);
+  const text = chat.choices?.[0]?.message?.content || '';
 
-  const detectedCodes = extractDiagnosticCodes(payload);
+  // Debug logging (provider agnostic)
+  console.log(`LLM analysis (base=${baseURL}, model=${modelName}, framework=${frameworkVersion}) length=${text ? text.length : 0} chars`);
 
-  // Return the full analysis text for PDF generation
+  // Return the full analysis text for PDF generation (exact same shape as before)
   return {
     fullAnalysis: text,
-    summary: "Comprehensive 14-section diagnostic analysis completed",
-    confidence: 0.95,
+    summary: "Comprehensive 15-section diagnostic analysis completed",
+    confidence: 0.92,
     root_causes: ["Detailed analysis provided in full report"],
     recommendations: ["See comprehensive analysis for all recommendations"],
     cost_ranges: [],
@@ -1578,19 +1963,13 @@ async function generatePDFReport(submissionId, analysis, payload) {
           ...parsedSections
         };
 
-        // Use the new clean PDF generator (async function returns a stream)
-        const stream = await generateDiagnosticProPDF(submission, enrichedAnalysis, tempPath);
-
-        stream.on('finish', () => {
-          // Read the generated file and return as buffer
-          const fs = require('fs');
-          const pdfData = fs.readFileSync(tempPath);
-          // Clean up temp file
-          fs.unlinkSync(tempPath);
-          resolve(pdfData);
-        });
-
-        stream.on('error', reject);
+        // Whiteglove-grade PDF (pandoc+LaTeX) with pdfkit fallback.
+        // generateDiagnosticProPDF writes tempPath and resolves when complete.
+        await generateDiagnosticProPDF(submission, enrichedAnalysis, tempPath);
+        const fs = require('fs');
+        const pdfData = fs.readFileSync(tempPath);
+        try { fs.unlinkSync(tempPath); } catch (_) { /* ignore */ }
+        resolve(pdfData);
 
       } catch (error) {
         reject(error);
@@ -1603,51 +1982,28 @@ async function generatePDFReport(submissionId, analysis, payload) {
     const pdfBuffer = await generatePdfBuffer();
     console.log(`PDF buffered successfully for: ${submissionId}`);
 
-    // 2. Upload the buffer to Cloud Storage
     const fileName = `reports/${submissionId}.pdf`;
-    const file = reportsBucket.file(fileName);
 
-    await file.save(pdfBuffer, {
-      metadata: {
-        contentType: 'application/pdf',
-        metadata: {
-          submissionId: submissionId
-        }
-      }
-    });
-    console.log(`PDF uploaded to Cloud Storage: ${fileName}`);
+    // Pure local FS (perfect self-host)
+    const fs = require('fs');
+    const path = require('path');
+    const reportsDir = process.env.REPORTS_DIR || path.join(process.cwd(), 'reports');
+    if (!fs.existsSync(reportsDir)) fs.mkdirSync(reportsDir, { recursive: true });
+    const localPath = path.join(reportsDir, `${submissionId}.pdf`);
+    fs.writeFileSync(localPath, pdfBuffer);
+    console.log(`PDF written locally: ${localPath}`);
 
-    // 3. Generate signed URL for file access (compatible with uniform bucket-level access)
-    let publicUrl = `gs://${REPORT_BUCKET}/${fileName}`;
-    if (process.env.DISABLE_SIGNED_URLS === 'true') {
-      console.warn(`Signed URL generation disabled; using bucket URI for ${submissionId}`);
-    } else {
-      try {
-        const [signedUrl] = await file.getSignedUrl({
-          version: 'v4',
-          action: 'read',
-          expires: Date.now() + 7 * 24 * 60 * 60 * 1000, // 7 days
-          // No contentType for read URLs to avoid header mismatch
-        });
-        publicUrl = signedUrl;
-      } catch (signError) {
-        if (process.env.ALLOW_UNSIGNED_URL_FALLBACK === 'true') {
-          console.warn(`Signed URL generation failed for ${submissionId}: ${signError.message}`);
-          console.warn('Falling back to gs:// URI.');
-        } else {
-          throw signError;
-        }
-      }
-    }
+    // public URL served by backend
+    const publicUrl = `/reports/download/${submissionId}`;
 
     return {
       buffer: pdfBuffer,
-      publicUrl: publicUrl,
-      fileName: fileName
+      publicUrl,
+      fileName
     };
 
   } catch (error) {
-    console.error(`PDF generation or upload failed for ${submissionId}:`, error);
+    console.error(`PDF generation or local write failed for ${submissionId}:`, error);
     throw error;
   }
 }
@@ -1663,24 +2019,54 @@ function fetchWithTimeout(url, options = {}, timeoutMs = 15000) {
   return fetch(url, { ...options, signal: controller.signal }).finally(() => clearTimeout(timer));
 }
 
-// Verify Whop webhook signature using HMAC-SHA256
-function verifyWhopWebhookSignature(rawBody, signatureHeader) {
+// Constant-time signature compare; length mismatch is a normal auth failure
+// (return false → 401), never a thrown error (500)
+function safeSignatureCompare(a, b) {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  if (bufA.length !== bufB.length) return false;
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+// Verify Whop webhook signature over the RAW request body (Buffer).
+// Primary scheme: Standard Webhooks (Whop follows it) — HMAC-SHA256 over
+// "<webhook-id>.<webhook-timestamp>.<payload>", secret is base64 after the
+// "whsec_" prefix, header "webhook-signature" holds "v1,<base64>" entries.
+// Fallback: plain HMAC-SHA256 of the body (hex or base64) via
+// whop-signature / x-whop-signature, so manual curl tests still work in dev.
+function verifyWhopWebhookSignature(rawBody, headers) {
   const webhookSecret = secrets.WHOP_WEBHOOK_SECRET || process.env.WHOP_WEBHOOK_SECRET;
   if (!webhookSecret) {
     logStructured({ phase: 'whopWebhook', status: 'warn', message: 'WHOP_WEBHOOK_SECRET not configured, skipping verification' });
     return false;
   }
-  if (!signatureHeader) return false;
 
-  const expectedSig = crypto
-    .createHmac('sha256', webhookSecret)
-    .update(typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody))
-    .digest('base64');
+  const bodyBuf = Buffer.isBuffer(rawBody)
+    ? rawBody
+    : Buffer.from(typeof rawBody === 'string' ? rawBody : JSON.stringify(rawBody));
 
-  return crypto.timingSafeEqual(
-    Buffer.from(signatureHeader),
-    Buffer.from(expectedSig)
-  );
+  const msgId = headers['webhook-id'];
+  const msgTimestamp = headers['webhook-timestamp'];
+  const msgSignature = headers['webhook-signature'];
+
+  if (msgId && msgTimestamp && msgSignature) {
+    // Standard Webhooks scheme
+    const key = Buffer.from(webhookSecret.replace(/^whsec_/, ''), 'base64');
+    const signedContent = `${msgId}.${msgTimestamp}.${bodyBuf.toString('utf8')}`;
+    const expectedSig = crypto.createHmac('sha256', key).update(signedContent).digest('base64');
+    // Header may hold multiple space-delimited signatures: "v1,<b64> v1,<b64>"
+    return msgSignature.split(' ').some(entry => {
+      const sig = entry.includes(',') ? entry.split(',')[1] : entry;
+      return Boolean(sig) && safeSignatureCompare(sig, expectedSig);
+    });
+  }
+
+  // Simple-HMAC fallback (dev / manual curl)
+  const legacySig = headers['whop-signature'] || headers['x-whop-signature'];
+  if (!legacySig) return false;
+  const expectedHex = crypto.createHmac('sha256', webhookSecret).update(bodyBuf).digest('hex');
+  const expectedB64 = crypto.createHmac('sha256', webhookSecret).update(bodyBuf).digest('base64');
+  return safeSignatureCompare(legacySig, expectedHex) || safeSignatureCompare(legacySig, expectedB64);
 }
 
 // Middleware: optionally attach Whop membership status to request
@@ -1791,25 +2177,13 @@ app.post('/api/auth/whop-exchange', async (req, res) => {
       membershipPlanId = isMember ? membershipData.data[0].plan_id : null;
     }
 
-    // Upsert to Firestore whopUsers collection (no raw tokens stored)
+    // Upsert to SQLite whop_users (replaces Firestore; no raw tokens stored)
     const whopUserId = user.id;
-    const whopUserDoc = {
-      whopId: whopUserId,
-      username: user.username || '',
-      name: user.name || '',
-      email: user.email || '',
-      isMember,
-      membershipId,
-      membershipStatus: isMember ? 'active' : null,
-      lastVerified: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
-
-    const existingDoc = await firestore.collection('whopUsers').doc(whopUserId).get();
-    if (!existingDoc.exists) {
-      whopUserDoc.createdAt = new Date().toISOString();
-    }
-    await firestore.collection('whopUsers').doc(whopUserId).set(whopUserDoc, { merge: true });
+    const whopNow = new Date().toISOString();
+    db.prepare(`
+      INSERT OR REPLACE INTO whop_users (id, whop_id, username, email, is_member, membership_id, last_verified, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(whopUserId, whopUserId, user.username || '', user.email || '', isMember ? 1 : 0, membershipId, whopNow, whopNow);
 
     logStructured({
       phase,
@@ -1873,14 +2247,19 @@ app.post('/api/webhooks/whop', async (req, res) => {
   const phase = 'whopWebhook';
 
   try {
-    // Verify webhook signature
-    const signature = req.headers['whop-signature'] || req.headers['x-whop-signature'];
-    if (!verifyWhopWebhookSignature(req.body, signature)) {
+    // Verify webhook signature over the raw body bytes (express.raw route above)
+    if (!verifyWhopWebhookSignature(req.body, req.headers)) {
       logStructured({ phase, status: 'rejected', reason: 'Invalid or missing webhook signature' });
       return res.status(401).json({ error: 'Invalid webhook signature' });
     }
 
-    const event = req.body;
+    // Parse the raw Buffer only after the signature checks out
+    let event;
+    try {
+      event = Buffer.isBuffer(req.body) ? JSON.parse(req.body.toString('utf8')) : req.body;
+    } catch (parseErr) {
+      return res.status(400).json({ error: 'Invalid JSON body', code: 'INVALID_BODY' });
+    }
     const { action, data } = event;
 
     logStructured({ phase, status: 'received', action, userId: data?.user_id });
@@ -1888,15 +2267,10 @@ app.post('/api/webhooks/whop', async (req, res) => {
     if (action === 'membership.went_valid' || action === 'membership.went_invalid') {
       const userId = data?.user_id;
       if (userId) {
-        const docRef = firestore.collection('whopUsers').doc(userId);
-        const whopDoc = await docRef.get();
-        if (whopDoc.exists) {
-          await docRef.update({
-            isMember: action === 'membership.went_valid',
-            lastVerified: new Date().toISOString(),
-            updatedAt: new Date().toISOString()
-          });
-        }
+        // Update whop user membership (SQLite)
+        db.prepare(`
+          UPDATE whop_users SET is_member = ?, last_verified = ?, updated_at = ? WHERE id = ?
+        `).run(action === 'membership.went_valid' ? 1 : 0, new Date().toISOString(), new Date().toISOString(), userId);
       }
     }
 
@@ -1926,14 +2300,14 @@ app.post('/api/whop/analyze', checkWhopMember, async (req, res) => {
       return res.status(400).json({ error: 'Missing submissionId' });
     }
 
-    const submissionRef = firestore.collection('diagnosticSubmissions').doc(submissionId);
-    const submissionDoc = await submissionRef.get();
+    // note: direct ref no longer used, using db.prepare
+    const subRow = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(submissionId);
 
-    if (!submissionDoc.exists) {
+    if (!subRow) {
       return res.status(404).json({ error: 'Submission not found' });
     }
 
-    const submissionData = submissionDoc.data();
+    const submissionData = { ...subRow, payload: subRow.payload ? JSON.parse(subRow.payload) : {} };
 
     // Verify this submission belongs to the requesting member (match email)
     if (req.whopUser?.email && submissionData.payload?.email &&
@@ -1946,27 +2320,26 @@ app.post('/api/whop/analyze', checkWhopMember, async (req, res) => {
       return res.json({ status: submissionData.status, message: 'Already processed' });
     }
 
-    // Mark as paid via membership (skip Stripe)
-    await submissionRef.update({
-      status: 'paid',
-      updatedAt: new Date().toISOString(),
-      paidAt: new Date().toISOString(),
-      paidVia: 'whop_membership',
-      whopUserId: req.whopUser?.id || '',
-      whopMembershipId: req.whopMembership?.id || '',
-      usedWithMembership: true,
-      charged: false,
-      amountPaidCents: 0
-    });
+    // Mark as paid via membership (SQLite)
+    const paidNow = new Date().toISOString();
+    db.prepare(`
+      UPDATE diagnostic_submissions SET status = 'paid', updated_at = ?, paid_at = ?, paid_via = 'whop_membership',
+      whop_user_id = ?, whop_membership_id = ?, used_with_membership = 1, charged = 0, amount_paid_cents = 0
+      WHERE id = ?
+    `).run(paidNow, paidNow, req.whopUser?.id || '', req.whopMembership?.id || '', submissionId);
 
-    // Create analysis record
-    await firestore.collection('analysis').doc(submissionId).set({
-      updatedAt: new Date().toISOString(),
-      status: 'queued',
-      model: 'gemini-2.5-flash',
-      reqId: req.reqId,
-      paidVia: 'whop_membership'
-    });
+    // Create analysis record (SQLite; upsert — never REPLACE, which nulls unnamed columns)
+    const whopNow = new Date().toISOString();
+    db.prepare(`
+      INSERT INTO analyses (id, submission_id, status, created_at, updated_at, model, req_id, paid_via)
+      VALUES (?, ?, 'queued', ?, ?, ?, ?, 'whop_membership')
+      ON CONFLICT(id) DO UPDATE SET
+        status = 'queued',
+        updated_at = excluded.updated_at,
+        model = excluded.model,
+        req_id = excluded.req_id,
+        paid_via = excluded.paid_via
+    `).run(submissionId, submissionId, whopNow, whopNow, process.env.LLM_MODEL || 'gpt-4o', req.reqId);
 
     logStructured({
       phase,
@@ -2016,7 +2389,7 @@ if (require.main === module) {
   // Load secrets from Secret Manager before starting server
   (async () => {
     try {
-      console.log('🔐 Loading secrets from Google Secret Manager...');
+      console.log('🔐 Loading secrets from environment (SOPS-materialized)...');
       secrets = await loadSecrets();
 
       // Initialize Stripe with secret from Secret Manager
@@ -2025,17 +2398,17 @@ if (require.main === module) {
       console.log('✅ Secrets loaded successfully');
 
       app.listen(PORT, () => {
-        console.log(`🚀 DiagnosticPro Backend running on port ${PORT}`);
+        console.log(`🚀 DiagnosticPro Backend running on port ${PORT} (self-hosted)`);
         console.log(`💰 Price: $4.99 USD (499 cents)`);
-        console.log(`🔗 Project: diagnostic-pro-prod`);
-        console.log(`📁 Storage: gs://${REPORT_BUCKET}`);
-        console.log('🔒 Using Google Secret Manager for sensitive credentials');
+        console.log(`🗄️  DB: SQLite (better-sqlite3)`);
+        console.log(`📄 Reports: local FS`);
+        console.log('🔒 Secrets via SOPS/age');
         console.log('\nEndpoints:');
         console.log('  POST /saveSubmission');
         console.log('  POST /createCheckoutSession');
         console.log('  POST /analysisStatus');
         console.log('  POST /analyzeDiagnostic');
-        console.log('  POST /getDownloadUrl');
+        console.log('  GET  /reports/download/:id');
         console.log('  POST /stripeWebhookForward (PRIVATE)');
         console.log('  POST /api/auth/whop-exchange');
         console.log('  GET  /api/auth/whop-verify');
@@ -2043,6 +2416,20 @@ if (require.main === module) {
         console.log('  POST /api/whop/analyze');
         console.log('  GET  /healthz');
       });
+
+      // Boot the orphan-evidence sweeper (best-effort, non-blocking).
+      // Interval is unref'd so it never holds the process open during tests.
+      const uploadsDir = process.env.EVIDENCE_UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+      const ttlHours = Number(process.env.EVIDENCE_ORPHAN_TTL_HOURS) || 48;
+      if (process.env.NODE_ENV !== 'test' && process.env.EVIDENCE_SWEEPER_DISABLED !== '1') {
+        startSweeper({
+          db: getDb(),
+          uploadsDir,
+          ttlHours,
+          log: (e) => logStructured({ ...e, ts: new Date().toISOString() })
+        });
+        console.log(`🧹 Evidence sweeper armed: ttl=${ttlHours}h uploadsDir=${uploadsDir}`);
+      }
     } catch (error) {
       console.error('❌ Failed to load secrets:', error);
       console.error('Falling back to environment variables');
@@ -2054,12 +2441,29 @@ if (require.main === module) {
         STRIPE_WEBHOOK_SECRET: process.env.STRIPE_WEBHOOK_SECRET,
         FIREBASE_API_KEY: process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY,
         API_GATEWAY_KEY: process.env.API_GATEWAY_KEY || process.env.VITE_API_KEY,
-        WHOP_API_KEY: process.env.WHOP_API_KEY
+        WHOP_API_KEY: process.env.WHOP_API_KEY,
+        LLM_API_KEY: process.env.LLM_API_KEY || process.env.DEEPSEEK_API_KEY || process.env.GROQ_API_KEY,
+        DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY,
+        GROQ_API_KEY: process.env.GROQ_API_KEY
       };
 
       app.listen(PORT, () => {
         console.log(`🚀 DiagnosticPro Backend running on port ${PORT} (using env vars)`);
       });
+
+      // Boot the orphan-evidence sweeper (best-effort, non-blocking) in the
+      // fallback path too so dev parity matches the secrets-loaded path.
+      const uploadsDir = process.env.EVIDENCE_UPLOADS_DIR || path.join(process.cwd(), 'uploads');
+      const ttlHours = Number(process.env.EVIDENCE_ORPHAN_TTL_HOURS) || 48;
+      if (process.env.NODE_ENV !== 'test' && process.env.EVIDENCE_SWEEPER_DISABLED !== '1') {
+        startSweeper({
+          db: getDb(),
+          uploadsDir,
+          ttlHours,
+          log: (e) => logStructured({ ...e, ts: new Date().toISOString() })
+        });
+        console.log(`🧹 Evidence sweeper armed: ttl=${ttlHours}h uploadsDir=${uploadsDir}`);
+      }
     }
   })();
 }
@@ -2068,4 +2472,5 @@ module.exports = app;
 module.exports.parseFullAnalysis = parseFullAnalysis;
 module.exports.processAnalysis = processAnalysis;
 module.exports.generatePDFReport = generatePDFReport;
-module.exports.callVertexAI = callVertexAI;
+module.exports.callLLM = callLLM;
+module.exports.extractDiagnosticCodes = extractDiagnosticCodes;

@@ -1,0 +1,29 @@
+{
+  "id": "mock-e",
+  "payload": {
+    "equipmentType": "automotive",
+    "make": "Ford",
+    "model": "Transit",
+    "year": "2021",
+    "symptoms": "Intermittent dash flicker, ABS and airbag lamps flash, burning smell near steering column.",
+    "errorCodes": "U0100, B1234",
+    "problemDescription": "Vehicle used for shuttle runs. Aftermarket dash camera tied into fuse panel. Issue occurs after bumps.",
+    "fullName": "Fleet Safety Desk",
+    "email": "fleet.safety@example.com"
+  },
+  "meta": {
+    "sourceFile": "tests/mocks/mock_E_vehicle_electrical_short.json",
+    "sourceSubmissionId": "diag_mock_E",
+    "expectedCodes": [
+      "U0100",
+      "B1234"
+    ],
+    "tags": [
+      "automotive",
+      "electrical",
+      "safety-critical",
+      "urgent",
+      "aftermarket-mod"
+    ]
+  }
+}

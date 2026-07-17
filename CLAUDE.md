@@ -15,7 +15,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What This Is
 
-DiagnosticPro is a customer-facing equipment diagnostic platform. Customers submit a form describing their vehicle/equipment problem, pay $4.99 via Stripe (or free for Whop members), and receive a 2000+ word PDF report with a proprietary 15-section AI analysis (Vertex AI Gemini 2.5 Flash). Production domain: `diagnosticpro.io`. GCP project: `diagnostic-pro-prod`.
+DiagnosticPro is a customer-facing equipment diagnostic platform. Customers submit a form describing their vehicle/equipment problem, pay $4.99 via Stripe (or free for Whop members), and receive a 2000+ word PDF report with a proprietary 15-section AI analysis via configurable OpenAI-compatible LLM (DeepSeek is the default; easily switch to Ollama or other /v1 endpoints for fully self-hosted on VPS). Production domain: `diagnosticpro.io`.
+
+The app is being migrated to full self-host on the Intent Solutions production VPS (Stage D). Backend container behind Caddy; frontend static via Caddy or container. Current deploy, Caddy, host, and secret-boundary authority is `intent-solutions-io/intent-os/ops/` under D90. Firebase may remain for hosting/DB polling during hybrid phase; Vertex AI has been removed.
 
 ## Commands
 
@@ -57,19 +59,54 @@ npm start                  # production
 npm run dev                # nodemon
 ```
 
-Deploy backend:
+## Self-host on VPS (production target - rebuilt)
+Backend + SQLite + local reports. No Firebase, no Vertex, no GCS in the main path.
+
+**To get it live and taking customers:**
+
 ```bash
-gcloud run deploy diagnosticpro-vertex-ai-backend \
-  --source 02-src/backend/services/backend/ \
-  --region us-central1 --project diagnostic-pro-prod
+# 1. Backend deps
+cd 02-src/backend/services/backend && npm install
+
+# 2. Frontend build for same-origin (Caddy will proxy APIs)
+cd 02-src/frontend && VITE_API_BASE= npm run build
 ```
 
-Firebase:
-```bash
-firebase deploy --only hosting     # frontend to diagnosticpro.io
-firebase deploy --only functions   # Cloud Functions (us-east1, NOT us-central1)
-firebase emulators:start           # local dev
+# 3. On VPS
+- Place repo at /srv/code/diagnostic-pro
+- Materialize secrets (sops) — must include DEEPSEEK_API_KEY + Stripe + Whop
+- docker compose up -d --build
+- Configure Caddy (see below)
+- systemctl reload caddy
+- DNS: diagnosticpro.io A -> 167.86.106.29
+
+**Caddy block** (put in /etc/caddy/sites/diagnosticpro.caddy or main file):
 ```
+diagnosticpro.io {
+    root * /srv/static/diagnosticpro
+    file_server
+
+    # Proxy API + report serving + webhooks to backend container
+    reverse_proxy /healthz /saveSubmission /analyzeDiagnostic /reports/* /view/* /api/* /stripeWebhookForward 127.0.0.1:8089
+
+    header {
+        Strict-Transport-Security "max-age=31536000;"
+    }
+}
+```
+
+Copy the built `02-src/frontend/dist/*` to `/srv/static/diagnosticpro` on the VPS.
+
+See docker-compose.yml for the self-contained setup (backend only; static via Caddy is preferred for prod).
+
+Env (via sops):
+- DB_PATH=/data/diagnosticpro.db
+- REPORTS_DIR=/data/diagnosticpro/reports
+- LLM_* for DeepSeek
+
+This should be enough to take payments and deliver reports. Test the full form -> pay (Stripe test or Whop) -> analysis -> download flow.
+
+Old Firebase hosting / Cloud Run is dead. This is the rebuilt self-hosted version.
 
 Cloud Functions (`functions/`, Node 20):
 ```bash
@@ -79,11 +116,11 @@ npm run serve              # build + emulators
 
 ## Architecture Overview
 
-### Three Codebases in One Repo
+### Three Codebases in One Repo (migrating to VPS self-host)
 
-1. **Frontend** (`02-src/frontend/`) — React 18 + TypeScript + Vite, shadcn/ui + Tailwind CSS
-2. **Backend** (`02-src/backend/services/backend/`) — Express on Cloud Run, single `index.js` entry (~2000 lines)
-3. **Cloud Functions** (`functions/`) — Firebase Functions v2, TypeScript, region `us-east1`
+1. **Frontend** (`02-src/frontend/`) — React 18 + TypeScript + Vite, shadcn/ui + Tailwind CSS. Served statically via Caddy on VPS.
+2. **Backend** (`02-src/backend/services/backend/`) — Express, single `index.js` (~2000 lines). Runs in Docker container on VPS behind Caddy (127.0.0.1 only). Uses DeepSeek by default for analysis.
+3. **Cloud Functions** (legacy references only; removed from active paths) — was Firebase Functions.
 
 ### Critical: Double `src` Nesting
 
@@ -172,7 +209,7 @@ Whop membership ($29/mo or one-time plans) grants free diagnostics, bypassing St
 DiagnosticForm → DiagnosticReview (saves to Firestore via client SDK)
   → Stripe Buy Button ($4.99) OR Whop member free submit
   → Stripe webhook / Whop analyze endpoint
-  → processAnalysis(): Vertex AI Gemini 2.5 Flash → 15-section parse
+  → processAnalysis(): DeepSeek (OpenAI-compatible) → 15-section parse
   → generateDiagnosticProPDF() (pdfkit) → GCS upload
   → Firestore status → 'ready', downloadUrl set
   → Customer polls Report page → signed URL → PDF download
@@ -193,7 +230,7 @@ DiagnosticForm → DiagnosticReview (saves to Firestore via client SDK)
 
 ### Overlapping Implementations
 
-The Cloud Run backend and Firebase Cloud Functions both implement Stripe webhooks and Vertex AI analysis. They are alternative paths, not complementary:
+The Cloud Run backend and (legacy) Firebase Cloud Functions both implement Stripe webhooks and LLM analysis. They are alternative paths, not complementary:
 - **Cloud Run** (`index.js`) — The primary production system with full endpoint set.
 - **Functions** (`functions/src/index.ts`) — Has its own `stripeWebhook` export. Region: `us-east1`.
 
@@ -232,3 +269,52 @@ Capacitor 8 configured for `io.diagnosticpro.app`. iOS and Android project dirs 
 | Pre-commit hook | `05-scripts/pre-commit-hooks.sh` |
 | CI/CD workflows | `.github/workflows/` |
 | Flat docs directory | `01-docs/` (format: `NNN-abv-description.ext`) |
+
+
+<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
+## Beads Issue Tracker
+
+This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+
+### Quick Reference
+
+```bash
+bd ready              # Find available work
+bd show <id>          # View issue details
+bd update <id> --claim  # Claim work
+bd close <id>         # Complete work
+```
+
+### Rules
+
+- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
+- Run `bd prime` for detailed command reference and session close protocol
+- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+
+**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
+
+## Session Completion
+
+**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+
+**MANDATORY WORKFLOW:**
+
+1. **File issues for remaining work** - Create issues for anything that needs follow-up
+2. **Run quality gates** (if code changed) - Tests, linters, builds
+3. **Update issue status** - Close finished work, update in-progress items
+4. **PUSH TO REMOTE** - This is MANDATORY:
+   ```bash
+   git pull --rebase
+   git push
+   git status  # MUST show "up to date with origin"
+   ```
+5. **Clean up** - Clear stashes, prune remote branches
+6. **Verify** - All changes committed AND pushed
+7. **Hand off** - Provide context for next session
+
+**CRITICAL RULES:**
+- Work is NOT complete until `git push` succeeds
+- NEVER stop before pushing - that leaves work stranded locally
+- NEVER say "ready to push when you are" - YOU must push
+- If push fails, resolve and retry until it succeeds
+<!-- END BEADS INTEGRATION -->

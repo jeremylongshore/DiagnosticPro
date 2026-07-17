@@ -1,0 +1,26 @@
+#!/bin/bash
+# Pre-commit hook to enforce flat docs naming convention
+
+echo "Checking 0.0.0.docs/ naming conventions..."
+
+# Check for files in 0.0.0.docs/ that don't match NNN-abv-title.ext pattern
+if [ -d "0.0.0.docs" ]; then
+    INVALID_FILES=$(find 0.0.0.docs -maxdepth 1 -type f ! -name "000-idx-docs-index.md" ! -regex '.*/[0-9][0-9][0-9]-[a-z][a-z][a-z]-[a-z0-9-]+\.[a-z0-9]+$')
+    
+    if [ -n "$INVALID_FILES" ]; then
+        echo "ERROR: Files in 0.0.0.docs/ must follow NNN-abv-title.ext naming:"
+        echo "$INVALID_FILES"
+        echo ""
+        echo "Format: NNN-abv-title.ext"
+        echo "  NNN = 3-digit number (000-999)"
+        echo "  abv = 3-letter category (ref, dev, sec, etc.)"
+        echo "  title = kebab-case description"
+        echo "  ext = file extension"
+        echo ""
+        echo "Example: 042-ref-api-documentation.md"
+        exit 1
+    fi
+fi
+
+echo "Docs naming check passed"
+exit 0

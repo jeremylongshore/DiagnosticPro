@@ -1,0 +1,72 @@
+# Self-hosted deployment for DiagnosticPro on the Intent Solutions VPS.
+# Listens only on 127.0.0.1 (Caddy reverse-proxies from outside).
+#
+# Usage on VPS (after sops materialize + git clone at /srv/code/diagnostic-pro):
+#   docker compose pull || docker compose build
+#   docker compose up -d
+#   docker compose ps
+#
+# Health: http://127.0.0.1:8089/healthz  (adjust port)
+#
+# LLM (OpenAI gpt-4o default, via the OpenAI-compatible client):
+#   LLM_API_KEY + LLM_BASE_URL=https://api.openai.com/v1 + LLM_MODEL=gpt-4o
+#   Groq:   LLM_BASE_URL=https://api.groq.com/openai/v1 + GROQ_API_KEY
+#   xAI:    LLM_BASE_URL=https://api.x.ai/v1 + LLM_MODEL=grok-4 + xAI key
+#   Ollama: LLM_BASE_URL=http://127.0.0.1:11434/v1  (mount a sidecar for 100% local)
+#
+# Reports + DB: fully local on VPS volume (no GCS, no Firestore).
+#
+# Frontend (self-hosted):
+#   1. cd 02-src/frontend && VITE_API_BASE= npm run build
+#   2. The dist/ is served by Caddy (recommended) or the example frontend service below.
+#   Set VITE_API_BASE='' (empty) for same-origin API calls (Caddy proxies /saveSubmission etc to backend).
+#
+# See: ~/000-projects/intent-os/ops/deploy/
+#      ~/000-projects/intent-os/ops/host/
+#      Caddy block example in runbook or /etc/caddy/sites/diagnosticpro.caddy
+
+services:
+  backend:
+    build:
+      context: ./02-src/backend/services/backend
+      dockerfile: Dockerfile
+    container_name: diagnosticpro-backend
+    restart: unless-stopped
+    ports:
+      # Bind localhost only — Caddy is the public face
+      - "127.0.0.1:8089:8080"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DB_PATH=/data/diagnosticpro.db
+      # LLM (OpenAI gpt-4o default) — real values come from .env (SOPS-materialized)
+      # - LLM_BASE_URL=https://api.openai.com/v1
+      # - LLM_MODEL=gpt-4o
+    volumes:
+      # SQLite DB + local reports (no GCS)
+      - diagnosticpro-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8080/healthz', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# Optional: static frontend container (for local testing).
+# In production on VPS, build dist/ and let Caddy serve it directly + proxy API.
+#   frontend:
+#     image: nginx:alpine
+#     volumes:
+#       - ./02-src/frontend/dist:/usr/share/nginx/html:ro
+#     ports:
+#       - "127.0.0.1:8090:80"
+
+volumes:
+  diagnosticpro-data:

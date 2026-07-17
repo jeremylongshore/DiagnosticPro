@@ -603,7 +603,7 @@ Look for:
 **Stripe Configuration:**
 - Webhook Destination: we_1SB1XcJfyCDmId8XHqyfDiC8
 - Webhook URL: https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev/webhook/stripe
-- Webhook Secret: whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ (configured)
+- Webhook Secret: whsec_REDACTED-legacy-gcp-endpoint-2026-07-01 (configured)
 - API Key: ⚠️ INVALID - Needs manual update
 - Price: $4.99 (499 cents)
 

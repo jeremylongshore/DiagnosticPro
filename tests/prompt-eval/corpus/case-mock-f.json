@@ -1,0 +1,30 @@
+{
+  "id": "mock-f",
+  "payload": {
+    "equipmentType": "automotive",
+    "make": "Freightliner",
+    "model": "Cascadia",
+    "year": "2017",
+    "symptoms": "DEF warning countdown active, limited to 55 mph, exhaust smells acrid.",
+    "errorCodes": "SPN3364 FMI17, SPN3556 FMI18",
+    "problemDescription": "DEF level 60%. Tank recently topped with bulk fluid. Ambient temps near freezing overnight.",
+    "fullName": "Logistics Dispatch",
+    "email": "logistics@example.com"
+  },
+  "meta": {
+    "sourceFile": "tests/mocks/mock_F_diesel_def_fault.json",
+    "sourceSubmissionId": "diag_mock_F",
+    "expectedCodes": [
+      "SPN3364 FMI17",
+      "SPN3556 FMI18"
+    ],
+    "tags": [
+      "diesel",
+      "commercial",
+      "j1939-codes",
+      "aftertreatment",
+      "derate",
+      "urgent"
+    ]
+  }
+}

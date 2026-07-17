@@ -1,31 +1,39 @@
 /**
- * Centralized API client using Firebase Functions proxy for private Cloud Run
- * Handles auth headers and proxy routing
+ * Centralized API client.
+ * Updated for self-host: relative URLs when no base (VPS + Caddy proxies
+ * the API paths). For pure self-host the browser calls same-origin.
  */
-import { getIdToken } from "../integrations/firebase";
+import { getEnv } from '../lib/env';
 
-const EDGE = import.meta.env.VITE_EDGE_BASE; // Functions v2 proxy
-const RUN  = import.meta.env.VITE_API_BASE;  // direct Cloud Run (may be blocked)
-const BASE = EDGE ?? RUN; // prefer Functions while IAM is enforced
+const EDGE = getEnv('VITE_EDGE_BASE');
+const RUN = getEnv('VITE_API_BASE');
+
+// For pure self-host (Caddy serving static + proxying API), use relative URLs
+const BASE = EDGE || RUN || '';
 
 async function authHeader() {
-  const token = await getIdToken();
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  // Prefer whop token for self-hosted
+  try {
+    const whopToken = localStorage.getItem('whop_token');
+    if (whopToken) return { 'x-whop-token': whopToken };
+  } catch {}
+  // fallback to api key if set (for some legacy paths)
+  const apiKey = getEnv('VITE_API_KEY');
+  return apiKey ? { 'x-api-key': apiKey } : {};
 }
 
 /**
  * Make authenticated API request that returns JSON
  */
 export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
-  if (!BASE) throw new Error("No API base configured");
-
   const headers = {
     "Content-Type": "application/json",
     ...(await authHeader()),
     ...(init.headers || {})
   };
 
-  const res = await fetch(`${BASE}${path}`, { ...init, headers, credentials: "omit" });
+  const url = BASE ? `${BASE}${path}` : path; // relative if no base
+  const res = await fetch(url, { ...init, headers, credentials: "omit" });
 
   if (!res.ok) {
     const errorText = await res.text();
@@ -40,14 +48,13 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
  * Use when endpoint returns non-JSON or you just need the Response
  */
 export async function apiRaw(path: string, init: RequestInit = {}): Promise<Response> {
-  if (!BASE) throw new Error("No API base configured");
-
   const headers = {
     ...(await authHeader()),
     ...(init.headers || {})
   };
 
-  return fetch(`${BASE}${path}`, { ...init, headers, credentials: "omit" });
+  const url = BASE ? `${BASE}${path}` : path;
+  return fetch(url, { ...init, headers, credentials: "omit" });
 }
 
 // Legacy API client for backward compatibility

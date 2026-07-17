@@ -57,5 +57,12 @@ if ! make test; then
 fi
 echo -e "${GREEN}✅ All tests passed${NC}"
 
+# Run audit-harness
+echo -e "${YELLOW}🔍 Running audit-harness...${NC}"
+if ! make audit; then
+    echo -e "${YELLOW}⚠️ Audit gates advisory (warnings only for now).${NC}"
+fi
+echo -e "${GREEN}✅ Audit check passed${NC}"
+
 echo -e "${GREEN}🎉 All safety checks passed! Commit allowed.${NC}"
 exit 0

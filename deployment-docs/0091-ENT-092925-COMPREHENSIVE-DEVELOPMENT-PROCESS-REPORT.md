@@ -226,7 +226,7 @@ The webhook integration analysis revealed proper configuration and functionality
 
 **Webhook Secret Configuration:**
 - Google Secret Manager: stripe-webhook-secret version 2
-- Value: whsec_o2MWZ50Nqy90DkA3ckD2FFP0QMsbnAFQ
+- Value: whsec_REDACTED-legacy-gcp-endpoint-2026-07-01
 - Backend integration: ✅ Properly configured
 
 **Endpoint Verification:**

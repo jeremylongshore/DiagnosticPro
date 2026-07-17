@@ -2,15 +2,13 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Brain, Edit, CheckCircle } from "lucide-react";
+import { Edit } from "lucide-react";
 import { startAnalysis } from "@/services/diagnostics";
-import { doc, setDoc } from "firebase/firestore";
-import { db } from "@/config/firebase";
 import { useToast } from "@/components/ui/use-toast";
+import PhotoAttachPanel from "@/components/PhotoAttachPanel";
 import type { FormData } from "./DiagnosticForm";
-import { getWhopAuth, getWhopHeaders, verifyMembership } from "@/lib/whop-auth";
 
-// Stripe integration via Stripe Checkout only (for non-Whop-members)
+// Stripe Checkout only. Whop membership UI is deferred (backend left intact).
 
 interface DiagnosticReviewProps {
   formData: FormData;
@@ -25,66 +23,8 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
   const [orderId, setOrderId] = useState<string | null>(null);
   const [paymentInitiated, setPaymentInitiated] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [memberAnalyzing, setMemberAnalyzing] = useState(false);
   const { toast } = useToast();
   const paymentSectionRef = useRef<HTMLDivElement>(null);
-
-  const whopAuth = getWhopAuth();
-
-  // Handle member diagnostic submission (bypasses Stripe)
-  const handleMemberSubmit = async () => {
-    if (!submissionId) return;
-
-    try {
-      setMemberAnalyzing(true);
-
-      // Re-verify membership is still active
-      const stillMember = await verifyMembership();
-      if (!stillMember) {
-        toast({
-          title: "Membership Expired",
-          description: "Your membership is no longer active. Please renew or pay $4.99 for this diagnostic.",
-          variant: "destructive",
-        });
-        setMemberAnalyzing(false);
-        return;
-      }
-
-      const apiBase = import.meta.env.VITE_API_GATEWAY_URL || 'https://diagnosticpro-vertex-ai-backend-qonjb7tvha-uc.a.run.app';
-
-      const response = await fetch(`${apiBase}/api/whop/analyze`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...getWhopHeaders(),
-        },
-        body: JSON.stringify({ submissionId }),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Analysis failed: ${response.status}`);
-      }
-
-      const result = await response.json();
-
-      toast({
-        title: "Analysis Started!",
-        description: "Your diagnostic report is being generated. Redirecting...",
-      });
-
-      // Backend already updates Firestore status — no duplicate write needed
-      onPaymentSuccess();
-    } catch (error) {
-      console.error("Member analysis error:", error);
-      toast({
-        title: "Analysis Error",
-        description: error instanceof Error ? error.message : "Failed to start analysis",
-        variant: "destructive",
-      });
-    } finally {
-      setMemberAnalyzing(false);
-    }
-  };
 
   // Set client-reference-id on Buy Button after it loads
   useEffect(() => {
@@ -124,7 +64,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
         // Add other relevant fields
       };
 
-      // Start the analysis using Firebase Cloud Function
+      // Start the analysis via the self-hosted backend
       const analysisResult = await startAnalysis(submissionId, diagnosticData);
 
       if (analysisResult.success) {
@@ -133,14 +73,8 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
           description: "Your diagnostic report is ready. Redirecting to download...",
         });
 
-        // Update payment status in Firestore
-        await setDoc(doc(db, 'diagnosticSubmissions', submissionId), {
-          paymentStatus: 'completed',
-          analysisStatus: 'completed',
-          analysisCompletedAt: new Date()
-        }, { merge: true });
-
         // Trigger success callback to parent component
+        // Backend handles status updates via SQLite
         onPaymentSuccess();
       } else {
         throw new Error(analysisResult.error || 'Analysis failed');
@@ -213,15 +147,15 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
           keyCount: Object.keys(payload).length
         });
 
-        // Call API Gateway endpoint
-        const apiGatewayUrl = import.meta.env.VITE_API_GATEWAY_URL || 'https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev';
-        const apiKey = import.meta.env.VITE_API_KEY || 'REDACTED_API_KEY';
+        // Call backend endpoint (empty base = same-origin; Caddy proxies API paths)
+        const apiGatewayUrl = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE || '';
+        const apiKey = import.meta.env.VITE_API_KEY || '';
 
         const response = await fetch(`${apiGatewayUrl}/saveSubmission`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-api-key': apiKey,
+            ...(apiKey ? { 'x-api-key': apiKey } : {}),
             'x-dp-reqid': reqId
           },
           body: JSON.stringify(submissionRequest)
@@ -317,20 +251,16 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
   }, [formData, toast]);
 
   return (
-    <section className="py-12 bg-muted/30">
+    <section className="py-14 md:py-16 border-b border-border/70">
       <div className="container mx-auto px-4">
-        <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-8">
-            <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20 mb-4">
-              <Brain className="h-3 w-3 mr-1" />
-              Review & Purchase
-            </Badge>
-            <h2 className="text-3xl md:text-4xl font-bold mb-4">
-              Review Your Diagnostic Information
+        <div className="max-w-3xl mx-auto">
+          <div className="mb-8 md:mb-10 max-w-xl">
+            <p className="section-label mb-3">Review</p>
+            <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight mb-3">
+              Confirm your details
             </h2>
-            <p className="text-lg text-muted-foreground">
-              Please review your information below. Once confirmed, proceed to payment for your AI
-              analysis.
+            <p className="text-muted-foreground leading-relaxed">
+              Check the information below, then pay $4.99 for your diagnostic report.
             </p>
           </div>
 
@@ -435,124 +365,73 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
             </CardContent>
           </Card>
 
-          {/* Payment / Member Action Section */}
+          {/* Optional photo evidence — appears once submissionId is known.
+              Photo attach is non-blocking; the pay button stays enabled either way. */}
+          {isDataSaved && submissionId && (
+            <div className="mb-6">
+              <PhotoAttachPanel submissionId={submissionId} />
+            </div>
+          )}
+
+          {/* Payment Section — Stripe $4.99 only */}
           <Card ref={paymentSectionRef} className="shadow-lg">
             <CardContent className="p-6">
               <div className="text-center">
-                {whopAuth?.isMember ? (
-                  /* ── Whop Member: Free Diagnostic ── */
-                  <>
-                    <div className="flex items-center justify-center gap-2 mb-4">
-                      <CheckCircle className="h-5 w-5 text-savings" />
-                      <span className="text-sm font-medium text-savings">
-                        PRO Member — Unlimited Diagnostics
-                      </span>
+                <div className="flex items-center justify-center gap-2 mb-4">
+                  <img
+                    src="https://js.stripe.com/v3/fingerprinted/img/stripe-badge-transparent@2x.png"
+                    alt="Powered by Stripe"
+                    className="h-6"
+                  />
+                  <span className="text-sm text-muted-foreground">
+                    Secure payments powered by Stripe
+                  </span>
+                </div>
+                <h3 className="text-xl font-semibold mb-4">AI Diagnostic Analysis</h3>
+                <div className="text-3xl font-bold text-primary mb-2">$4.99</div>
+                <p className="text-muted-foreground mb-6">
+                  Get your comprehensive AI-powered diagnostic report - instant download after payment
+                </p>
+                {saveError ? (
+                  <div className="space-y-4">
+                    <div className="text-destructive text-sm bg-destructive/10 p-3 rounded-lg">
+                      <p className="font-medium">Unable to proceed with payment</p>
+                      <p>{saveError}</p>
                     </div>
-                    <h3 className="text-xl font-semibold mb-4">AI Diagnostic Analysis</h3>
-                    <div className="text-3xl font-bold text-savings mb-2">Included</div>
-                    <p className="text-muted-foreground mb-6">
-                      Your diagnostic report is included with your DiagnosticPro membership
-                    </p>
-                    {saveError ? (
-                      <div className="space-y-4">
-                        <div className="text-destructive text-sm bg-destructive/10 p-3 rounded-lg">
-                          <p className="font-medium">Unable to proceed</p>
-                          <p>{saveError}</p>
-                        </div>
-                        <Button onClick={() => window.location.reload()} variant="outline" className="w-full">
-                          Try Again
-                        </Button>
-                      </div>
-                    ) : isDataSaved && submissionId ? (
-                      <div className="space-y-4">
-                        <Button
-                          onClick={handleMemberSubmit}
-                          disabled={memberAnalyzing}
-                          className="w-full py-6 text-lg bg-savings hover:bg-savings/90 text-savings-foreground"
-                          size="lg"
-                        >
-                          {memberAnalyzing ? "Analyzing..." : "Run Diagnostic — Included with Membership"}
-                        </Button>
-                        <p className="text-xs text-muted-foreground">
-                          Submission ID: {submissionId}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="text-muted-foreground">
-                        {isProcessing ? "Saving your data..." : "Preparing..."}
-                      </div>
-                    )}
-                  </>
+                    <Button
+                      onClick={() => window.location.reload()}
+                      variant="outline"
+                      className="w-full"
+                    >
+                      Try Again
+                    </Button>
+                  </div>
+                ) : isDataSaved && submissionId ? (
+                  <div className="space-y-4">
+                    {/* Env vars win so a Stripe account swap only needs a rebuild with new
+                        VITE_STRIPE_* values; publishable keys are public, so a hardcoded
+                        fallback to the current live account is acceptable. */}
+                    <stripe-buy-button
+                      buy-button-id={import.meta.env.VITE_STRIPE_BUY_BUTTON_ID || "buy_btn_1SC6LyJfyCDmId8XPHZozmzJ"}
+                      publishable-key={import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || "pk_live_51RgbAkJfyCDmId8XfY0H7dLS8v2mjL6887WNfScroA9v6ggvcPbXSQUjrLkY2dVZh26QdbcS3nXegFKnf6C6RMEb00po2qC8Fg"}
+                    >
+                    </stripe-buy-button>
+                    <div className="text-center space-y-2">
+                      <p className="text-xs text-muted-foreground">
+                        Submission ID: {submissionId || "Not generated"}
+                      </p>
+                    </div>
+                  </div>
                 ) : (
-                  /* ── Non-Member: Stripe $4.99 Payment ── */
-                  <>
-                    <div className="flex items-center justify-center gap-2 mb-4">
-                      <img
-                        src="https://js.stripe.com/v3/fingerprinted/img/stripe-badge-transparent@2x.png"
-                        alt="Powered by Stripe"
-                        className="h-6"
-                      />
-                      <span className="text-sm text-muted-foreground">
-                        Secure payments powered by Stripe
-                      </span>
-                    </div>
-                    <h3 className="text-xl font-semibold mb-4">AI Diagnostic Analysis</h3>
-                    <div className="text-3xl font-bold text-primary mb-2">$4.99</div>
-                    <p className="text-muted-foreground mb-6">
-                      Get your comprehensive AI-powered diagnostic report - instant download after payment
-                    </p>
-                    {saveError ? (
-                      <div className="space-y-4">
-                        <div className="text-destructive text-sm bg-destructive/10 p-3 rounded-lg">
-                          <p className="font-medium">Unable to proceed with payment</p>
-                          <p>{saveError}</p>
-                        </div>
-                        <Button
-                          onClick={() => window.location.reload()}
-                          variant="outline"
-                          className="w-full"
-                        >
-                          Try Again
-                        </Button>
-                      </div>
-                    ) : isDataSaved && submissionId ? (
-                      <div className="space-y-4">
-                        <stripe-buy-button
-                          buy-button-id="buy_btn_1SC6LyJfyCDmId8XPHZozmzJ"
-                          publishable-key="pk_live_51RgbAkJfyCDmId8XfY0H7dLS8v2mjL6887WNfScroA9v6ggvcPbXSQUjrLkY2dVZh26QdbcS3nXegFKnf6C6RMEb00po2qC8Fg"
-                        >
-                        </stripe-buy-button>
-                        {/* Upsell for non-members */}
-                        <div className="pt-4 border-t border-border/50">
-                          <a
-                            href="https://whop.com/checkout/plan_GFAg4oqAGOEeR"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-sm text-primary hover:text-primary/80 underline"
-                          >
-                            Or join DiagnosticPro ($29/mo) for unlimited diagnostics
-                          </a>
-                        </div>
-                        <div className="text-center space-y-2">
-                          <p className="text-xs text-muted-foreground">
-                            Submission ID: {submissionId || "Not generated"}
-                          </p>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-muted-foreground">
-                        {isProcessing ? "Saving your data..." : "Preparing payment..."}
-                      </div>
-                    )}
-                  </>
+                  <div className="text-muted-foreground">
+                    {isProcessing ? "Saving your data..." : "Preparing payment..."}
+                  </div>
                 )}
                 <p className="text-xs text-muted-foreground mt-4">
-                  {whopAuth?.isMember
-                    ? "Analysis powered by Vertex AI Gemini. Results typically ready in under 60 seconds."
-                    : "Secure payment processed by Stripe. After payment, you'll get instant access to download your report."}
+                  Secure payment processed by Stripe. After payment, you'll get instant access to download your report.
                 </p>
                 <div className="text-xs text-muted-foreground mt-2">
-                  By {whopAuth?.isMember ? "using this service" : "purchasing"}, you agree to our{" "}
+                  By purchasing, you agree to our{" "}
                   <a href="/terms" className="underline hover:text-primary">
                     Terms of Service
                   </a>{" "}

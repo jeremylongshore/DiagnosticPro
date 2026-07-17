@@ -1,0 +1,27 @@
+{
+  "id": "mock-c",
+  "payload": {
+    "equipmentType": "generator",
+    "make": "Cummins",
+    "model": "RS20A",
+    "year": "2016",
+    "symptoms": "Runs 15 minutes then stalls under load; restarts after cooling for 30 minutes.",
+    "errorCodes": "ECU-1425",
+    "problemDescription": "Oil level correct. Cooling vents clear. Fuel filter changed last season. Occurs during summer peak tests.",
+    "fullName": "Facility Ops",
+    "email": "facility.ops@example.com"
+  },
+  "meta": {
+    "sourceFile": "tests/mocks/mock_C_generator_heat_soak.json",
+    "sourceSubmissionId": "diag_mock_C",
+    "expectedCodes": [
+      "ECU-1425"
+    ],
+    "tags": [
+      "generator",
+      "proprietary-code",
+      "thermal-shutdown",
+      "intermittent"
+    ]
+  }
+}

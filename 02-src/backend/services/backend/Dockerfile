@@ -1,18 +1,36 @@
-FROM node:20-slim
+# Multi-stage build. better-sqlite3 has no prebuilt binary for every node/glibc
+# combo, so it compiles via node-gyp — which needs python3/make/g++. We install
+# those only in the builder stage and copy the compiled node_modules into a lean
+# runtime image (builder + runtime share the same base, so the .node binary is
+# ABI-compatible).
 
+# ---- builder: compile native deps (better-sqlite3) ----
+FROM node:20-slim AS builder
 WORKDIR /app
-
-# Copy package files
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
 COPY package*.json ./
+RUN npm ci --omit=dev
 
-# Install dependencies
-RUN npm ci --only=production
-
-# Copy application code
+# ---- runtime ----
+FROM node:20-slim
+WORKDIR /app
+ENV NODE_ENV=production
+# Whiteglove PDF stack: pandoc + xelatex (booktabs/titlesec reports).
+# Mirrors /whiteglove-pdf skill standards used across Intent Solutions.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+      pandoc \
+      python3 \
+      texlive-xetex \
+      texlive-fonts-recommended \
+      texlive-latex-recommended \
+      texlive-latex-extra \
+      texlive-plain-generic \
+      lmodern \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /app/node_modules ./node_modules
 COPY . .
-
-# Expose port
 EXPOSE 8080
-
-# Start the application
 CMD ["node", "index.js"]

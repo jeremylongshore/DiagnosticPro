@@ -1,0 +1,38 @@
+{
+  "run": "JOURNEY-1782971603042",
+  "baseUrl": "https://diagnosticpro.io",
+  "startedAt": "2026-07-02T05:53:23.042Z",
+  "finishedAt": "2026-07-02T05:53:30.680Z",
+  "gates": {
+    "stripeTestMode": false,
+    "whopMemberToken": false
+  },
+  "summary": {
+    "passed": 1,
+    "failed": 1
+  },
+  "journeyState": {
+    "submissionId": "",
+    "checkoutSessionId": "",
+    "whopSubmissionId": ""
+  },
+  "steps": [
+    {
+      "id": "J1-01",
+      "name": "J1-01 landing page serves 200 with the diagnostic form and CTA",
+      "status": "passed",
+      "ms": 1999,
+      "evidence": {
+        "http": 200,
+        "title": "DiagnosticPro.io - Professional Automotive Diagnostic Solutions"
+      }
+    },
+    {
+      "id": "J1-02",
+      "name": "J1-02 real form submit persists a pending submission",
+      "status": "failed",
+      "ms": 4067,
+      "error": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBe\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m) // Object.is equality\u001b[22m\n\nExpected: \u001b[32m200\u001b[39m\nReceived: \u001b[31m400\u001b[39m"
+    }
+  ]
+}

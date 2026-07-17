@@ -280,7 +280,7 @@ curl -sS https://diagnosticpro.io | grep -o "Pay.*4\.99.*Analysis"
 **Description:** Cloud diagnosticpro
 **API Version:** 2025-06-30.basil
 **Events Listening:** 4 events (including `checkout.session.completed`)
-**Signing Secret:** `whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ`
+**Signing Secret:** `whsec_REDACTED-legacy-gcp-endpoint-2026-07-01`
 
 ---
 
@@ -382,7 +382,7 @@ curl -sS https://diagnosticpro.io | grep -o "Pay.*4\.99.*Analysis"
 **Stripe Configuration:**
 - Webhook Destination ID: we_1SB1XcJfyCDmId8XHqyfDiC8
 - Webhook URL: https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev/webhook/stripe
-- Signing Secret: whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ
+- Signing Secret: whsec_REDACTED-legacy-gcp-endpoint-2026-07-01
 - API Version: 2025-06-30.basil
 - Events: 4 (including checkout.session.completed)
 
@@ -428,7 +428,7 @@ curl -sS https://diagnosticpro.io | grep -o "Pay.*4\.99.*Analysis"
 ## ✅ FINAL UPDATE (09:45 UTC)
 
 **Stripe Webhook Secret Deployed:** ✅
-- Secret: whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ
+- Secret: whsec_REDACTED-legacy-gcp-endpoint-2026-07-01
 - Backend Revision: diagnosticpro-vertex-ai-backend-00009-jk7
 - Status: DEPLOYED
 

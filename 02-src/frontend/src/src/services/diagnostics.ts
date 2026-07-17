@@ -2,7 +2,9 @@
  * Diagnostics service - handles diagnostic submissions and analysis
  */
 import { api } from './api';
-import { firestoreServices, DiagnosticSubmission } from './firestore';
+
+// Legacy type kept for compatibility (no longer used for writes)
+export interface DiagnosticSubmission { /* see backend SQLite schema */ }
 
 // Frontend form interface
 export interface DiagnosticFormData {
@@ -60,43 +62,51 @@ interface SubmissionResponse {
 }
 
 /**
- * Submit diagnostic form - primary entry point
+ * Submit diagnostic form - primary entry point (talks to the self-hosted backend)
  */
 export async function submitDiagnosticForm(data: DiagnosticFormData): Promise<SubmissionResponse> {
   try {
-    const submissionData: Omit<DiagnosticSubmission, 'id' | 'createdAt' | 'updatedAt'> = {
-      fullName: data.fullName,
-      email: data.email,
-      phone: data.phone,
-      equipmentType: data.equipmentType,
-      make: data.make,
-      model: data.model,
-      year: data.year,
-      serialNumber: data.serialNumber,
-      problemDescription: data.problemDescription,
-      symptoms: data.symptoms,
-      errorCodes: data.errorCodes,
-      whenStarted: data.whenStarted,
-      frequency: data.frequency,
-      urgencyLevel: data.urgencyLevel,
-      troubleshootingSteps: data.troubleshootingSteps,
-      previousRepairs: data.previousRepairs,
-      usagePattern: data.usagePattern,
-      locationEnvironment: data.locationEnvironment,
-      modifications: data.modifications,
-      mileageHours: data.mileageHours,
-      shopRecommendation: data.shopRecommendation,
-      shopQuoteAmount: data.shopQuoteAmount,
-      paymentStatus: 'pending',
-      analysisStatus: 'pending'
+    // Empty base = same-origin relative path (self-host: Caddy proxies API paths)
+    const apiBase = import.meta.env.VITE_API_GATEWAY_URL || import.meta.env.VITE_API_BASE || '';
+
+    const payload = {
+      equipmentType: data.equipmentType ?? "",
+      make: data.make ?? "",
+      model: data.model ?? "",
+      year: data.year ?? "",
+      mileageHours: data.mileageHours ?? "",
+      serialNumber: data.serialNumber ?? "",
+      errorCodes: data.errorCodes ?? "",
+      symptoms: Array.isArray(data.symptoms) ? data.symptoms : (data.symptoms ? [data.symptoms] : []),
+      whenStarted: data.whenStarted ?? "",
+      frequency: data.frequency ?? "",
+      urgencyLevel: data.urgencyLevel ?? "normal",
+      locationEnvironment: data.locationEnvironment ?? "",
+      usagePattern: data.usagePattern ?? "",
+      problemDescription: data.problemDescription ?? "",
+      previousRepairs: data.previousRepairs ?? "",
+      modifications: data.modifications ?? "",
+      troubleshootingSteps: data.troubleshootingSteps ?? "",
+      shopQuoteAmount: data.shopQuoteAmount ?? "",
+      shopRecommendation: data.shopRecommendation ?? "",
+      fullName: data.fullName ?? "",
+      email: data.email ?? "",
+      phone: data.phone ?? ""
     };
 
-    const result = await firestoreServices.diagnosticSubmissions.create(submissionData);
+    const response = await fetch(`${apiBase}/saveSubmission`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload, priceCents: 499 })
+    });
 
-    return {
-      success: true,
-      submissionId: result.id,
-    };
+    if (!response.ok) {
+      const err = await response.text();
+      throw new Error(err || 'Failed to save submission');
+    }
+
+    const result = await response.json();
+    return { success: true, submissionId: result.submissionId };
   } catch (error) {
     console.error('Diagnostic submission error:', error);
     return {
@@ -109,36 +119,58 @@ export async function submitDiagnosticForm(data: DiagnosticFormData): Promise<Su
 /**
  * Start diagnostic analysis
  */
+// The backend /analyzeDiagnostic response has shipped in two shapes:
+//   legacy:  { ok: boolean, path?: string, analysisId?: string }
+//   current: { status: string, message?: string, ... } (may also carry the legacy fields)
+// Accept BOTH robustly. api() already throws on non-2xx, so reaching the
+// success path means HTTP 200/202 — only an explicit failure marker in the
+// body should turn that into a failure.
+interface AnalyzeResponse {
+  ok?: boolean;
+  path?: string;
+  analysisId?: string;
+  status?: string;
+  message?: string;
+}
+
+const ANALYZE_FAILURE_STATUSES = new Set(['failed', 'failure', 'error']);
+const ANALYZE_PENDING_STATUSES = new Set(['processing', 'queued', 'pending']);
+
 export async function startAnalysis(
   submissionId: string,
   diagnosticData?: any
 ): Promise<ApiResponse<DiagnosticAnalysis>> {
   try {
-    const response = await api<{ ok: boolean; path: string; analysisId: string }>('/analyzeDiagnostic', {
+    const response = await api<AnalyzeResponse>('/analyzeDiagnostic', {
       method: 'POST',
       body: JSON.stringify({ submissionId }),
     });
 
-    if (response.ok) {
+    const bodyStatus = typeof response.status === 'string' ? response.status.toLowerCase() : '';
+    const explicitFailure = response.ok === false || ANALYZE_FAILURE_STATUSES.has(bodyStatus);
+
+    if (!explicitFailure) {
+      const stillProcessing = ANALYZE_PENDING_STATUSES.has(bodyStatus);
       return {
         data: {
-          id: response.analysisId,
+          id: response.analysisId || submissionId,
           submissionId,
-          analysisResult: 'Analysis completed successfully',
+          analysisResult: response.message
+            || (stillProcessing ? 'Analysis in progress' : 'Analysis completed successfully'),
           confidence: 0.95,
           recommendations: [],
           createdAt: new Date().toISOString(),
-          reportStatus: 'ready',
+          reportStatus: stillProcessing ? 'generating' : 'ready',
           reportUrl: response.path
         } as DiagnosticAnalysis,
         success: true
       };
-    } else {
-      return {
-        error: 'Analysis failed',
-        success: false
-      };
     }
+
+    return {
+      error: response.message || 'Analysis failed',
+      success: false
+    };
   } catch (error) {
     return {
       error: error instanceof Error ? error.message : 'Analysis failed',

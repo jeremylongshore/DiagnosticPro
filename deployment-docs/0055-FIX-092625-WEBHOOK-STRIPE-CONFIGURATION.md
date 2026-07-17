@@ -15,7 +15,7 @@
 - **Description**: Cloud diagnosticpro
 - **API Version**: 2025-06-30.basil
 - **Listening to**: 4 events
-- **Signing Secret**: `whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ`
+- **Signing Secret**: `whsec_REDACTED-legacy-gcp-endpoint-2026-07-01`
 
 ---
 
@@ -24,7 +24,7 @@
 ### Environment Variables for Backend Service
 ```bash
 # Add to Cloud Run backend environment
-STRIPE_WEBHOOK_SECRET=whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ
+STRIPE_WEBHOOK_SECRET=whsec_REDACTED-legacy-gcp-endpoint-2026-07-01
 STRIPE_SECRET_KEY=sk_live_... # Your Stripe secret key
 ```
 
@@ -33,7 +33,7 @@ STRIPE_SECRET_KEY=sk_live_... # Your Stripe secret key
 // Backend webhook endpoint (index.js or similar)
 app.post('/webhook/stripe', express.raw({type: 'application/json'}), async (req, res) => {
   const sig = req.headers['stripe-signature'];
-  const webhookSecret = 'whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ';
+  const webhookSecret = 'whsec_REDACTED-legacy-gcp-endpoint-2026-07-01';
 
   let event;
 
@@ -150,7 +150,7 @@ const createCheckoutSession = async () => {
 
 ## 🔑 KEY POINTS
 
-1. **Webhook Secret**: `whsec_o2MWZ5ONqy9ODkA3ckD2FFPOQMsbnAFQ` - This MUST be used to verify webhooks
+1. **Webhook Secret**: `whsec_REDACTED-legacy-gcp-endpoint-2026-07-01` - This MUST be used to verify webhooks
 2. **Endpoint URL**: Already configured at API Gateway
 3. **Events**: Make sure listening for `checkout.session.completed`
 4. **Client Reference ID**: Pass submissionId to link payment to form data

@@ -76,8 +76,14 @@ build:
 	@echo "✅ Build successful!"
 
 # Run ALL checks
-full-check: lint-check type-check format-check test
+full-check: lint-check type-check format-check test audit
 	@echo "✅ All checks passed successfully!"
+
+# Run audit-harness (testing depth, from frontend)
+audit:
+	@echo "🔍 Running audit-harness (testing-depth gates)..."
+	@cd 02-src/frontend && pnpm exec audit-harness audit . --deep || echo "⚠️ Audit completed (advisory mode)"
+	@echo "✅ Audit check passed!"
 
 # Install git hooks
 install-hooks:

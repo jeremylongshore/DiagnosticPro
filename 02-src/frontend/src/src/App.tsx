@@ -6,20 +6,17 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LoadingSpinner from "@/components/LoadingSpinner";
 
-import { setupWhopEmbed } from "@/lib/whop-embed";
-
-// Initialize Whop iframe detection
-setupWhopEmbed();
-
 // Lazy load all routes for better performance
 const Index = React.lazy(() => import("./pages/Index"));
 const Terms = React.lazy(() => import("./pages/Terms"));
 const Privacy = React.lazy(() => import("./pages/Privacy"));
+const AcceptableUse = React.lazy(() => import("./pages/AcceptableUse"));
 const NotFound = React.lazy(() => import("./pages/NotFound"));
 const TestMonitor = React.lazy(() => import("./pages/TestMonitor"));
 const PaymentSuccess = React.lazy(() => import("./components/PaymentSuccess"));
 const Report = React.lazy(() => import("./pages/Report"));
 const EquipmentLanding = React.lazy(() => import("./pages/EquipmentLanding"));
+// Whop OAuth callback kept for later; route not linked from the public UI.
 const AuthCallback = React.lazy(() => import("./pages/AuthCallback"));
 
 // Optimized QueryClient configuration
@@ -52,6 +49,7 @@ const App = () => (
               <Route path="/" element={<Index />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
+              <Route path="/acceptable-use" element={<AcceptableUse />} />
               <Route path="/test-monitor" element={<TestMonitor />} />
               <Route path="/success" element={<PaymentSuccess />} />
               <Route path="/payment-success" element={<PaymentSuccess />} />

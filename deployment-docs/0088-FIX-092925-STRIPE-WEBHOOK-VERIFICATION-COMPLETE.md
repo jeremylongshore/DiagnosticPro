@@ -23,7 +23,7 @@ The Stripe webhook integration for DiagnosticPro has been successfully configure
 - **Status:** ✅ Operational
 
 ### Authentication
-- **Webhook Secret:** `whsec_o2MWZ50Nqy90DkA3ckD2FFP0QMsbnAFQ`
+- **Webhook Secret:** `whsec_REDACTED-legacy-gcp-endpoint-2026-07-01`
 - **Storage:** Google Secret Manager (`stripe-webhook-secret`)
 - **Version:** 2 (updated from placeholder)
 - **Status:** ✅ Configured
@@ -128,7 +128,7 @@ curl -X POST https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev/webhook/stripe 
 1. **Update Stripe Dashboard**
    - Navigate to Stripe Dashboard → Webhooks
    - Update webhook URL to: `https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev/webhook/stripe`
-   - Ensure webhook secret matches: `whsec_o2MWZ50Nqy90DkA3ckD2FFP0QMsbnAFQ`
+   - Ensure webhook secret matches: `whsec_REDACTED-legacy-gcp-endpoint-2026-07-01`
 
 2. **Test Real Stripe Webhook**
    - Send test `checkout.session.completed` event from Stripe Dashboard

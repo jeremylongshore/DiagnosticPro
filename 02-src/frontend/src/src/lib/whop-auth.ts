@@ -7,7 +7,7 @@
 // Hardcoded defaults used as fallback (and in Jest where import.meta.env is unavailable).
 const WHOP_APP_ID = 'app_NyelCJC762qXb6';
 const REDIRECT_URI = 'https://diagnosticpro.io/auth/callback';
-const API_BASE = 'https://diagnosticpro-vertex-ai-backend-qonjb7tvha-uc.a.run.app';
+const API_BASE = ''; // same-origin for self-host, or set via env for dev
 
 // ── Types ──────────────────────────────────────────
 
