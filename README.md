@@ -5,7 +5,7 @@
 [![Live Status](https://img.shields.io/badge/status-live-success.svg)](https://diagnosticpro.io)
 [![Self-Hosted](https://img.shields.io/badge/Self--Hosted-VPS%20%2B%20Caddy%20%2B%20SQLite-10b981.svg)](https://diagnosticpro.io)
 [![LLM](https://img.shields.io/badge/LLM-OpenAI%20gpt--4o%20(default)-412991.svg)](https://platform.openai.com)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue.svg)](LICENSE)
 
 **Get professional AI-assisted diagnostic reports for vehicles and equipment — Just $4.99**
 
@@ -620,14 +620,7 @@ We design and deploy custom AI diagnostic systems for organizations that need pr
 
 ## 📄 License
 
-MIT License — See [LICENSE](LICENSE) for details
-
-**You're free to:**
-- Study the code and architecture
-- Use patterns in your own projects
-- Fork for personal/educational use
-
-**For commercial use:** Contact Intent Solutions IO
+AGPL-3.0 — See [LICENSE](LICENSE) for details
 
 ---
 
