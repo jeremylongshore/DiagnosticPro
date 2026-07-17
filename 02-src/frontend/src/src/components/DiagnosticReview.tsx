@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Edit } from "lucide-react";
 import { startAnalysis } from "@/services/diagnostics";
 import { useToast } from "@/components/ui/use-toast";
+import PhotoAttachPanel from "@/components/PhotoAttachPanel";
 import type { FormData } from "./DiagnosticForm";
 
 // Stripe Checkout only. Whop membership UI is deferred (backend left intact).
@@ -363,6 +364,14 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
               </div>
             </CardContent>
           </Card>
+
+          {/* Optional photo evidence — appears once submissionId is known.
+              Photo attach is non-blocking; the pay button stays enabled either way. */}
+          {isDataSaved && submissionId && (
+            <div className="mb-6">
+              <PhotoAttachPanel submissionId={submissionId} />
+            </div>
+          )}
 
           {/* Payment Section — Stripe $4.99 only */}
           <Card ref={paymentSectionRef} className="shadow-lg">
