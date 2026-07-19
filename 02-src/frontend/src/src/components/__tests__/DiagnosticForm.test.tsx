@@ -12,9 +12,9 @@ describe("DiagnosticForm Component", () => {
     const mockOnSubmit = jest.fn();
     const { getByText } = render(<DiagnosticForm onFormSubmit={mockOnSubmit} />);
 
-    expect(getByText("Equipment Diagnostic Input")).toBeInTheDocument();
+    expect(getByText("Diagnosis")).toBeInTheDocument();
     expect(getByText("What type of equipment?")).toBeInTheDocument();
-    expect(getByText("Step 1: Basic Information")).toBeInTheDocument();
+    expect(getByText("Basic information")).toBeInTheDocument();
   });
 
   it("displays all equipment type options", () => {
