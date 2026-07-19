@@ -6,12 +6,19 @@ name: Deploy
 # pinned by 40-char SHA for supply-chain hardening.
 #
 # Replaces the old deploy-cloudrun.yml (Cloud Run + Firebase Hosting) — GCP is
-# gone. See the VPS runbook docs/onboard-new-repo-deploy.md + manual-deploy.md.
+# gone. Deploy authority is intent-os/ops/deploy (D90).
 #
-# NOTE (2026-07): first deploys are MANUAL until OPS-b78 (Tailscale OIDC 403,
-# since 2026-05-25) is resolved and the per-repo OIDC trust
-# `repo:jeremylongshore/DiagnosticPro:*` is granted. This workflow is staged and
-# will run push-to-deploy once that trust + the 4 GH secrets below are in place.
+# ONBOARDED 2026-07-19: push-to-main auto-deploys. The per-repo Tailscale OIDC
+# trust (`WIF DiagnosticPro`, subject `repo:jeremylongshore/DiagnosticPro:*`,
+# tag:ci) and the 4 GH deploy secrets below are in place, and the VPS force-
+# command (/usr/local/sbin/deploy-diagnosticpro) runs both surfaces:
+# `git reset --hard origin/main` -> `docker compose up -d --build` (backend
+# container on 127.0.0.1:8089) -> `pnpm build` the Vite SPA -> rsync dist/ to
+# the Caddy static root (/srv/diagnosticpro/dist). Smoke gate: the reusable
+# workflow curls https://diagnosticpro.io/healthz for `.status == "ok"`.
+# (OPS-b78, the old Tailscale OIDC 403, was itself resolved 2026-06-12 — it was
+# never the blocker here; DiagnosticPro was simply the last un-onboarded repo.)
+# No auto-rollback yet (deploy-wrapper adoption is a separate owner-gated epic).
 #
 # To upgrade the reusable workflow: bump the SHA after reviewing the diff at
 # https://github.com/jeremylongshore/.github/commits/main
