@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">DiagnosticPro</string>
+    <string name="title_activity_main">DiagnosticPro</string>
+    <string name="package_name">io.diagnosticpro.app</string>
+    <string name="custom_url_scheme">io.diagnosticpro.app</string>
+</resources>
