@@ -93,7 +93,7 @@ npx capacitor-assets generate
 ### Open iOS Project
 
 ```bash
-cd /home/jeremy/000-projects/diagnostic-platform/DiagnosticPro/02-src/frontend
+cd 02-src/frontend
 npx cap open ios
 ```
 
@@ -138,7 +138,7 @@ npx cap open ios
 ### Open Android Project
 
 ```bash
-cd /home/jeremy/000-projects/diagnostic-platform/DiagnosticPro/02-src/frontend
+cd 02-src/frontend
 npx cap open android
 ```
 
