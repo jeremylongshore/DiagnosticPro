@@ -9,8 +9,9 @@
   "startedAt": "2026-07-23T15:55:21.169Z",
   "finishedAt": "2026-07-23T15:57:01.149Z",
   "gates": {
-    "stripeTestMode": true,
-    "coupon": "TEST1001"
+    "stripeTestMode": false,
+    "coupon": "TEST1001",
+    "liveCoupon": true
   },
   "summary": {
     "passed": 7

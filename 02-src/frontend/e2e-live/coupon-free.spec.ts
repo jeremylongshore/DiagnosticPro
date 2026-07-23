@@ -194,7 +194,11 @@ test.afterAll(async ({}, testInfo) => {
         seed: { id: seed.id, label: seed.label },
         startedAt: new Date(RUN_EPOCH).toISOString(),
         finishedAt: new Date().toISOString(),
-        gates: { stripeTestMode: PAY_READY, coupon: COUPON },
+        gates: {
+          stripeTestMode: TEST_MODE,
+          liveCoupon: LIVE_COUPON,
+          coupon: COUPON,
+        },
         summary,
         journeyState: { submissionId, checkoutSessionId, email },
         steps: results,
