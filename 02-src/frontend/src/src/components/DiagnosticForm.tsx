@@ -182,6 +182,16 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
       alert("Please fill in your name and email address.");
       return;
     }
+    // Mirror the backend saveSubmission contract, which requires `symptoms`
+    // OR `problemDescription`. Without this gate a customer could reach the
+    // Stripe payment step with an un-analyzable submission and hit a raw 400
+    // there, with "Try Again" re-POSTing the same empty data in a loop.
+    const hasProblemText = formData.problemDescription.trim().length > 0;
+    const hasSymptoms = Array.isArray(formData.symptoms) && formData.symptoms.length > 0;
+    if (!hasProblemText && !hasSymptoms) {
+      alert("Please describe the problem or select at least one symptom before continuing.");
+      return;
+    }
     onFormSubmit(formData);
   };
 
