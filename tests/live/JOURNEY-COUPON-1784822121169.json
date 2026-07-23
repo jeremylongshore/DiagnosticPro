@@ -1,0 +1,113 @@
+{
+  "run": "JOURNEY-COUPON-1784822121169",
+  "baseUrl": "https://diagnosticpro.io",
+  "coupon": "TEST1001",
+  "seed": {
+    "id": "auto-p0301-misfire",
+    "label": "Automotive single-cylinder misfire with shop quote pressure"
+  },
+  "startedAt": "2026-07-23T15:55:21.169Z",
+  "finishedAt": "2026-07-23T15:57:01.149Z",
+  "gates": {
+    "stripeTestMode": false,
+    "coupon": "TEST1001",
+    "liveCoupon": true
+  },
+  "summary": {
+    "passed": 7
+  },
+  "journeyState": {
+    "submissionId": "diag_1784822130048_12ca6974",
+    "checkoutSessionId": "cs_live_a1ffw4vIEag1unH635Q1Au0cohbX70BUZEcz0S2anl4oN7odgTORWyXxbZ",
+    "email": "jeremy@intentsolutions.io"
+  },
+  "steps": [
+    {
+      "id": "C1-01",
+      "name": "C1-01 landing + form shell (no Whop CTAs)",
+      "status": "passed",
+      "ms": 1906,
+      "evidence": {
+        "http": 200,
+        "seedId": "auto-p0301-misfire"
+      }
+    },
+    {
+      "id": "C1-02",
+      "name": "C1-02 rich seed form submit creates pending submission",
+      "status": "passed",
+      "ms": 6242,
+      "evidence": {
+        "submissionId": "diag_1784822130048_12ca6974",
+        "email": "jeremy@intentsolutions.io",
+        "seedId": "auto-p0301-misfire",
+        "make": "Toyota",
+        "model": "Camry",
+        "errorCodes": "P0301"
+      }
+    },
+    {
+      "id": "C1-03",
+      "name": "C1-03 createCheckoutSession with TEST1001 yields $0 session",
+      "status": "passed",
+      "ms": 1160,
+      "evidence": {
+        "sessionId": "cs_live_a1ffw4vIEag1unH635Q1Au0cohbX70BUZEcz0S2anl4oN7odgTORWyXxbZ",
+        "amount_total": 0,
+        "payment_status": "unpaid",
+        "coupon": "TEST1001",
+        "mode": "live"
+      }
+    },
+    {
+      "id": "C1-04",
+      "name": "C1-04 hosted checkout completes free (coupon) and redirects to /success",
+      "status": "passed",
+      "ms": 6940,
+      "evidence": {
+        "redirectedTo": "/success?session_id=cs_live_a1ffw4vIEag1unH635Q1Au0cohbX70BUZEcz0S2anl4oN7odgTORWyXxbZ",
+        "coupon": "TEST1001"
+      }
+    },
+    {
+      "id": "C1-05",
+      "name": "C1-05 webhook marks paid/processing and analysis reaches ready",
+      "status": "passed",
+      "ms": 79412,
+      "evidence": {
+        "paidOrBeyond": "processing",
+        "ready": "ready",
+        "seedHints": [
+          "P0301",
+          "misfire",
+          "coil",
+          "spark"
+        ]
+      }
+    },
+    {
+      "id": "C1-06",
+      "name": "C1-06 signed-url + PDF download contract",
+      "status": "passed",
+      "ms": 666,
+      "evidence": {
+        "downloadUrl": "/reports/download/diag_1784822130048_12ca6974",
+        "viewUrl": "/view/diag_1784822130048_12ca6974",
+        "pdfBytes": 56605,
+        "seedId": "auto-p0301-misfire"
+      }
+    },
+    {
+      "id": "C1-07",
+      "name": "C1-07 /success auto-download with free coupon session",
+      "status": "passed",
+      "ms": 2058,
+      "evidence": {
+        "filename": "diagnostic-diag_1784822130048_12ca6974.pdf",
+        "pdfBytes": 56605,
+        "savedTo": "/home/jeremy/000-projects/diagnostic-pro/02-src/frontend/test-results/coupon-free-C1-07-success--296ce-ad-with-free-coupon-session-live-journey/coupon-diag_1784822130048_12ca6974.pdf",
+        "coupon": "TEST1001"
+      }
+    }
+  ]
+}

@@ -1,12 +1,19 @@
-// e2e-live/coupon-free.spec.ts — full customer path on test.diagnosticpro.io
-// using Stripe TEST keys + promotion code TEST1001 (100% off).
+// e2e-live/coupon-free.spec.ts — full customer path with promotion code TEST1001
+// (100% off). Supports Stripe TEST keys OR live keys with an explicit opt-in.
 //
 // Proves: form → saveSubmission → createCheckoutSession(coupon) → hosted
 // checkout (free) → webhook/paid → real LLM report → PDF download.
 //
-// Run:
+// Test-mode run (sk_test backend):
 //   PLAYWRIGHT_BASE_URL=https://test.diagnosticpro.io \
 //   DPRO_STRIPE_TEST_MODE=1 \
+//   DPRO_STRIPE_COUPON=TEST1001 \
+//   DPRO_TEST_EMAIL=jeremy@intentsolutions.io \
+//   pnpm exec playwright test --project=live-journey e2e-live/coupon-free.spec.ts
+//
+// Live free-coupon run (sk_live, $0 only — never card-charges):
+//   PLAYWRIGHT_BASE_URL=https://diagnosticpro.io \
+//   DPRO_STRIPE_LIVE_COUPON=1 \
 //   DPRO_STRIPE_COUPON=TEST1001 \
 //   DPRO_TEST_EMAIL=jeremy@intentsolutions.io \
 //   pnpm exec playwright test --project=live-journey e2e-live/coupon-free.spec.ts
@@ -25,15 +32,18 @@ const REPO_ROOT = path.resolve(HERE, '..', '..', '..');
 const RESULTS_DIR = path.join(REPO_ROOT, 'tests', 'live');
 const RUN_EPOCH = Date.now();
 
-const PAY_READY = process.env.DPRO_STRIPE_TEST_MODE === '1';
+const TEST_MODE = process.env.DPRO_STRIPE_TEST_MODE === '1';
+const LIVE_COUPON = process.env.DPRO_STRIPE_LIVE_COUPON === '1';
+/** Free-coupon path ready: test-mode backend OR explicit live free-coupon opt-in. */
+const PAY_READY = TEST_MODE || LIVE_COUPON;
 const COUPON = (process.env.DPRO_STRIPE_COUPON || 'TEST1001').trim();
 const SEED_ID = process.env.DPRO_SEED_CASE || DEFAULT_SEED.id;
 /** Form + Stripe email for the real operator inbox. */
 const TEST_EMAIL = (process.env.DPRO_TEST_EMAIL || 'jeremy@intentsolutions.io').trim();
 
 const PAY_BLOCKED =
-  'blocked: set DPRO_STRIPE_TEST_MODE=1 and target a sk_test backend ' +
-  '(https://test.diagnosticpro.io). Never run free-coupon pay against live keys.';
+  'blocked: set DPRO_STRIPE_TEST_MODE=1 (sk_test host) OR DPRO_STRIPE_LIVE_COUPON=1 ' +
+  '(live host + free promo only). Card payment on live keys is never automated.';
 
 let seed: SeedCase = DEFAULT_SEED;
 let submissionId = '';
@@ -184,7 +194,11 @@ test.afterAll(async ({}, testInfo) => {
         seed: { id: seed.id, label: seed.label },
         startedAt: new Date(RUN_EPOCH).toISOString(),
         finishedAt: new Date().toISOString(),
-        gates: { stripeTestMode: PAY_READY, coupon: COUPON },
+        gates: {
+          stripeTestMode: TEST_MODE,
+          liveCoupon: LIVE_COUPON,
+          coupon: COUPON,
+        },
         summary,
         journeyState: { submissionId, checkoutSessionId, email },
         steps: results,
@@ -229,7 +243,7 @@ test('C1-02 rich seed form submit creates pending submission', async ({ page }) 
   });
 });
 
-test('C1-03 createCheckoutSession with TEST1001 yields $0 test session', async ({ request }) => {
+test('C1-03 createCheckoutSession with TEST1001 yields $0 session', async ({ request }) => {
   test.skip(!PAY_READY, PAY_BLOCKED);
   test.skip(!submissionId, 'no submission from C1-02');
 
@@ -238,7 +252,12 @@ test('C1-03 createCheckoutSession with TEST1001 yields $0 test session', async (
   });
   expect(res.status(), await res.text()).toBe(200);
   const body = await res.json();
-  expect(body.sessionId).toMatch(/^cs_test_/);
+  // Test mode → cs_test_; live free-coupon opt-in → cs_live_ (still $0).
+  if (LIVE_COUPON) {
+    expect(body.sessionId).toMatch(/^cs_live_/);
+  } else {
+    expect(body.sessionId).toMatch(/^cs_test_/);
+  }
   expect(body.url).toContain('checkout.stripe.com');
   checkoutSessionId = body.sessionId;
   checkoutUrl = body.url;
@@ -254,8 +273,9 @@ test('C1-03 createCheckoutSession with TEST1001 yields $0 test session', async (
     amount_total: sbody.amount_total,
     payment_status: sbody.payment_status,
     coupon: COUPON,
+    mode: checkoutSessionId.startsWith('cs_live_') ? 'live' : 'test',
   });
-  // Soft: if API exposes amount_total, free coupon should be 0.
+  // Free coupon must be $0 — hard gate so live never silently charges.
   if (typeof sbody.amount_total === 'number') {
     expect(sbody.amount_total).toBe(0);
   }
@@ -265,7 +285,11 @@ test('C1-04 hosted checkout completes free (coupon) and redirects to /success', 
   test.skip(!PAY_READY, PAY_BLOCKED);
   test.skip(!checkoutUrl, 'no checkout from C1-03');
   test.setTimeout(180_000);
-  expect(checkoutSessionId).toMatch(/^cs_test_/);
+  if (LIVE_COUPON) {
+    expect(checkoutSessionId).toMatch(/^cs_live_/);
+  } else {
+    expect(checkoutSessionId).toMatch(/^cs_test_/);
+  }
 
   await page.goto(checkoutUrl, { waitUntil: 'domcontentloaded' });
 
@@ -275,9 +299,17 @@ test('C1-04 hosted checkout completes free (coupon) and redirects to /success', 
     await emailField.fill(email);
   }
 
-  // If Stripe still wants a card (promo not applied or amount > 0), use 4242.
+  // Card fields: only fill 4242 on TEST sessions. Live free-coupon must stay $0
+  // with no payment method — if Stripe asks for a card on live, fail loud.
   const cardNumber = page.locator('#cardNumber');
-  if ((await cardNumber.count()) && (await cardNumber.isVisible().catch(() => false))) {
+  const cardVisible =
+    (await cardNumber.count()) > 0 && (await cardNumber.isVisible().catch(() => false));
+  if (cardVisible) {
+    if (checkoutSessionId.startsWith('cs_live_')) {
+      throw new Error(
+        'Live free-coupon session still requires a card — promo did not zero the total. Aborting to avoid a real charge.',
+      );
+    }
     const cardRadio = page.locator('#payment-method-accordion-item-title-card');
     if ((await cardRadio.count()) && !(await cardRadio.isChecked())) await cardRadio.click();
     await cardNumber.fill('4242 4242 4242 4242');

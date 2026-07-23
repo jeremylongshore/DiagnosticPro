@@ -1,0 +1,118 @@
+{
+  "run": "JOURNEY-1784819786272",
+  "baseUrl": "https://diagnosticpro.io",
+  "startedAt": "2026-07-23T15:16:26.272Z",
+  "finishedAt": "2026-07-23T15:16:39.476Z",
+  "gates": {
+    "stripeTestMode": false,
+    "whopMemberToken": false
+  },
+  "summary": {
+    "passed": 4,
+    "skipped": 9
+  },
+  "journeyState": {
+    "submissionId": "diag_1784819793461_cd9f2f2c",
+    "checkoutSessionId": "cs_live_b1h1X6ozJvxLK6mLqotisUqgbb1wVZuUUk8TQDoTF49QtNwPxN1NIBX9y6",
+    "whopSubmissionId": ""
+  },
+  "steps": [
+    {
+      "id": "J1-01",
+      "name": "J1-01 landing page serves 200 with the diagnostic form and CTA",
+      "status": "passed",
+      "ms": 1353,
+      "evidence": {
+        "http": 200,
+        "title": "DiagnosticPro — AI Equipment Diagnostic Second Opinion ($4.99)"
+      }
+    },
+    {
+      "id": "J1-02",
+      "name": "J1-02 real form submit persists a pending submission",
+      "status": "passed",
+      "ms": 6105,
+      "evidence": {
+        "submissionId": "diag_1784819793461_cd9f2f2c",
+        "http": 200,
+        "dbStatus": "pending"
+      }
+    },
+    {
+      "id": "J1-03",
+      "name": "J1-03 pay CTA renders bound to the submission (client-reference-id)",
+      "status": "passed",
+      "ms": 4490,
+      "evidence": {
+        "ctaSubmissionId": "diag_1784819797949_b78e166e",
+        "pkMode": "live",
+        "buyButtonId": "buy_btn_1SC6LyJfyCDmId8XPHZozmzJ"
+      }
+    },
+    {
+      "id": "J1-04",
+      "name": "J1-04 server-created checkout session returns a Stripe-hosted URL",
+      "status": "passed",
+      "ms": 715,
+      "evidence": {
+        "sessionId": "cs_live_b1h1X6ozJvxLK6mLqotisUqgbb1wVZuUUk8TQDoTF49QtNwPxN1NIBX9y6",
+        "mode": "live",
+        "http": 200
+      }
+    },
+    {
+      "id": "J1-05",
+      "name": "J1-05 hosted checkout accepts the 4242 test card and redirects to /success",
+      "status": "skipped",
+      "ms": 47
+    },
+    {
+      "id": "J1-06",
+      "name": "J1-06 checkout.session.completed webhook flips the submission to paid + queues analysis",
+      "status": "skipped",
+      "ms": 4
+    },
+    {
+      "id": "J1-07",
+      "name": "J1-07 /checkout/session resolves the session back to the submission",
+      "status": "skipped",
+      "ms": 4
+    },
+    {
+      "id": "J1-08",
+      "name": "J1-08 real LLM analysis completes to ready",
+      "status": "skipped",
+      "ms": 5
+    },
+    {
+      "id": "J1-09",
+      "name": "J1-09 signed-url endpoint returns the download + view contract",
+      "status": "skipped",
+      "ms": 4
+    },
+    {
+      "id": "J1-10",
+      "name": "J1-10 /success auto-downloads the real PDF report",
+      "status": "skipped",
+      "ms": 42
+    },
+    {
+      "id": "J1-11",
+      "name": "J1-11 /view serves the report inline as PDF",
+      "status": "skipped",
+      "ms": 3
+    },
+    {
+      "id": "J2-01",
+      "name": "J2-01 Whop member token verifies as an active membership",
+      "status": "skipped",
+      "ms": 3
+    },
+    {
+      "id": "J2-02",
+      "name": "J2-02 member analysis runs free and delivers a real downloadable report",
+      "status": "skipped",
+      "ms": 3
+    }
+  ]
+}
