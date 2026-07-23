@@ -170,7 +170,13 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
             httpCode: response.status,
             error: errorText
           });
-          throw new Error(`Failed to save data: ${response.status} ${errorText}`);
+          // Show the customer a plain-language message; keep the raw backend
+          // response in the console only (never render JSON at the pay step).
+          const friendly =
+            response.status === 400
+              ? "Please go back and describe the problem (or select at least one symptom) before continuing."
+              : "We couldn't save your submission. Please try again in a moment.";
+          throw new Error(friendly);
         }
 
         const result = await response.json();

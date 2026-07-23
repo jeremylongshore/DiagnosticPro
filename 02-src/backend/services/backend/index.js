@@ -50,6 +50,13 @@ function attachRequestId(req, res, next) {
 function validateSubmissionPayload(payload) {
   const errors = [];
 
+  // A missing/non-object payload must fail as a validation error (400), not
+  // throw on the field access below and become a 500.
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    errors.push("Request body must include a 'payload' object");
+    return errors;
+  }
+
   // Required fields (minimum for AI analysis)
   const requiredFields = ['equipmentType', 'model'];
 
@@ -479,7 +486,10 @@ app.post('/saveSubmission', submissionLimiter, async (req, res) => {
   let submissionId = null;
 
   try {
-    const { payload } = req.body;
+    // Guard a missing/malformed body: without a JSON `payload` object this used
+    // to throw ("Cannot read properties of undefined") and surface as a 500 to
+    // bots/scanners and misconfigured clients. Fail closed with a clean 400.
+    const { payload } = req.body || {};
 
     // Validate payload schema
     const validationErrors = validateSubmissionPayload(payload);
