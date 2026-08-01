@@ -33,8 +33,32 @@ async function createPendingSubmission() {
   return res.body.submissionId;
 }
 
+function createPendingSubmissionRow() {
+  const submissionId = `diag_${Date.now()}_${require('crypto').randomBytes(4).toString('hex')}`;
+  const now = new Date().toISOString();
+  const payload = {
+    equipmentType: 'automotive',
+    make: 'Toyota',
+    model: 'Camry',
+    year: '2020',
+    symptoms: 'Rough idle and P0301 single-cylinder misfire under load.'
+  };
+  db.prepare(`
+    INSERT INTO diagnostic_submissions
+      (id, status, price_cents, payload, created_at, updated_at)
+    VALUES (?, 'pending', 499, ?, ?, ?)
+  `).run(submissionId, JSON.stringify(payload), now, now);
+  return submissionId;
+}
+
 function attachPng(req, name = 'dash.png') {
   return req.attach('photo', tinyPngBuffer(), { filename: name, contentType: 'image/png' });
+}
+
+function attachDocument(req, content = 'Work order WO-1042\nTechnician recorded P0301\n', name = 'work-order.txt', kind = 'work_order') {
+  return req
+    .field('kind', kind)
+    .attach('document', Buffer.from(content), { filename: name, contentType: 'text/plain' });
 }
 
 afterAll(() => {
@@ -100,6 +124,69 @@ describe('POST /evidence/:submissionId', () => {
     const fourth = await attachPng(request(app).post(`/evidence/${submissionId}`), 'photo-4.png');
     expect(fourth.status).toBe(400);
     expect(fourth.body.code).toBe('TOO_MANY_PHOTOS');
+  });
+});
+
+describe('POST /evidence/:submissionId/document', () => {
+  test('stores a private work order and extracts text for later AI use', async () => {
+    const submissionId = createPendingSubmissionRow();
+    const res = await attachDocument(request(app).post(`/evidence/${submissionId}/document`));
+
+    expect(res.status).toBe(201);
+    expect(res.body.evidence).toMatchObject({
+      kind: 'work_order',
+      mime: 'text/plain',
+      originalName: 'work-order.txt',
+      status: 'ready'
+    });
+    expect(res.body.evidence).not.toHaveProperty('path');
+
+    const row = db.prepare('SELECT * FROM evidence WHERE id = ?').get(res.body.evidence.id);
+    expect(row.kind).toBe('work_order');
+    expect(row.status).toBe('ready');
+    expect(JSON.parse(row.derived_json).text).toContain('P0301');
+    expect(fs.existsSync(path.join(process.env.EVIDENCE_UPLOADS_DIR, row.path))).toBe(true);
+
+    const listed = await request(app).get(`/evidence/${submissionId}`);
+    expect(listed.body.evidence).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: res.body.evidence.id, kind: 'work_order', originalName: 'work-order.txt' })
+    ]));
+  });
+
+  test('rejects unsupported document formats before storing them', async () => {
+    const submissionId = createPendingSubmissionRow();
+    const res = await request(app)
+      .post(`/evidence/${submissionId}/document`)
+      .field('kind', 'document')
+      .attach('document', Buffer.from('not an executable document'), {
+        filename: 'malware.exe',
+        contentType: 'application/octet-stream'
+      });
+
+    expect(res.status).toBe(400);
+    expect(res.body.code).toBe('UNSUPPORTED_MIME');
+    expect(db.prepare("SELECT COUNT(*) AS count FROM evidence WHERE submission_id = ? AND kind != 'photo'").get(submissionId).count).toBe(0);
+  });
+
+  test('enforces five documents per pending submission', async () => {
+    const submissionId = createPendingSubmissionRow();
+    for (let i = 0; i < 5; i += 1) {
+      const upload = await attachDocument(
+        request(app).post(`/evidence/${submissionId}/document`),
+        `Document ${i}`,
+        `note-${i}.txt`,
+        'document'
+      );
+      expect(upload.status).toBe(201);
+    }
+    const sixth = await attachDocument(
+      request(app).post(`/evidence/${submissionId}/document`),
+      'Document 6',
+      'note-6.txt',
+      'document'
+    );
+    expect(sixth.status).toBe(400);
+    expect(sixth.body.code).toBe('TOO_MANY_DOCUMENTS');
   });
 });
 
@@ -258,5 +345,27 @@ describe('post-pay vision-then-fuse end-to-end', () => {
 
     const subRow = dbHandle.prepare('SELECT status FROM diagnostic_submissions WHERE id = ?').get(submissionId);
     expect(['ready', 'processing']).toContain(subRow.status);
+  });
+
+  test('ready work-order text is fused into the analysis prompt', async () => {
+    const submissionId = createPendingSubmissionRow();
+    const upload = await attachDocument(
+      request(app).post(`/evidence/${submissionId}/document`),
+      'WO-1042\nTechnician recorded P0301 after a cold start.',
+      'WO-1042.txt',
+      'work_order'
+    );
+    expect(upload.status).toBe(201);
+    dbHandle.prepare("UPDATE diagnostic_submissions SET status = 'paid' WHERE id = ?").run(submissionId);
+
+    const analyze = await request(app).post('/analyzeDiagnostic').send({ submissionId });
+    expect(analyze.status).toBe(200);
+
+    const analysisCall = mockCaptureCreate.mock.calls.find((c) => !looksLikeVisionCall(c[0]));
+    expect(analysisCall).toBeTruthy();
+    const userMsg = analysisCall[0].messages.find((m) => m.role === 'user') || analysisCall[0].messages[analysisCall[0].messages.length - 1];
+    expect(String(userMsg.content)).toContain('DOCUMENT EVIDENCE');
+    expect(String(userMsg.content)).toContain('WO-1042');
+    expect(String(userMsg.content)).toContain('cold start');
   });
 });

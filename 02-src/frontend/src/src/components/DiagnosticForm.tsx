@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import {
   Smartphone,
   Camera,
+  FileText,
   Car,
   Ship,
   Wrench,
@@ -713,12 +714,15 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
                   data-testid="photo-upload-handoff"
                 >
                   <div className="flex items-start gap-3">
-                    <Camera className="h-5 w-5 shrink-0 text-primary mt-0.5" />
+                    <div className="flex items-center gap-1.5 shrink-0 text-primary mt-0.5">
+                      <Camera className="h-5 w-5" />
+                      <FileText className="h-4 w-4" />
+                    </div>
                     <div>
-                      <p className="text-sm font-semibold">Have a photo of the issue?</p>
+                      <p className="text-sm font-semibold">Have photos or documents about the issue?</p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Click Review first. On the next step, you can attach up to 3 photos before payment.
-                        Photos are optional.
+                        Click Review first. On the next step, you can attach up to 3 photos plus work orders or
+                        relevant documents before payment. Attachments are optional.
                       </p>
                     </div>
                   </div>

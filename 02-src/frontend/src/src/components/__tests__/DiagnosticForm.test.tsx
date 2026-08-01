@@ -53,7 +53,7 @@ describe("DiagnosticForm Component", () => {
 
     expect(getByText("Review")).toBeInTheDocument();
     expect(getByTestId("photo-upload-handoff")).toHaveTextContent(
-      "On the next step, you can attach up to 3 photos before payment"
+      "On the next step, you can attach up to 3 photos plus work orders or relevant documents before payment"
     );
   });
 

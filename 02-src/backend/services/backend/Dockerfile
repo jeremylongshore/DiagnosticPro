@@ -22,6 +22,7 @@ ENV NODE_ENV=production
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
       pandoc \
+      poppler-utils \
       python3 \
       texlive-xetex \
       texlive-fonts-recommended \

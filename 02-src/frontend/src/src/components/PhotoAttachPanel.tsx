@@ -43,7 +43,7 @@ export const PhotoAttachPanel = ({ submissionId, transport = defaultEvidenceTran
     setLoading(true);
     listEvidence(submissionId, transport)
       .then((list) => {
-        if (!cancelled) setItems(list);
+        if (!cancelled) setItems(list.filter((item) => item.kind === 'photo'));
       })
       .catch((err: unknown) => {
         if (!cancelled) setError(err instanceof Error ? err.message : 'Failed to load photos');

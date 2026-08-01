@@ -1,5 +1,5 @@
 /**
- * Evidence service for the optional photo-attachment flow.
+ * Evidence service for optional photo, work-order, and document attachments.
  * Mirrors the backend POST /evidence/:submissionId, GET /evidence/:submissionId,
  * DELETE /evidence/:submissionId/:evidenceId routes (02-src/backend/.../index.js).
  *
@@ -13,14 +13,19 @@ const BASE = getEnv('VITE_EDGE_BASE') || getEnv('VITE_API_BASE') || '';
 
 export interface EvidenceItem {
   id: string;
-  kind: 'photo' | string;
+  kind: 'photo' | 'work_order' | 'document' | string;
   mime: string;
   bytes: number;
   sha256?: string;
-  status: 'uploaded' | 'ready' | 'failed' | 'deleted';
+  status: 'uploaded' | 'ready' | 'needs_ocr' | 'failed' | 'deleted' | string;
   original_name?: string;
+  originalName?: string;
+  textChars?: number;
+  createdAt?: string;
   created_at?: string;
 }
+
+export type DocumentKind = 'work_order' | 'document';
 
 export interface ListEvidenceResponse {
   evidence: EvidenceItem[];
@@ -70,6 +75,28 @@ async function uploadEvidenceRaw(submissionId: string, blob: Blob, filename: str
   return (await res.json()) as { evidence: EvidenceItem };
 }
 
+async function uploadDocumentRaw(
+  submissionId: string,
+  blob: Blob,
+  filename: string,
+  kind: DocumentKind
+): Promise<{ evidence: EvidenceItem }> {
+  const form = new FormData();
+  form.append('document', blob, filename);
+  form.append('kind', kind);
+  const res = await fetch(`${BASE}/evidence/${encodeURIComponent(submissionId)}/document`, {
+    method: 'POST',
+    headers: { ...authHeaders() },
+    body: form,
+    credentials: 'omit'
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`upload document failed: ${res.status} ${text}`);
+  }
+  return (await res.json()) as { evidence: EvidenceItem };
+}
+
 async function deleteEvidenceRaw(submissionId: string, evidenceId: string): Promise<void> {
   const res = await fetch(`${BASE}/evidence/${encodeURIComponent(submissionId)}/${encodeURIComponent(evidenceId)}`, {
     method: 'DELETE',
@@ -91,9 +118,21 @@ export interface EvidenceTransport {
   remove: (submissionId: string, evidenceId: string) => Promise<void>;
 }
 
+export interface DocumentEvidenceTransport {
+  list: (submissionId: string) => Promise<ListEvidenceResponse>;
+  upload: (submissionId: string, blob: Blob, filename: string, kind: DocumentKind) => Promise<{ evidence: EvidenceItem }>;
+  remove: (submissionId: string, evidenceId: string) => Promise<void>;
+}
+
 export const defaultEvidenceTransport: EvidenceTransport = {
   list: listEvidenceRaw,
   upload: uploadEvidenceRaw,
+  remove: deleteEvidenceRaw
+};
+
+export const defaultDocumentEvidenceTransport: DocumentEvidenceTransport = {
+  list: listEvidenceRaw,
+  upload: uploadDocumentRaw,
   remove: deleteEvidenceRaw
 };
 
@@ -102,6 +141,16 @@ export const defaultEvidenceTransport: EvidenceTransport = {
 export async function listEvidence(submissionId: string, transport: EvidenceTransport = defaultEvidenceTransport): Promise<EvidenceItem[]> {
   const r = await transport.list(submissionId);
   return (r.evidence || []).filter((e) => e.status !== 'deleted');
+}
+
+export async function listDocumentEvidence(
+  submissionId: string,
+  transport: DocumentEvidenceTransport = defaultDocumentEvidenceTransport
+): Promise<EvidenceItem[]> {
+  const r = await transport.list(submissionId);
+  return (r.evidence || []).filter(
+    (e) => e.status !== 'deleted' && (e.kind === 'work_order' || e.kind === 'document')
+  );
 }
 
 export async function uploadEvidence(
@@ -114,10 +163,21 @@ export async function uploadEvidence(
   return r.evidence;
 }
 
+export async function uploadDocument(
+  submissionId: string,
+  blob: Blob,
+  filename: string,
+  kind: DocumentKind,
+  transport: DocumentEvidenceTransport = defaultDocumentEvidenceTransport
+): Promise<EvidenceItem> {
+  const r = await transport.upload(submissionId, blob, filename, kind);
+  return r.evidence;
+}
+
 export async function deleteEvidence(
   submissionId: string,
   evidenceId: string,
-  transport: EvidenceTransport = defaultEvidenceTransport
+  transport: Pick<EvidenceTransport, 'remove'> = defaultEvidenceTransport
 ): Promise<void> {
   return transport.remove(submissionId, evidenceId);
 }

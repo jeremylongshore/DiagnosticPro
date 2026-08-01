@@ -6,6 +6,7 @@ import { Edit } from "lucide-react";
 import { startAnalysis } from "@/services/diagnostics";
 import { useToast } from "@/components/ui/use-toast";
 import PhotoAttachPanel from "@/components/PhotoAttachPanel";
+import DocumentAttachPanel from "@/components/DocumentAttachPanel";
 import type { FormData } from "./DiagnosticForm";
 
 // Stripe Checkout only. Whop membership UI is deferred (backend left intact).
@@ -266,8 +267,8 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
               Confirm your details
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              Check the information below, attach up to 3 photos if they help show the issue, then pay $4.99
-              for your diagnostic report.
+              Check the information below, attach photos or work-order documents if they help show the issue, then pay
+              $4.99 for your diagnostic report.
             </p>
           </div>
 
@@ -372,11 +373,12 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
             </CardContent>
           </Card>
 
-          {/* Optional photo evidence — appears once submissionId is known.
-              Photo attach is non-blocking; the pay button stays enabled either way. */}
+          {/* Optional evidence — appears once submissionId is known. Attachments
+              are non-blocking; the pay button stays enabled either way. */}
           {isDataSaved && submissionId && (
-            <div className="mb-6">
+            <div className="mb-6 space-y-4">
               <PhotoAttachPanel submissionId={submissionId} />
+              <DocumentAttachPanel submissionId={submissionId} />
             </div>
           )}
 
