@@ -99,11 +99,14 @@ describe('POST /saveSubmission', () => {
     const res = await request(app).post('/saveSubmission').send({ payload });
     expect(res.status).toBe(200);
     expect(res.body.submissionId).toMatch(/^diag_\d{13}_[0-9a-f]{8}$/);
+    expect(res.body.evidenceToken).toMatch(/^[A-Za-z0-9_-]{40,}$/);
 
     const row = db.prepare('SELECT * FROM diagnostic_submissions WHERE id = ?').get(res.body.submissionId);
     expect(row.status).toBe('pending');
     expect(row.price_cents).toBe(499);
     expect(row.payload_key_count).toBe(6);
+    expect(row.evidence_token_hash).toMatch(/^[a-f0-9]{64}$/);
+    expect(row.evidence_token_hash).not.toBe(res.body.evidenceToken);
     expect(JSON.parse(row.payload).model).toBe('T680');
   });
 

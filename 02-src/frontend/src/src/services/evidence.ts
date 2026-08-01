@@ -35,21 +35,28 @@ interface RawApi {
   api: <T>(path: string, init?: RequestInit) => Promise<T>;
 }
 
-function authHeaders(): Record<string, string> {
+function authHeaders(evidenceToken = ''): Record<string, string> {
+  const headers: Record<string, string> = {};
+  let whopToken = '';
   try {
-    const whopToken = localStorage.getItem('whop_token');
-    if (whopToken) return { 'x-whop-token': whopToken };
+    whopToken = localStorage.getItem('whop_token') || '';
   } catch {
     // ignore localStorage access errors (SSR / private mode); fall through to env-key fallback.
   }
-  const apiKey = getEnv('VITE_API_KEY');
-  return apiKey ? { 'x-api-key': apiKey } : {};
+  if (whopToken) {
+    headers['x-whop-token'] = whopToken;
+  } else {
+    const apiKey = getEnv('VITE_API_KEY');
+    if (apiKey) headers['x-api-key'] = apiKey;
+  }
+  if (evidenceToken) headers['x-evidence-token'] = evidenceToken;
+  return headers;
 }
 
-async function listEvidenceRaw(submissionId: string): Promise<ListEvidenceResponse> {
+async function listEvidenceRaw(submissionId: string, evidenceToken = ''): Promise<ListEvidenceResponse> {
   const res = await fetch(`${BASE}/evidence/${encodeURIComponent(submissionId)}`, {
     method: 'GET',
-    headers: { ...authHeaders() },
+    headers: { ...authHeaders(evidenceToken) },
     credentials: 'omit'
   });
   if (!res.ok) {
@@ -58,13 +65,13 @@ async function listEvidenceRaw(submissionId: string): Promise<ListEvidenceRespon
   return (await res.json()) as ListEvidenceResponse;
 }
 
-async function uploadEvidenceRaw(submissionId: string, blob: Blob, filename: string): Promise<{ evidence: EvidenceItem }> {
+async function uploadEvidenceRaw(submissionId: string, blob: Blob, filename: string, evidenceToken = ''): Promise<{ evidence: EvidenceItem }> {
   const form = new FormData();
   // The backend's multer is configured with field name 'photo'.
   form.append('photo', blob, filename);
   const res = await fetch(`${BASE}/evidence/${encodeURIComponent(submissionId)}`, {
     method: 'POST',
-    headers: { ...authHeaders() },
+    headers: { ...authHeaders(evidenceToken) },
     body: form,
     credentials: 'omit'
   });
@@ -79,14 +86,15 @@ async function uploadDocumentRaw(
   submissionId: string,
   blob: Blob,
   filename: string,
-  kind: DocumentKind
+  kind: DocumentKind,
+  evidenceToken = ''
 ): Promise<{ evidence: EvidenceItem }> {
   const form = new FormData();
   form.append('document', blob, filename);
   form.append('kind', kind);
   const res = await fetch(`${BASE}/evidence/${encodeURIComponent(submissionId)}/document`, {
     method: 'POST',
-    headers: { ...authHeaders() },
+    headers: { ...authHeaders(evidenceToken) },
     body: form,
     credentials: 'omit'
   });
@@ -97,10 +105,10 @@ async function uploadDocumentRaw(
   return (await res.json()) as { evidence: EvidenceItem };
 }
 
-async function deleteEvidenceRaw(submissionId: string, evidenceId: string): Promise<void> {
+async function deleteEvidenceRaw(submissionId: string, evidenceId: string, evidenceToken = ''): Promise<void> {
   const res = await fetch(`${BASE}/evidence/${encodeURIComponent(submissionId)}/${encodeURIComponent(evidenceId)}`, {
     method: 'DELETE',
-    headers: { ...authHeaders() },
+    headers: { ...authHeaders(evidenceToken) },
     credentials: 'omit'
   });
   if (!res.ok && res.status !== 204) {
@@ -113,15 +121,15 @@ async function deleteEvidenceRaw(submissionId: string, evidenceId: string): Prom
  * the network boundary without touching the component.
  */
 export interface EvidenceTransport {
-  list: (submissionId: string) => Promise<ListEvidenceResponse>;
-  upload: (submissionId: string, blob: Blob, filename: string) => Promise<{ evidence: EvidenceItem }>;
-  remove: (submissionId: string, evidenceId: string) => Promise<void>;
+  list: (submissionId: string, evidenceToken?: string) => Promise<ListEvidenceResponse>;
+  upload: (submissionId: string, blob: Blob, filename: string, evidenceToken?: string) => Promise<{ evidence: EvidenceItem }>;
+  remove: (submissionId: string, evidenceId: string, evidenceToken?: string) => Promise<void>;
 }
 
 export interface DocumentEvidenceTransport {
-  list: (submissionId: string) => Promise<ListEvidenceResponse>;
-  upload: (submissionId: string, blob: Blob, filename: string, kind: DocumentKind) => Promise<{ evidence: EvidenceItem }>;
-  remove: (submissionId: string, evidenceId: string) => Promise<void>;
+  list: (submissionId: string, evidenceToken?: string) => Promise<ListEvidenceResponse>;
+  upload: (submissionId: string, blob: Blob, filename: string, kind: DocumentKind, evidenceToken?: string) => Promise<{ evidence: EvidenceItem }>;
+  remove: (submissionId: string, evidenceId: string, evidenceToken?: string) => Promise<void>;
 }
 
 export const defaultEvidenceTransport: EvidenceTransport = {
@@ -138,16 +146,21 @@ export const defaultDocumentEvidenceTransport: DocumentEvidenceTransport = {
 
 // Convenience exports — used by tests and components alike. Each takes an
 // optional transport (defaults to the raw fetch impl).
-export async function listEvidence(submissionId: string, transport: EvidenceTransport = defaultEvidenceTransport): Promise<EvidenceItem[]> {
-  const r = await transport.list(submissionId);
+export async function listEvidence(
+  submissionId: string,
+  transport: EvidenceTransport = defaultEvidenceTransport,
+  evidenceToken = ''
+): Promise<EvidenceItem[]> {
+  const r = await transport.list(submissionId, evidenceToken);
   return (r.evidence || []).filter((e) => e.status !== 'deleted');
 }
 
 export async function listDocumentEvidence(
   submissionId: string,
-  transport: DocumentEvidenceTransport = defaultDocumentEvidenceTransport
+  transport: DocumentEvidenceTransport = defaultDocumentEvidenceTransport,
+  evidenceToken = ''
 ): Promise<EvidenceItem[]> {
-  const r = await transport.list(submissionId);
+  const r = await transport.list(submissionId, evidenceToken);
   return (r.evidence || []).filter(
     (e) => e.status !== 'deleted' && (e.kind === 'work_order' || e.kind === 'document')
   );
@@ -157,9 +170,10 @@ export async function uploadEvidence(
   submissionId: string,
   blob: Blob,
   filename: string,
-  transport: EvidenceTransport = defaultEvidenceTransport
+  transport: EvidenceTransport = defaultEvidenceTransport,
+  evidenceToken = ''
 ): Promise<EvidenceItem> {
-  const r = await transport.upload(submissionId, blob, filename);
+  const r = await transport.upload(submissionId, blob, filename, evidenceToken);
   return r.evidence;
 }
 
@@ -168,18 +182,20 @@ export async function uploadDocument(
   blob: Blob,
   filename: string,
   kind: DocumentKind,
-  transport: DocumentEvidenceTransport = defaultDocumentEvidenceTransport
+  transport: DocumentEvidenceTransport = defaultDocumentEvidenceTransport,
+  evidenceToken = ''
 ): Promise<EvidenceItem> {
-  const r = await transport.upload(submissionId, blob, filename, kind);
+  const r = await transport.upload(submissionId, blob, filename, kind, evidenceToken);
   return r.evidence;
 }
 
 export async function deleteEvidence(
   submissionId: string,
   evidenceId: string,
-  transport: Pick<EvidenceTransport, 'remove'> = defaultEvidenceTransport
+  transport: Pick<EvidenceTransport, 'remove'> = defaultEvidenceTransport,
+  evidenceToken = ''
 ): Promise<void> {
-  return transport.remove(submissionId, evidenceId);
+  return transport.remove(submissionId, evidenceId, evidenceToken);
 }
 
 // Re-export the raw transport so tests can mock the network layer explicitly.

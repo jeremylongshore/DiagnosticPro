@@ -16,6 +16,7 @@ const MAX_PHOTOS = 3;
 
 export interface PhotoAttachPanelProps {
   submissionId: string;
+  evidenceToken: string;
   transport?: EvidenceTransport;
   disabled?: boolean;
 }
@@ -26,7 +27,7 @@ interface PendingUpload {
   previewUrl: string;
 }
 
-export const PhotoAttachPanel = ({ submissionId, transport = defaultEvidenceTransport, disabled = false }: PhotoAttachPanelProps) => {
+export const PhotoAttachPanel = ({ submissionId, evidenceToken, transport = defaultEvidenceTransport, disabled = false }: PhotoAttachPanelProps) => {
   const [items, setItems] = useState<EvidenceItem[]>([]);
   const [pending, setPending] = useState<PendingUpload[]>([]);
   const [loading, setLoading] = useState(false);
@@ -41,7 +42,7 @@ export const PhotoAttachPanel = ({ submissionId, transport = defaultEvidenceTran
     let cancelled = false;
     if (!submissionId) return;
     setLoading(true);
-    listEvidence(submissionId, transport)
+    listEvidence(submissionId, transport, evidenceToken)
       .then((list) => {
         if (!cancelled) setItems(list.filter((item) => item.kind === 'photo'));
       })
@@ -54,7 +55,7 @@ export const PhotoAttachPanel = ({ submissionId, transport = defaultEvidenceTran
     return () => {
       cancelled = true;
     };
-  }, [submissionId, transport]);
+  }, [submissionId, transport, evidenceToken]);
 
   // Revoke object URLs on unmount.
   useEffect(() => {
@@ -105,7 +106,7 @@ export const PhotoAttachPanel = ({ submissionId, transport = defaultEvidenceTran
       for (const p of pending) {
         const compressed = await compressImage(p.file);
         const filename = p.file.name || `photo-${Date.now()}.jpg`;
-        const item = await uploadEvidence(submissionId, compressed, filename, transport);
+        const item = await uploadEvidence(submissionId, compressed, filename, transport, evidenceToken);
         setItems((existing) => [...existing, item]);
         URL.revokeObjectURL(p.previewUrl);
       }
@@ -126,7 +127,7 @@ export const PhotoAttachPanel = ({ submissionId, transport = defaultEvidenceTran
   async function removeUploaded(id: string) {
     setError(null);
     try {
-      await deleteEvidence(submissionId, id, transport);
+      await deleteEvidence(submissionId, id, transport, evidenceToken);
       setItems((existing) => existing.filter((e) => e.id !== id));
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : 'Delete failed';

@@ -16,8 +16,14 @@ const app = require('../index.js');
 const { getDb, closeDb } = require('../db');
 const { tinyPngBuffer } = require('./fixtures/evidence-seeds');
 const { DEFAULT_MAX_BYTES } = require('../evidence/promptEvidence');
+const {
+  EVIDENCE_TOKEN_HEADER,
+  createEvidenceToken,
+  hashEvidenceToken
+} = require('../evidence/access');
 
 const db = getDb();
+const evidenceTokens = new Map();
 
 async function createPendingSubmission() {
   const res = await request(app).post('/saveSubmission').send({
@@ -30,12 +36,15 @@ async function createPendingSubmission() {
     }
   });
   expect(res.status).toBe(200);
+  expect(res.body.evidenceToken).toEqual(expect.any(String));
+  evidenceTokens.set(res.body.submissionId, res.body.evidenceToken);
   return res.body.submissionId;
 }
 
 function createPendingSubmissionRow() {
   const submissionId = `diag_${Date.now()}_${require('crypto').randomBytes(4).toString('hex')}`;
   const now = new Date().toISOString();
+  const evidenceToken = createEvidenceToken();
   const payload = {
     equipmentType: 'automotive',
     make: 'Toyota',
@@ -45,18 +54,25 @@ function createPendingSubmissionRow() {
   };
   db.prepare(`
     INSERT INTO diagnostic_submissions
-      (id, status, price_cents, payload, created_at, updated_at)
-    VALUES (?, 'pending', 499, ?, ?, ?)
-  `).run(submissionId, JSON.stringify(payload), now, now);
+      (id, status, price_cents, payload, evidence_token_hash, created_at, updated_at)
+    VALUES (?, 'pending', 499, ?, ?, ?, ?)
+  `).run(submissionId, JSON.stringify(payload), hashEvidenceToken(evidenceToken), now, now);
+  evidenceTokens.set(submissionId, evidenceToken);
   return submissionId;
 }
 
+function tokenForRequest(req) {
+  const match = String(req.url || '').match(/\/evidence\/([^/]+)/);
+  const submissionId = match ? decodeURIComponent(match[1]) : '';
+  return req.set(EVIDENCE_TOKEN_HEADER, evidenceTokens.get(submissionId));
+}
+
 function attachPng(req, name = 'dash.png') {
-  return req.attach('photo', tinyPngBuffer(), { filename: name, contentType: 'image/png' });
+  return tokenForRequest(req).attach('photo', tinyPngBuffer(), { filename: name, contentType: 'image/png' });
 }
 
 function attachDocument(req, content = 'Work order WO-1042\nTechnician recorded P0301\n', name = 'work-order.txt', kind = 'work_order') {
-  return req
+  return tokenForRequest(req)
     .field('kind', kind)
     .attach('document', Buffer.from(content), { filename: name, contentType: 'text/plain' });
 }
@@ -95,8 +111,8 @@ describe('POST /evidence/:submissionId', () => {
 
   test('rejects a MIME type outside jpeg/png/webp', async () => {
     const submissionId = await createPendingSubmission();
-    const res = await request(app)
-      .post(`/evidence/${submissionId}`)
+    const res = await tokenForRequest(request(app)
+      .post(`/evidence/${submissionId}`))
       .attach('photo', Buffer.from('not an image'), { filename: 'bad.gif', contentType: 'image/gif' });
 
     expect(res.status).toBe(400);
@@ -106,8 +122,8 @@ describe('POST /evidence/:submissionId', () => {
 
   test('rejects a file larger than 2 MiB before it is written', async () => {
     const submissionId = await createPendingSubmission();
-    const res = await request(app)
-      .post(`/evidence/${submissionId}`)
+    const res = await tokenForRequest(request(app)
+      .post(`/evidence/${submissionId}`))
       .attach('photo', Buffer.alloc(DEFAULT_MAX_BYTES + 1), { filename: 'large.png', contentType: 'image/png' });
 
     expect(res.status).toBe(413);
@@ -147,7 +163,7 @@ describe('POST /evidence/:submissionId/document', () => {
     expect(JSON.parse(row.derived_json).text).toContain('P0301');
     expect(fs.existsSync(path.join(process.env.EVIDENCE_UPLOADS_DIR, row.path))).toBe(true);
 
-    const listed = await request(app).get(`/evidence/${submissionId}`);
+    const listed = await tokenForRequest(request(app).get(`/evidence/${submissionId}`));
     expect(listed.body.evidence).toEqual(expect.arrayContaining([
       expect.objectContaining({ id: res.body.evidence.id, kind: 'work_order', originalName: 'work-order.txt' })
     ]));
@@ -155,8 +171,8 @@ describe('POST /evidence/:submissionId/document', () => {
 
   test('rejects unsupported document formats before storing them', async () => {
     const submissionId = createPendingSubmissionRow();
-    const res = await request(app)
-      .post(`/evidence/${submissionId}/document`)
+    const res = await tokenForRequest(request(app)
+      .post(`/evidence/${submissionId}/document`))
       .field('kind', 'document')
       .attach('document', Buffer.from('not an executable document'), {
         filename: 'malware.exe',
@@ -188,6 +204,32 @@ describe('POST /evidence/:submissionId/document', () => {
     expect(sixth.status).toBe(400);
     expect(sixth.body.code).toBe('TOO_MANY_DOCUMENTS');
   });
+
+  test('rejects missing and incorrect evidence tokens', async () => {
+    const submissionId = createPendingSubmissionRow();
+    const missing = await request(app).get(`/evidence/${submissionId}`);
+    expect(missing.status).toBe(401);
+    expect(missing.body.code).toBe('EVIDENCE_UNAUTHORIZED');
+
+    const incorrect = await request(app)
+      .get(`/evidence/${submissionId}`)
+      .set(EVIDENCE_TOKEN_HEADER, createEvidenceToken());
+    expect(incorrect.status).toBe(401);
+    expect(incorrect.body.code).toBe('EVIDENCE_UNAUTHORIZED');
+
+    const otherSubmissionId = createPendingSubmissionRow();
+    const crossSubmission = await request(app)
+      .get(`/evidence/${otherSubmissionId}`)
+      .set(EVIDENCE_TOKEN_HEADER, evidenceTokens.get(submissionId));
+    expect(crossSubmission.status).toBe(401);
+    expect(crossSubmission.body.code).toBe('EVIDENCE_UNAUTHORIZED');
+
+    const guessed = await request(app)
+      .get('/evidence/diag_1730421000003_deadbeef')
+      .set(EVIDENCE_TOKEN_HEADER, evidenceTokens.get(submissionId));
+    expect(guessed.status).toBe(404);
+    expect(guessed.body.code).toBe('SUBMISSION_NOT_FOUND');
+  });
 });
 
 describe('GET and DELETE /evidence', () => {
@@ -198,19 +240,19 @@ describe('GET and DELETE /evidence', () => {
     const row = db.prepare('SELECT path FROM evidence WHERE id = ?').get(evidenceId);
     const filePath = path.join(process.env.EVIDENCE_UPLOADS_DIR, row.path);
 
-    const listed = await request(app).get(`/evidence/${submissionId}`);
+    const listed = await tokenForRequest(request(app).get(`/evidence/${submissionId}`));
     expect(listed.status).toBe(200);
     expect(listed.body.evidence).toHaveLength(1);
     expect(listed.body.evidence[0]).toEqual(expect.objectContaining({ id: evidenceId, mime: 'image/png' }));
     expect(listed.body.evidence[0]).not.toHaveProperty('path');
     expect(listed.body.evidence[0]).not.toHaveProperty('url');
 
-    const deleted = await request(app).delete(`/evidence/${submissionId}/${evidenceId}`);
+    const deleted = await tokenForRequest(request(app).delete(`/evidence/${submissionId}/${evidenceId}`));
     expect(deleted.status).toBe(204);
     expect(fs.existsSync(filePath)).toBe(false);
     expect(db.prepare('SELECT status FROM evidence WHERE id = ?').get(evidenceId)).toEqual({ status: 'deleted' });
 
-    const afterDelete = await request(app).get(`/evidence/${submissionId}`);
+    const afterDelete = await tokenForRequest(request(app).get(`/evidence/${submissionId}`));
     expect(afterDelete.body.evidence).toEqual([]);
   });
 
@@ -223,7 +265,7 @@ describe('GET and DELETE /evidence', () => {
     expect(another.status).toBe(409);
     expect(another.body.code).toBe('EVIDENCE_LOCKED');
 
-    const deleted = await request(app).delete(`/evidence/${submissionId}/${upload.body.evidence.id}`);
+    const deleted = await tokenForRequest(request(app).delete(`/evidence/${submissionId}/${upload.body.evidence.id}`));
     expect(deleted.status).toBe(409);
     expect(deleted.body.code).toBe('EVIDENCE_LOCKED');
   });

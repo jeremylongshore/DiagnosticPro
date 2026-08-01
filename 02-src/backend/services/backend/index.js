@@ -37,6 +37,12 @@ const {
   applyVisionResults
 } = require('./evidence/vision.js');
 const { startSweeper } = require('./evidence/sweeper.js');
+const {
+  EVIDENCE_TOKEN_HEADER,
+  createEvidenceToken,
+  hashEvidenceToken,
+  isEvidenceTokenValid
+} = require('./evidence/access.js');
 
 // Structured logging function
 function logStructured(data) {
@@ -266,7 +272,7 @@ app.use(cors({
   origin: ['https://diagnosticpro.io', 'https://diagnostic-pro-prod.web.app', 'https://diagpro-gw-3tbssksx.uc.gateway.dev'],
   credentials: true,
   methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'x-api-key', 'x-dp-reqid', 'Authorization', 'x-whop-token']
+  allowedHeaders: ['Content-Type', 'x-api-key', 'x-dp-reqid', 'Authorization', 'x-whop-token', EVIDENCE_TOKEN_HEADER]
 }));
 
 // Rate limiters
@@ -364,24 +370,36 @@ function evidenceError(res, status, code, error) {
   return res.status(status).json({ error, code });
 }
 
-function findPendingEvidenceSubmission(submissionId) {
+function findEvidenceSubmission(submissionId, evidenceToken, pendingOnly = false) {
   if (!isValidSubmissionId(submissionId)) return { error: 'invalid' };
   const submission = db.prepare(
-    'SELECT id, status FROM diagnostic_submissions WHERE id = ?'
+    'SELECT id, status, evidence_token_hash FROM diagnostic_submissions WHERE id = ?'
   ).get(submissionId);
   if (!submission) return { error: 'missing' };
-  if (submission.status !== 'pending') return { error: 'locked' };
+  if (!isEvidenceTokenValid(submission.evidence_token_hash, evidenceToken)) return { error: 'unauthorized' };
+  if (pendingOnly && submission.status !== 'pending') return { error: 'locked' };
   return { submission };
+}
+
+function findPendingEvidenceSubmission(submissionId, evidenceToken) {
+  return findEvidenceSubmission(submissionId, evidenceToken, true);
+}
+
+function handleEvidenceLookupError(res, lookup, lockedMessage) {
+  if (lookup.error === 'invalid') return evidenceError(res, 400, 'INVALID_SUBMISSION_ID', 'Invalid submission ID');
+  if (lookup.error === 'missing') return evidenceError(res, 404, 'SUBMISSION_NOT_FOUND', 'Submission not found');
+  if (lookup.error === 'unauthorized') return evidenceError(res, 401, 'EVIDENCE_UNAUTHORIZED', 'Evidence access is not authorized');
+  if (lookup.error === 'locked') return evidenceError(res, 409, 'EVIDENCE_LOCKED', lockedMessage);
+  return null;
 }
 
 // POST /evidence/:submissionId — attach one optional photo after the form is
 // saved and before payment. There is deliberately no GET-by-file endpoint.
 app.post('/evidence/:submissionId', evidenceLimiter, (req, res) => {
   const { submissionId } = req.params;
-  const lookup = findPendingEvidenceSubmission(submissionId);
-  if (lookup.error === 'invalid') return evidenceError(res, 400, 'INVALID_SUBMISSION_ID', 'Invalid submission ID');
-  if (lookup.error === 'missing') return evidenceError(res, 404, 'SUBMISSION_NOT_FOUND', 'Submission not found');
-  if (lookup.error === 'locked') return evidenceError(res, 409, 'EVIDENCE_LOCKED', 'Photos can only be changed before payment');
+  const lookup = findPendingEvidenceSubmission(submissionId, req.get(EVIDENCE_TOKEN_HEADER));
+  const lookupError = handleEvidenceLookupError(res, lookup, 'Photos can only be changed before payment');
+  if (lookupError) return lookupError;
 
   evidenceUpload.single('photo')(req, res, (uploadError) => {
     if (uploadError) {
@@ -465,10 +483,9 @@ app.post('/evidence/:submissionId', evidenceLimiter, (req, res) => {
 // the original file remains private on the uploads volume.
 app.post('/evidence/:submissionId/document', evidenceLimiter, (req, res) => {
   const { submissionId } = req.params;
-  const lookup = findPendingEvidenceSubmission(submissionId);
-  if (lookup.error === 'invalid') return evidenceError(res, 400, 'INVALID_SUBMISSION_ID', 'Invalid submission ID');
-  if (lookup.error === 'missing') return evidenceError(res, 404, 'SUBMISSION_NOT_FOUND', 'Submission not found');
-  if (lookup.error === 'locked') return evidenceError(res, 409, 'EVIDENCE_LOCKED', 'Documents can only be changed before payment');
+  const lookup = findPendingEvidenceSubmission(submissionId, req.get(EVIDENCE_TOKEN_HEADER));
+  const lookupError = handleEvidenceLookupError(res, lookup, 'Documents can only be changed before payment');
+  if (lookupError) return lookupError;
 
   documentUpload.single('document')(req, res, async (uploadError) => {
     if (uploadError) {
@@ -585,9 +602,9 @@ app.post('/evidence/:submissionId/document', evidenceLimiter, (req, res) => {
 // private image bytes are never served by this application.
 app.get('/evidence/:submissionId', evidenceLimiter, (req, res) => {
   const { submissionId } = req.params;
-  if (!isValidSubmissionId(submissionId)) return evidenceError(res, 400, 'INVALID_SUBMISSION_ID', 'Invalid submission ID');
-  const submission = db.prepare('SELECT id FROM diagnostic_submissions WHERE id = ?').get(submissionId);
-  if (!submission) return evidenceError(res, 404, 'SUBMISSION_NOT_FOUND', 'Submission not found');
+  const lookup = findEvidenceSubmission(submissionId, req.get(EVIDENCE_TOKEN_HEADER));
+  const lookupError = handleEvidenceLookupError(res, lookup, 'Evidence can only be changed before payment');
+  if (lookupError) return lookupError;
   const evidence = db.prepare(`
     SELECT id, kind, mime, bytes, status, original_name AS originalName, created_at AS createdAt
     FROM evidence WHERE submission_id = ? AND status != 'deleted' ORDER BY created_at ASC
@@ -599,10 +616,9 @@ app.get('/evidence/:submissionId', evidenceLimiter, (req, res) => {
 // attachment while the associated submission is still unpaid/pending.
 app.delete('/evidence/:submissionId/:evidenceId', evidenceLimiter, (req, res) => {
   const { submissionId, evidenceId } = req.params;
-  const lookup = findPendingEvidenceSubmission(submissionId);
-  if (lookup.error === 'invalid') return evidenceError(res, 400, 'INVALID_SUBMISSION_ID', 'Invalid submission ID');
-  if (lookup.error === 'missing') return evidenceError(res, 404, 'SUBMISSION_NOT_FOUND', 'Submission not found');
-  if (lookup.error === 'locked') return evidenceError(res, 409, 'EVIDENCE_LOCKED', 'Attachments can only be changed before payment');
+  const lookup = findPendingEvidenceSubmission(submissionId, req.get(EVIDENCE_TOKEN_HEADER));
+  const lookupError = handleEvidenceLookupError(res, lookup, 'Attachments can only be changed before payment');
+  if (lookupError) return lookupError;
 
   const evidence = db.prepare(
     "SELECT id, path FROM evidence WHERE id = ? AND submission_id = ? AND status != 'deleted'"
@@ -654,6 +670,7 @@ app.post('/saveSubmission', submissionLimiter, async (req, res) => {
 
     // Generate submission ID
     submissionId = `diag_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+    const evidenceToken = createEvidenceToken();
 
     // Prepare document for SQLite (replaces Firestore)
     const now = new Date().toISOString();
@@ -666,8 +683,8 @@ app.post('/saveSubmission', submissionLimiter, async (req, res) => {
 
     const stmt = db.prepare(`
       INSERT OR REPLACE INTO diagnostic_submissions
-      (id, status, price_cents, payload, req_id, ui_version, payload_key_count, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      (id, status, price_cents, payload, req_id, ui_version, payload_key_count, evidence_token_hash, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     stmt.run(
       submissionId,
@@ -677,6 +694,7 @@ app.post('/saveSubmission', submissionLimiter, async (req, res) => {
       req.reqId,
       '1.0',
       Object.keys(payload).length,
+      hashEvidenceToken(evidenceToken),
       now,
       now
     );
@@ -690,7 +708,7 @@ app.post('/saveSubmission', submissionLimiter, async (req, res) => {
       payloadKeys: Object.keys(payload)
     });
 
-    res.json({ submissionId });
+    res.json({ submissionId, evidenceToken });
 
   } catch (error) {
     logStructured({

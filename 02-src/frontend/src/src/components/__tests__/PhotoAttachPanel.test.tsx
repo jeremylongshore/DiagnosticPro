@@ -4,6 +4,8 @@ import "@testing-library/jest-dom";
 import { PhotoAttachPanel } from "../PhotoAttachPanel";
 import type { EvidenceItem, EvidenceTransport } from "@/services/evidence";
 
+const TEST_EVIDENCE_TOKEN = 'test-evidence-token';
+
 // jsdom does not implement URL.createObjectURL / revokeObjectURL. Stub them.
 if (typeof URL.createObjectURL !== 'function') {
   URL.createObjectURL = () => 'blob:mock';
@@ -53,7 +55,7 @@ function makeTransport(overrides: Partial<EvidenceTransport> = {}): EvidenceTran
 describe('PhotoAttachPanel', () => {
   it('renders the heading + helper copy', async () => {
     const transport = makeTransport();
-    render(<PhotoAttachPanel submissionId="sub_1" transport={transport} />);
+    render(<PhotoAttachPanel submissionId="sub_1" evidenceToken={TEST_EVIDENCE_TOKEN} transport={transport} />);
     expect(screen.getByText(/Optional: Attach photos/i)).toBeInTheDocument();
     expect(screen.getByText(/Compressed to 1280 px max/i)).toBeInTheDocument();
   });
@@ -66,8 +68,8 @@ describe('PhotoAttachPanel', () => {
       ]
     }));
     const transport = makeTransport({ list });
-    render(<PhotoAttachPanel submissionId="sub_1" transport={transport} />);
-    await waitFor(() => expect(list).toHaveBeenCalledWith('sub_1'));
+    render(<PhotoAttachPanel submissionId="sub_1" evidenceToken={TEST_EVIDENCE_TOKEN} transport={transport} />);
+    await waitFor(() => expect(list).toHaveBeenCalledWith('sub_1', TEST_EVIDENCE_TOKEN));
     await waitFor(() => expect(screen.getByTestId('photo-remove-ev_a')).toBeInTheDocument());
     expect(screen.getByTestId('photo-remove-ev_b')).toBeInTheDocument();
     expect(screen.getByText(/queued for report/i)).toBeInTheDocument();
@@ -75,7 +77,7 @@ describe('PhotoAttachPanel', () => {
 
   it('rejects unsupported MIME and surfaces error text', async () => {
     const transport = makeTransport();
-    render(<PhotoAttachPanel submissionId="sub_1" transport={transport} />);
+    render(<PhotoAttachPanel submissionId="sub_1" evidenceToken={TEST_EVIDENCE_TOKEN} transport={transport} />);
     const input = screen.getByTestId('photo-attach-library-input') as HTMLInputElement;
     const gifFile = makeBlob('a.gif', 'image/gif', 1000);
     setFiles(input, [gifFile]);
@@ -85,7 +87,7 @@ describe('PhotoAttachPanel', () => {
 
   it('rejects oversize files before upload', async () => {
     const transport = makeTransport();
-    render(<PhotoAttachPanel submissionId="sub_1" transport={transport} />);
+    render(<PhotoAttachPanel submissionId="sub_1" evidenceToken={TEST_EVIDENCE_TOKEN} transport={transport} />);
     const input = screen.getByTestId('photo-attach-library-input') as HTMLInputElement;
     // Stub File.size for this one case; jsdom's File makes size non-configurable
     // in some versions so wrap in a Proxy that overrides the get.
@@ -107,7 +109,7 @@ describe('PhotoAttachPanel', () => {
       ]
     }));
     const transport = makeTransport({ list });
-    render(<PhotoAttachPanel submissionId="sub_1" transport={transport} />);
+    render(<PhotoAttachPanel submissionId="sub_1" evidenceToken={TEST_EVIDENCE_TOKEN} transport={transport} />);
     await waitFor(() => expect(list).toHaveBeenCalled());
 
     const input = screen.getByTestId('photo-attach-library-input') as HTMLInputElement;
@@ -123,18 +125,18 @@ describe('PhotoAttachPanel', () => {
 
   it('uploads all pending photos via the transport', async () => {
     const transport = makeTransport();
-    render(<PhotoAttachPanel submissionId="sub_1" transport={transport} />);
+    render(<PhotoAttachPanel submissionId="sub_1" evidenceToken={TEST_EVIDENCE_TOKEN} transport={transport} />);
     const input = screen.getByTestId('photo-attach-library-input') as HTMLInputElement;
     setFiles(input, [makeBlob('a.png', 'image/png', 1000), makeBlob('b.png', 'image/png', 2000)]);
     await waitFor(() => expect(screen.getByTestId('photo-attach-upload')).toBeInTheDocument());
     await userEvent.click(screen.getByTestId('photo-attach-upload'));
     await waitFor(() => expect(transport.upload).toHaveBeenCalledTimes(2));
-    expect(transport.upload).toHaveBeenCalledWith('sub_1', expect.anything(), expect.stringMatching(/\.png$/));
+    expect(transport.upload).toHaveBeenCalledWith('sub_1', expect.anything(), expect.stringMatching(/\.png$/), TEST_EVIDENCE_TOKEN);
   });
 
   it('removes a pending selection before upload', async () => {
     const transport = makeTransport();
-    render(<PhotoAttachPanel submissionId="sub_1" transport={transport} />);
+    render(<PhotoAttachPanel submissionId="sub_1" evidenceToken={TEST_EVIDENCE_TOKEN} transport={transport} />);
     const input = screen.getByTestId('photo-attach-library-input') as HTMLInputElement;
     setFiles(input, [makeBlob('a.png', 'image/png', 1000)]);
     const pendingId = (await screen.findAllByTestId(/^photo-pending-remove-/))[0].getAttribute('data-testid')!.replace('photo-pending-remove-', '');
@@ -147,20 +149,20 @@ describe('PhotoAttachPanel', () => {
       evidence: [{ id: 'ev_x', kind: 'photo', mime: 'image/png', bytes: 1024, status: 'uploaded' as const }]
     }));
     const transport = makeTransport({ list, remove: jest.fn(async () => undefined) });
-    render(<PhotoAttachPanel submissionId="sub_1" transport={transport} />);
+    render(<PhotoAttachPanel submissionId="sub_1" evidenceToken={TEST_EVIDENCE_TOKEN} transport={transport} />);
     await waitFor(() => expect(screen.getByTestId('photo-remove-ev_x')).toBeInTheDocument());
     await userEvent.click(screen.getByTestId('photo-remove-ev_x'));
-    await waitFor(() => expect(transport.remove).toHaveBeenCalledWith('sub_1', 'ev_x'));
+    await waitFor(() => expect(transport.remove).toHaveBeenCalledWith('sub_1', 'ev_x', TEST_EVIDENCE_TOKEN));
     await waitFor(() => expect(screen.queryByTestId('photo-remove-ev_x')).not.toBeInTheDocument());
   });
 
   it('hides entirely when disabled', () => {
-    render(<PhotoAttachPanel submissionId="sub_1" transport={makeTransport()} disabled />);
+    render(<PhotoAttachPanel submissionId="sub_1" evidenceToken={TEST_EVIDENCE_TOKEN} transport={makeTransport()} disabled />);
     expect(screen.queryByText(/Optional: Attach photos/i)).not.toBeInTheDocument();
   });
 
   it('exposes capture=environment on the camera input (mobile UX)', () => {
-    render(<PhotoAttachPanel submissionId="sub_1" transport={makeTransport()} />);
+    render(<PhotoAttachPanel submissionId="sub_1" evidenceToken={TEST_EVIDENCE_TOKEN} transport={makeTransport()} />);
     const cameraInput = screen.getByTestId('photo-attach-camera-input') as HTMLInputElement;
     expect(cameraInput.getAttribute('capture')).toBe('environment');
     expect(cameraInput.getAttribute('accept')).toContain('image/jpeg');

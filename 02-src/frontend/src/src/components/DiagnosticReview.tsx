@@ -21,6 +21,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
   const [isDataSaved, setIsDataSaved] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
   const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [evidenceToken, setEvidenceToken] = useState<string | null>(null);
   const [orderId, setOrderId] = useState<string | null>(null);
   const [paymentInitiated, setPaymentInitiated] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -182,6 +183,10 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
 
         const result = await response.json();
         const submissionId = result.submissionId;
+        const accessToken = result.evidenceToken;
+        if (!accessToken || typeof accessToken !== 'string') {
+          throw new Error("We couldn't initialize secure attachment access. Please try again.");
+        }
 
         console.log("Data saved successfully via API Gateway", {
           phase: 'saveSubmission',
@@ -201,6 +206,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
 
         // Store the submission ID and request ID for payment processing
         setSubmissionId(submissionId);
+        setEvidenceToken(accessToken);
         (window as any).__dp_reqId = reqId;
         setIsDataSaved(true);
         setSaveError(null);
@@ -375,10 +381,10 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
 
           {/* Optional evidence — appears once submissionId is known. Attachments
               are non-blocking; the pay button stays enabled either way. */}
-          {isDataSaved && submissionId && (
+          {isDataSaved && submissionId && evidenceToken && (
             <div className="mb-6 space-y-4">
-              <PhotoAttachPanel submissionId={submissionId} />
-              <DocumentAttachPanel submissionId={submissionId} />
+              <PhotoAttachPanel submissionId={submissionId} evidenceToken={evidenceToken} />
+              <DocumentAttachPanel submissionId={submissionId} evidenceToken={evidenceToken} />
             </div>
           )}
 

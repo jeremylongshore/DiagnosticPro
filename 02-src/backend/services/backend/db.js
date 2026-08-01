@@ -47,6 +47,7 @@ function initSchema(db) {
       whop_membership_id TEXT,
       used_with_membership INTEGER DEFAULT 0,
       charged INTEGER,
+      evidence_token_hash TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -132,7 +133,8 @@ const REQUIRED_COLUMNS = {
     whop_user_id: 'TEXT',
     whop_membership_id: 'TEXT',
     used_with_membership: 'INTEGER DEFAULT 0',
-    charged: 'INTEGER'
+    charged: 'INTEGER',
+    evidence_token_hash: 'TEXT'
   },
   analyses: {
     model: 'TEXT',

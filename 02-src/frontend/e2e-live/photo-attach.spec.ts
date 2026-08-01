@@ -38,6 +38,7 @@ let submissionId = '';
 let checkoutUrl = '';
 let downloadPath = '';
 let evidenceId = '';
+let evidenceToken = '';
 
 const evidence: Record<string, Record<string, unknown>> = {};
 const results: Array<{ id: string; name: string; status: string; ms: number; error?: string }> = [];
@@ -139,7 +140,9 @@ test('P1-01 form submit + photo attach -> submission pending + 1 evidence row', 
   expect(saveRes.status()).toBe(200);
   const body = await saveRes.json();
   submissionId = body.submissionId;
+  evidenceToken = body.evidenceToken;
   expect(submissionId).toMatch(/^diag_\d{13}_[0-9a-f]{8}$/);
+  expect(evidenceToken).toMatch(/^[A-Za-z0-9_-]{40,}$/);
 
   // Wait for the photo panel to render on Review (it mounts after submissionId is known).
   await expect(page.getByTestId('photo-attach-camera')).toBeVisible({ timeout: 30_000 });
@@ -161,7 +164,9 @@ test('P1-01 form submit + photo attach -> submission pending + 1 evidence row', 
   expect(evidenceId).toMatch(/^ev_/);
 
   // Verify the evidence row exists server-side.
-  const listRes = await page.request.get(`/evidence/${encodeURIComponent(submissionId)}`);
+  const listRes = await page.request.get(`/evidence/${encodeURIComponent(submissionId)}`, {
+    headers: { 'x-evidence-token': evidenceToken }
+  });
   expect(listRes.status()).toBe(200);
   const list = await listRes.json();
   expect(list.evidence.some((e: { id: string; status: string }) => e.id === evidenceId && e.status === 'uploaded')).toBe(true);
@@ -222,7 +227,9 @@ test('P1-04 evidence row flips to ready (vision captioned) and analysis reaches 
   const deadline = Date.now() + 180_000;
   let lastStatus = 'uploaded';
   while (Date.now() < deadline) {
-    const list = await request.get(`/evidence/${encodeURIComponent(submissionId)}`);
+    const list = await request.get(`/evidence/${encodeURIComponent(submissionId)}`, {
+      headers: { 'x-evidence-token': evidenceToken }
+    });
     if (list.status() === 200) {
       const rows = (await list.json()).evidence ?? [];
       const row = rows.find((e: { id: string }) => e.id === evidenceId);

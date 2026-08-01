@@ -274,12 +274,22 @@ The frontend calls the API **same-origin** — Caddy proxies these paths to Expr
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `/saveSubmission` | POST | Save diagnostic form to SQLite |
+| `/evidence/:submissionId` | GET | List private photo/document metadata (requires `x-evidence-token`) |
+| `/evidence/:submissionId` | POST | Upload an optional photo (requires `x-evidence-token`) |
+| `/evidence/:submissionId/document` | POST | Upload an optional work order or relevant document (requires `x-evidence-token`) |
+| `/evidence/:submissionId/:evidenceId` | DELETE | Remove an attachment before payment (requires `x-evidence-token`) |
 | `/createCheckoutSession` | POST | Create Stripe Checkout session |
 | `/stripeWebhookForward` | POST | Handle payment webhooks with signature verification (private) |
 | `/analyzeDiagnostic` | POST | Trigger AI analysis |
 | `/analysisStatus` | POST | Check status of a diagnostic analysis |
 | `/getDownloadUrl` | POST | Get the download link for a report PDF |
 | `/healthz` | GET | Health check endpoint |
+
+When `/saveSubmission` succeeds, it returns an `evidenceToken` alongside the
+`submissionId`. The browser sends that value as `x-evidence-token` for the
+evidence routes above. The backend stores only a SHA-256 hash of the token;
+submissions created before this capability was introduced fail closed and
+cannot be modified through evidence routes.
 
 ### Environment Configuration
 

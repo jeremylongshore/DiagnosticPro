@@ -72,7 +72,8 @@ const NEW_SUBMISSION_COLUMNS = [
   'whop_user_id',
   'whop_membership_id',
   'used_with_membership',
-  'charged'
+  'charged',
+  'evidence_token_hash'
 ];
 const NEW_ANALYSES_COLUMNS = ['model', 'req_id', 'paid_via'];
 
@@ -121,6 +122,7 @@ describe('migrateSchema against a legacy database', () => {
     expect(row.stripe_session_id).toBe(null);
     expect(row.paid_at).toBe(null);
     expect(row.whop_membership_id).toBe(null);
+    expect(row.evidence_token_hash).toBe(null);
   });
 
   test('index.js webhook write path works against the migrated table', () => {

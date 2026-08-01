@@ -24,6 +24,7 @@ interface PendingDocument {
 
 export interface DocumentAttachPanelProps {
   submissionId: string;
+  evidenceToken: string;
   transport?: DocumentEvidenceTransport;
   disabled?: boolean;
 }
@@ -65,6 +66,7 @@ function evidenceStatusLabel(item: EvidenceItem): string {
 
 export const DocumentAttachPanel = ({
   submissionId,
+  evidenceToken,
   transport = defaultDocumentEvidenceTransport,
   disabled = false
 }: DocumentAttachPanelProps) => {
@@ -81,7 +83,7 @@ export const DocumentAttachPanel = ({
     let cancelled = false;
     if (!submissionId) return;
     setLoading(true);
-    listDocumentEvidence(submissionId, transport)
+    listDocumentEvidence(submissionId, transport, evidenceToken)
       .then((list) => {
         if (!cancelled) setItems(list);
       })
@@ -94,7 +96,7 @@ export const DocumentAttachPanel = ({
     return () => {
       cancelled = true;
     };
-  }, [submissionId, transport]);
+  }, [submissionId, transport, evidenceToken]);
 
   const capacity = MAX_DOCUMENTS - items.length - pending.length;
 
@@ -150,7 +152,8 @@ export const DocumentAttachPanel = ({
           pendingItem.file,
           pendingItem.file.name,
           pendingItem.kind,
-          transport
+          transport,
+          evidenceToken
         );
         uploadedCount += 1;
         setItems((current) => [...current, item]);
@@ -172,7 +175,7 @@ export const DocumentAttachPanel = ({
   async function removeUploaded(id: string) {
     setError(null);
     try {
-      await deleteEvidence(submissionId, id, transport);
+      await deleteEvidence(submissionId, id, transport, evidenceToken);
       setItems((current) => current.filter((item) => item.id !== id));
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Delete failed';
