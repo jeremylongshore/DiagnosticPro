@@ -266,7 +266,8 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
               Confirm your details
             </h2>
             <p className="text-muted-foreground leading-relaxed">
-              Check the information below, then pay $4.99 for your diagnostic report.
+              Check the information below, attach up to 3 photos if they help show the issue, then pay $4.99
+              for your diagnostic report.
             </p>
           </div>
 

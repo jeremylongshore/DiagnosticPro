@@ -16,6 +16,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Badge } from "@/components/ui/badge";
 import {
   Smartphone,
+  Camera,
   Car,
   Ship,
   Wrench,
@@ -704,9 +705,24 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
                   Review
                 </Button>
                 <p className="text-sm text-muted-foreground mt-4">
-                  Review your information and proceed to payment for AI analysis ($4.99). After payment,
+                  Review your information, then continue to payment for AI analysis ($4.99). After payment,
                   you'll get instant access to download your report.
                 </p>
+                <div
+                  className="mt-5 mx-auto max-w-xl rounded-lg border border-primary/20 bg-primary/5 px-4 py-3 text-left"
+                  data-testid="photo-upload-handoff"
+                >
+                  <div className="flex items-start gap-3">
+                    <Camera className="h-5 w-5 shrink-0 text-primary mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold">Have a photo of the issue?</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Click Review first. On the next step, you can attach up to 3 photos before payment.
+                        Photos are optional.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

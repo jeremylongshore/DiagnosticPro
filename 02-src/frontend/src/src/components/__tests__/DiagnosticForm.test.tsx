@@ -49,9 +49,12 @@ describe("DiagnosticForm Component", () => {
 
   it("renders the review button", () => {
     const mockOnSubmit = jest.fn();
-    const { getByText } = render(<DiagnosticForm onFormSubmit={mockOnSubmit} />);
+    const { getByText, getByTestId } = render(<DiagnosticForm onFormSubmit={mockOnSubmit} />);
 
     expect(getByText("Review")).toBeInTheDocument();
+    expect(getByTestId("photo-upload-handoff")).toHaveTextContent(
+      "On the next step, you can attach up to 3 photos before payment"
+    );
   });
 
   it("calls onFormSubmit with form data when submitted with required fields", async () => {
