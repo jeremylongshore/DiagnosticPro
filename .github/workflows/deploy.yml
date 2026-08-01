@@ -69,7 +69,11 @@ jobs:
       health-check-url: https://diagnosticpro.io/healthz
       vps-tailnet-ip: 100.88.144.55
       vps-public-ip: 167.86.106.29
-      vps-host: intentsolutions
+      # Use the verified tailnet IP for both keyscan and SSH. The reusable
+      # workflow still accepts the hostname, but MagicDNS resolution can race
+      # immediately after Tailscale connects; the pre-flight already proves
+      # this address is routable.
+      vps-host: 100.88.144.55
       vps-user: intentsolutions
       smoke-validation: '.status == "ok"'
     secrets:
