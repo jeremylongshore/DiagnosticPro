@@ -55,17 +55,19 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
           cache-dependency-path: ./02-src/backend/services/backend/package-lock.json
-      # Mirror the production runtime image. The Dockerfile pins node:20-slim AND
-      # installs poppler-utils, and that pairing is load-bearing: pdf-parse (pdf.js)
-      # calls Promise.withResolvers, which does not exist until Node 22, so on
-      # Node 20 the pure-JS path throws and evidence/documents.js falls back to the
-      # pdftotext binary. Production has that binary; this runner did not, so both
-      # paths failed and the document-evidence tests went red on every commit from
-      # 64d5fdd onward while passing on any Node 22 dev box. Install it here so CI
-      # exercises the same fallback production actually runs.
+      # Keep this in lockstep with the Dockerfile's FROM. Both are node:24-slim:
+      # Node 20 reached end-of-life on 2026-04-30 (no security patches), and
+      # pdf-parse (pdf.js) calls Promise.withResolvers, which does not exist
+      # before Node 22 -- on Node 20 the pure-JS path threw and every PDF fell
+      # through to the pdftotext binary.
+      #
+      # poppler-utils stays installed even though Node 24 makes the pure-JS path
+      # work, because the production image ships it and extractPdfText still
+      # falls back to it when pdf-parse throws. Dropping it here would leave that
+      # fallback untested in the one environment that can catch a regression.
       - name: Install poppler-utils (matches the production image)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
         working-directory: .

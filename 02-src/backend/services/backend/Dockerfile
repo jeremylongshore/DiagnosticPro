@@ -5,7 +5,7 @@
 # ABI-compatible).
 
 # ---- builder: compile native deps (better-sqlite3) ----
-FROM node:20-slim AS builder
+FROM node:24-slim AS builder
 WORKDIR /app
 RUN apt-get update \
     && apt-get install -y --no-install-recommends python3 make g++ \
@@ -14,7 +14,7 @@ COPY package*.json ./
 RUN npm ci --omit=dev
 
 # ---- runtime ----
-FROM node:20-slim
+FROM node:24-slim
 WORKDIR /app
 ENV NODE_ENV=production
 # Whiteglove PDF stack: pandoc + xelatex (booktabs/titlesec reports).

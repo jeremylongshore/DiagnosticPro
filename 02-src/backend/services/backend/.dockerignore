@@ -1,0 +1,49 @@
+# Build-context exclusions for the backend production image.
+#
+# WHY THIS FILE IS LOAD-BEARING
+# The Dockerfile compiles better-sqlite3 in a builder stage, copies the result
+# with `COPY --from=builder /app/node_modules ./node_modules`, and then runs
+# `COPY . .`. That second copy overwrites the compiled node_modules with
+# whatever happens to sit in the build context. Without this file the image is
+# only correct when the context is clean -- which is true on the VPS (it builds
+# straight after `git reset --hard origin/main`) and false on every developer
+# machine. A local build produced an image that died on boot with
+# NODE_MODULE_VERSION 127 vs 137 because the host's Node 22 binary shadowed the
+# image's Node 24 one.
+#
+# It is also a data-and-secret boundary. A local build was shipping /app/.env
+# and a diagnosticpro.db holding 113 diagnostic_submissions rows into the
+# production image. `.env` is gitignored, and `git reset --hard` does NOT delete
+# ignored files, so a stray .env on the deploy host would be baked in too.
+# Excluding them here makes the image identical no matter where it is built.
+
+# Dependencies -- always supplied by the builder stage, never the context.
+node_modules
+npm-debug.log*
+
+# Secrets. .env.example is intentionally still shipped as documentation.
+.env
+*.env
+.env.*
+!.env.example
+
+# Local databases and their WAL/journal siblings.
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Test, coverage and authoring artifacts -- not needed at runtime.
+__tests__
+coverage
+claudes-docs
+.harness-hash
+
+# Generated report output; the container writes reports to the /data volume.
+reports
+
+# VCS and build metadata.
+.git
+.gitignore
+.dockerignore
+Dockerfile
