@@ -58,6 +58,17 @@ jobs:
           node-version: '20'
           cache: 'npm'
           cache-dependency-path: ./02-src/backend/services/backend/package-lock.json
+      # Mirror the production runtime image. The Dockerfile pins node:20-slim AND
+      # installs poppler-utils, and that pairing is load-bearing: pdf-parse (pdf.js)
+      # calls Promise.withResolvers, which does not exist until Node 22, so on
+      # Node 20 the pure-JS path throws and evidence/documents.js falls back to the
+      # pdftotext binary. Production has that binary; this runner did not, so both
+      # paths failed and the document-evidence tests went red on every commit from
+      # 64d5fdd onward while passing on any Node 22 dev box. Install it here so CI
+      # exercises the same fallback production actually runs.
+      - name: Install poppler-utils (matches the production image)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends poppler-utils
+        working-directory: .
       - name: Install dependencies
         run: npm ci
       - name: Run backend tests with coverage gate (floor enforced by jest coverageThreshold)
