@@ -113,9 +113,16 @@ jobs:
       - name: evidence document route present on test surface
         run: |
           set -euo pipefail
-          read -r code ctype < <(curl -sS -o /dev/null \
+          # NOT `read < <(curl ...)`: curl -w emits no trailing newline, so read
+          # hits EOF and returns non-zero even after assigning both variables,
+          # and `set -e` then kills the step before it can report anything. That
+          # bug failed this gate on its first real run while the surface it
+          # checks was actually healthy.
+          out=$(curl -sS -o /dev/null \
             -w '%{http_code} %{content_type}' \
             -X POST https://test.diagnosticpro.io/evidence/PROBE/document)
+          code=${out%% *}
+          ctype=${out#* }
           echo "status=$code content_type=$ctype"
           case "$code" in
             404) echo "FAIL: route ABSENT on test.diagnosticpro.io (the dpro-a3h regression)"; exit 1;;
