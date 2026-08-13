@@ -83,3 +83,42 @@ jobs:
       TS_AUDIENCE: ${{ secrets.TS_AUDIENCE }}
       VPS_DEPLOY_KEY: ${{ secrets.VPS_DEPLOY_KEY }}
       VPS_HOST_KEY: ${{ secrets.VPS_HOST_KEY }}
+
+  # Catches the failure that produced dpro-a3h: the test backend drifted three
+  # weeks behind production while every deploy stayed green, because the only
+  # smoke gate in the reusable workflow curls PROD's /healthz. A surface nobody
+  # checks is a surface that silently rots.
+  test-surface-parity:
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      # BLOCKING: the test backend is alive AND on the revision we just shipped.
+      - name: test surface healthy and current
+        run: |
+          set -euo pipefail
+          body=$(curl -fsS --retry 5 --retry-delay 6 --retry-all-errors https://test.diagnosticpro.io/healthz)
+          echo "$body"
+          echo "$body" | jq -e '.status == "ok"' >/dev/null
+          got=$(echo "$body" | jq -r .gitSha)
+          if [ "$got" != "${GITHUB_SHA}" ]; then
+            echo "FAIL: test surface reports gitSha=$got, expected ${GITHUB_SHA}"
+            exit 1
+          fi
+          echo "test surface is on ${GITHUB_SHA}"
+
+      # BLOCKING: the evidence document route EXISTS on the test host.
+      # Express's default 404 handler returns text/html when a route is absent;
+      # the route's own validator returns application/json when it is present.
+      # That is the cleanest discriminator and it creates nothing.
+      - name: evidence document route present on test surface
+        run: |
+          set -euo pipefail
+          read -r code ctype < <(curl -sS -o /dev/null \
+            -w '%{http_code} %{content_type}' \
+            -X POST https://test.diagnosticpro.io/evidence/PROBE/document)
+          echo "status=$code content_type=$ctype"
+          case "$code" in
+            404) echo "FAIL: route ABSENT on test.diagnosticpro.io (the dpro-a3h regression)"; exit 1;;
+            4*)  echo "route present (rejected the probe payload, as expected)";;
+            *)   echo "FAIL: unexpected status $code"; exit 1;;
+          esac

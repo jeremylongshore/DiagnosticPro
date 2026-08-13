@@ -287,7 +287,9 @@ app.get('/healthz', (req, res) => {
   res.status(200).json({
     status: 'ok',
     service: 'diagnosticpro-llm-backend',
-    version: '2.3.0'
+    version: '2.3.0',
+    // Baked at image build time; 'unknown' in local/dev/test.
+    gitSha: process.env.GIT_SHA || 'unknown'
   });
 });
 
