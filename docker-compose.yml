@@ -30,6 +30,15 @@ services:
     build:
       context: ./02-src/backend/services/backend
       dockerfile: Dockerfile
+      args:
+        # Supplied by the VPS deploy script (export GIT_SHA=$NEW_HEAD before
+        # `docker compose up --build`). Falls back to 'unknown' for local builds.
+        # Surfaced at GET /healthz .gitSha and asserted by deploy.yml's
+        # test-surface-parity job.
+        GIT_SHA: ${GIT_SHA:-unknown}
+    # Named explicitly so backend-test can pin the exact same image and both
+    # surfaces are provably one build.
+    image: diagnosticpro-backend:latest
     container_name: diagnosticpro-backend
     restart: unless-stopped
     ports:
@@ -64,6 +73,60 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # test.diagnosticpro.io — the Stripe TEST-MODE surface (sk_test), used by the
+  # live customer-journey and photo-attach Playwright suites.
+  #
+  # WHY THIS IS HERE AT ALL: this container used to be created by hand. It was
+  # spawned 2026-07-23, carried a compose project label but an EMPTY
+  # project.config_files label, and appeared in no compose file — so the deploy's
+  # `docker compose up -d --build`, which only ever knew about `backend`, could
+  # not see it, adopt it, or replace it. It sat pinned to a superseded image id
+  # for three weeks while prod moved on, and POST /evidence/:id/document returned
+  # 404 there while prod returned 400. Declaring it here is the fix: it now
+  # converges on every deploy like any other service. Do NOT give it a
+  # `profiles:` key — the deploy runs a bare `up`, and a profiled service would
+  # silently never start, reintroducing exactly this drift.
+  backend-test:
+    # Same image tag as `backend`, and deliberately NO second `build:` block.
+    # Both surfaces are then provably one build, and the deploy does not pay for
+    # a second cold texlive layer.
+    image: diagnosticpro-backend:latest
+    container_name: diagnosticpro-backend-test
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      # Caddy's test.diagnosticpro.io block proxies here.
+      - "127.0.0.1:8093:8080"
+    env_file:
+      # sk_test lives here; prod's sk_live lives in .env. These files must never
+      # be listed together on one service — compose merges env_file left to right
+      # and would silently mix the two key sets across the live/test boundary.
+      # `required: false` confines a missing file to THIS container instead of
+      # failing the whole compose run and taking the deploy down with it.
+      - path: .env.test
+        required: false
+    environment:
+      - NODE_ENV=production
+      - PORT=8080
+      - DB_PATH=/data/diagnosticpro.db
+      - EVIDENCE_UPLOADS_DIR=/data/uploads
+      - EVIDENCE_ORPHAN_TTL_HOURS=48
+    volumes:
+      # Its OWN volume. Test submissions must never touch the production DB.
+      - diagnosticpro-test-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://127.0.0.1:8080/healthz', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
 # Optional: static frontend container (for local testing).
 # In production on VPS, build dist/ and let Caddy serve it directly + proxy API.
 #   frontend:
@@ -75,3 +138,4 @@ services:
 
 volumes:
   diagnosticpro-data:
+  diagnosticpro-test-data:

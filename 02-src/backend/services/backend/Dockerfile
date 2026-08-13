@@ -32,6 +32,15 @@ RUN apt-get update \
       lmodern \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /app/node_modules ./node_modules
+
+# Build-time revision stamp, passed by the VPS deploy as --build-arg GIT_SHA.
+# Placed AFTER the texlive apt layer so a new sha never invalidates that ~1GB
+# cache; `COPY . .` below changes on the same commit anyway. Surfaced at
+# GET /healthz .gitSha, which is what makes "are both surfaces on the same
+# revision?" answerable — comparing image ids only proves they are equally stale.
+ARG GIT_SHA=unknown
+ENV GIT_SHA=$GIT_SHA
+
 COPY . .
 EXPOSE 8080
 CMD ["node", "index.js"]

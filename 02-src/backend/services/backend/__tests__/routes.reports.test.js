@@ -81,7 +81,8 @@ describe('GET /healthz', () => {
     expect(res.body).toEqual({
       status: 'ok',
       service: 'diagnosticpro-llm-backend',
-      version: '2.3.0'
+      version: '2.3.0',
+      gitSha: 'unknown'
     });
   });
 });
