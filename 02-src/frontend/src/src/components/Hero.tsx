@@ -40,9 +40,9 @@ const Hero = () => {
           </h1>
 
           <p className="text-base md:text-lg text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed text-balance">
-            AI diagnostic second opinion for $4.99. Get a 2,000+ word report with root cause analysis,
-            fair pricing estimates, and word-for-word scripts to use at the shop. Cars, trucks,
-            boats, HVAC, farm equipment, and more.
+            A second opinion on your repair, for $4.99. You&apos;ll get the most likely cause with a
+            confidence number attached, what a fair price looks like, and the exact questions to ask
+            your shop before you say yes to anything. Cars, trucks, boats, HVAC, farm equipment and more.
           </p>
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center items-center mb-12">
