@@ -275,6 +275,24 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'x-api-key', 'x-dp-reqid', 'Authorization', 'x-whop-token', EVIDENCE_TOKEN_HEADER]
 }));
 
+// Trust exactly ONE proxy hop: Caddy, which is the only thing that can reach us
+// (the container publishes 127.0.0.1:8089, so nothing else can connect).
+//
+// WHY THIS EXISTS: without it, Express resolves req.ip to the proxy's own address,
+// so every express-rate-limit bucket below collapses into a SINGLE global counter.
+// submissionLimiter then meant 10 submissions per minute across the entire site,
+// not per client — one noisy visitor could lock out every paying customer, and any
+// scripted abuse would deny service to everyone at trivial cost.
+//
+// WHY 1 AND NOT `true`: with `trust proxy: true` Express takes the LEFTMOST
+// X-Forwarded-For entry, which is fully attacker-controlled — anyone could send
+// `X-Forwarded-For: <random>` and get a fresh rate-limit bucket per request,
+// bypassing every limiter here. With the integer 1, Express counts one hop in from
+// the right, which is the value Caddy itself appended, so a spoofed prefix is
+// ignored. Raise this number ONLY if a real additional proxy (a CDN) is put in
+// front, and never change it to `true`.
+app.set('trust proxy', 1);
+
 // Rate limiters
 const submissionLimiter = rateLimit({ windowMs: 60000, max: 10, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many submissions, try again later', code: 'RATE_LIMITED' } });
 const analysisLimiter = rateLimit({ windowMs: 60000, max: 5, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many analysis requests, try again later', code: 'RATE_LIMITED' } });
