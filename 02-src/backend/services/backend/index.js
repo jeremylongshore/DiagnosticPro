@@ -116,10 +116,10 @@ function parseFullAnalysis(fullAnalysis = '') {
     { heading: '1. PRIMARY DIAGNOSIS', key: 'primaryDiagnosis', mode: 'string' },
     { heading: '2. DIFFERENTIAL DIAGNOSIS', key: 'differentialDiagnosis', mode: 'list' },
     { heading: '3. DIAGNOSTIC VERIFICATION', key: 'diagnosticVerification', mode: 'string' },
-    { heading: '4. SHOP INTERROGATION', key: 'shopInterrogation', mode: 'list' },
+    { heading: '4. QUESTIONS FOR YOUR SHOP', key: 'shopInterrogation', mode: 'list' },
     { heading: '5. CONVERSATION SCRIPTING', key: 'conversationScripting', mode: 'string' },
     { heading: '6. COST BREAKDOWN', key: 'costBreakdown', mode: 'list' },
-    { heading: '7. RIPOFF DETECTION', key: 'ripoffDetection', mode: 'list' },
+    { heading: '7. REVIEWING THE QUOTE', key: 'ripoffDetection', mode: 'list' },
     { heading: '8. AUTHORIZATION GUIDE', key: 'authorizationGuide', mode: 'string' },
     { heading: '9. TECHNICAL EDUCATION', key: 'technicalEducation', mode: 'list' },
     { heading: '10. OEM PARTS STRATEGY', key: 'oemPartsStrategy', mode: 'list' },
@@ -2023,10 +2023,10 @@ Provide your analysis using the following EXACT 15-section structure. Every sect
 - Tools needed and expected readings
 - Cost estimates for testing procedures
 
-4. SHOP INTERROGATION
-- 5 technical questions to expose incompetence
-- Specific data they must show you
-- Red flag responses to watch for
+4. QUESTIONS FOR YOUR SHOP
+- 5 technical questions that show you have done your homework
+- The specific data worth asking to see
+- Answers that suggest more testing is warranted
 
 5. CONVERSATION SCRIPTING
 - Opening: How to present yourself as informed (not confrontational)
@@ -2042,12 +2042,12 @@ Provide your analysis using the following EXACT 15-section structure. Every sect
 - Fair parts pricing analysis
 - Labor hour estimates
 - Total price range
-- Overcharge identification markers
+- Line items worth asking about
 
-7. RIPOFF DETECTION
-- Parts cannon indicators
-- Diagnostic shortcuts to watch for
-- Price gouging red flags
+7. REVIEWING THE QUOTE
+- Signs the quote covers more parts than the diagnosis supports
+- Places where testing may have been skipped
+- Prices worth a second look
 
 8. AUTHORIZATION GUIDE
 - What to approve immediately
