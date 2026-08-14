@@ -40,7 +40,7 @@ const DIAGNOSTIC_REPORT_CONTRACT = {
     },
     {
       id: "shop_interrogation",
-      title: "4. SHOP INTERROGATION",
+      title: "4. QUESTIONS FOR YOUR SHOP",
       required: true,
       minWords: 100,
       maxWords: 400,
@@ -64,7 +64,7 @@ const DIAGNOSTIC_REPORT_CONTRACT = {
     },
     {
       id: "ripoff_detection",
-      title: "7. RIPOFF DETECTION",
+      title: "7. REVIEWING THE QUOTE",
       required: true,
       minWords: 100,
       maxWords: 400,
@@ -572,14 +572,14 @@ class DiagnosticPDFGenerator {
 
     this.doc.moveDown(0.5);
 
-    this.doc.text('It equips customers with professional-grade insights,', margin, this.doc.y, {
+    this.doc.text('It gives you professional-grade insight into the problem,', margin, this.doc.y, {
       width: contentWidth,
       align: 'center'
     });
 
     this.doc.moveDown(0.5);
 
-    this.doc.text('shop interrogation tactics, and fraud-protection strategies.', margin, this.doc.y, {
+    this.doc.text('the right questions to ask, and a fair-price reference.', margin, this.doc.y, {
       width: contentWidth,
       align: 'center'
     });
@@ -684,10 +684,10 @@ class DiagnosticPDFGenerator {
         'primaryDiagnosis': '1. PRIMARY DIAGNOSIS',
         'differentialDiagnosis': '2. DIFFERENTIAL DIAGNOSIS',
         'diagnosticVerification': '3. DIAGNOSTIC VERIFICATION',
-        'shopInterrogation': '4. SHOP INTERROGATION',
+        'shopInterrogation': '4. QUESTIONS FOR YOUR SHOP',
         'conversationScripting': '5. CONVERSATION SCRIPTING',
         'costBreakdown': '6. COST BREAKDOWN',
-        'ripoffDetection': '7. RIPOFF DETECTION',
+        'ripoffDetection': '7. REVIEWING THE QUOTE',
         'authorizationGuide': '8. AUTHORIZATION GUIDE',
         'technicalEducation': '9. TECHNICAL EDUCATION',
         'oemPartsStrategy': '10. OEM PARTS STRATEGY',

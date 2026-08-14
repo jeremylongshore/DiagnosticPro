@@ -54,8 +54,10 @@ That single sentence resolves almost every voice question you will ever have:
 | Do we sell? | Barely. It costs $4.99. The persona finds selling slightly beneath the work. |
 
 **Archetype:** The Friend Who Happens to Be a Mechanic — a guide with real tradesman
-credentials who is genuinely glad you asked. Warm first, expert second; the expertise
-shows up in the specifics, not in the temperature. Not the Rebel (we are not
+credentials who is genuinely glad you asked, **and who has a spine.** Warm first,
+expert second; the expertise shows up in the specifics, not in the temperature. But
+warm is not soft: we do the next right thing even when it costs us the sale, and we
+don't get talked out of a true number. Polished, never slick. Not the Rebel (we are not
 at war with anyone), not the Guru (we do not have secrets), not the Disruptor
 (nothing here is being disrupted), not the Challenger Brand (we have no
 incumbent to attack).
@@ -349,6 +351,68 @@ are unchanged. Warmth is "glad you asked" and "here's what that word means" — 
 never "game-changer", never a fake deadline, never an exclamation point doing a
 salesman's job. If a sentence got friendlier AND vaguer, you overshot: cut it and
 keep the number.
+
+### 7. The Backbone — warm is not soft
+
+Added 2026-08-13 at owner direction: *"we want to do the next right thing, we aren't
+going to be walked on."* This is the counterweight to friendliness. Without it the
+voice drifts into agreeable mush — and a voice with no conviction has no standing to
+tell someone not to authorize $1,850 of work.
+
+**Do the next right thing.** In every small choice between the easy version and the
+honest one, take the honest one — quietly, without announcing that you did.
+
+- If the shop was right, say the shop was right. Plainly, first sentence, no cushion.
+- If the report was low confidence, lead with that. Don't bury it under the answer.
+- Never use someone's fear of being ripped off to close a sale. That fear is real and
+  it is not a lever.
+- If we get something wrong publicly, correct it fast, in plain words, and move on. No
+  grovelling, no three-paragraph apology, no drama. Fix it and continue.
+
+**Don't get walked on.** Friendly does not mean apologetic.
+
+- Never apologize for existing, for the price, or for having an opinion. $4.99 needs no
+  justification and no discount energy.
+- When challenged, answer **once**, plainly, with the fact. Then stop. We restate; we
+  do not argue, escalate, or get dragged.
+- Never soften or delete a true number because someone pushed back on it. If it's
+  right, it stays. If they show us it's wrong, we change it and say thank you.
+- Never let a hostile reply pull us into insulting a trade we respect. Someone being
+  rude to us does not license us to be rude about mechanics.
+- Warmth is a choice we make, not a position we're bargained into.
+
+> "That's fair — you know the vehicle and we don't. The 88% is what the data supports;
+> if you've measured something that contradicts it, we'd genuinely like to see it."
+
+That's the whole posture in one line: generous, unmoved, no edge in the voice.
+
+#### Spine pairs — added with pattern 7
+
+**A mechanic replies angrily that we're second-guessing professionals.**
+> ❌ OFF: "So sorry! We'd never want to step on a pro's toes 🙏 you know best!"
+> ❌ OFF: "Maybe if shops explained quotes properly people wouldn't need us."
+> ✅ ON: "Fair challenge. We're not calling the diagnosis — we're giving the owner
+> the vocabulary to follow it. If a customer walks in already knowing what book time
+> means, that's usually a shorter conversation for you, not a longer one."
+
+**Someone says "this is just ChatGPT with extra steps."**
+> ❌ OFF: "Haha not at all! We use proprietary next-gen AI 🚀"
+> ❌ OFF: "We're sorry you feel that way."
+> ✅ ON: "Same class of model, different product. What you're paying for is the
+> structure — 15 fixed sections, a confidence number, and the questions to ask.
+> Paste the code into a chatbot if you'd rather; it's free and it sometimes works."
+
+**A customer is angry because the shop turned out to be right.**
+> ❌ OFF: "Our AI is still learning, sorry for the inconvenience!"
+> ✅ ON: "Then they earned it — that's a good shop. We had it at 71%, which means
+> roughly three in ten go the other way, and this was one. That's the number doing its
+> job, not failing. Tell us the final diagnosis and we'll get it into the record."
+
+**Someone demands a refund while insisting the report was "wrong" about a fair price.**
+> ❌ OFF: "Refunded! So sorry!" (folding on a true number to end the discomfort)
+> ✅ ON: "Happy to refund you — that's not a fight worth having over $4.99. The price
+> range in the report is what the book time supports, so we're leaving it as written.
+> If your quote differs for a reason we missed, send it over; we'd like to know."
 
 ### Bonus pattern — The Flat Differentiator
 Once per post, maximum, and never with a flourish: **we don't sell parts.** Say
@@ -650,6 +714,11 @@ Run this before every publish. Any single ✗ is a rewrite, not a judgment call.
                 * Order of Operations describes how DIAGNOSIS works,
                   never what OUR REPORT does — see its scope limit.
 ```
+
+8. BACKBONE     If this is a reply: did we answer once and stop —
+                without grovelling, and without getting dragged? ..... ☐
+9. HONESTY      Did friendliness soften any true number, or turn a
+                limitation into a vaguer, nicer sentence? .............. ☐
 
 **The single-question version**, if you only have ten seconds:
 
