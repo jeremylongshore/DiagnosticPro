@@ -53,7 +53,9 @@ That single sentence resolves almost every voice question you will ever have:
 | Are we funny? | Dry. The humor of someone who has seen the same failure four hundred times. Never jokey. |
 | Do we sell? | Barely. It costs $4.99. The persona finds selling slightly beneath the work. |
 
-**Archetype:** The Guide with tradesman credentials. Not the Rebel (we are not
+**Archetype:** The Friend Who Happens to Be a Mechanic — a guide with real tradesman
+credentials who is genuinely glad you asked. Warm first, expert second; the expertise
+shows up in the specifics, not in the temperature. Not the Rebel (we are not
 at war with anyone), not the Guru (we do not have secrets), not the Disruptor
 (nothing here is being disrupted), not the Challenger Brand (we have no
 incumbent to attack).
@@ -96,7 +98,7 @@ incumbent to attack).
 | Serious ↔ Playful | **Mostly serious (3/10 playful)** | The reader is looking at a bill they can't evaluate. Dry wit is allowed. Jokes at anyone's expense are not. Never playful about money, safety, or someone's livelihood. |
 | Reserved ↔ Bold | **Split — bold about specifics, reserved about outcomes (6/10)** | Bold: "Book time on that coil is 0.4–0.8 hours." Reserved: "That *may* mean the quote is high — ask them to line-item it." We assert facts hard and predictions softly. |
 | Simple ↔ Sophisticated | **Simple words, sophisticated content (8/10 sophisticated ideas)** | Mode $06, fuel trims, and freeze-frame data all belong in the copy — each defined in the same sentence it appears in. Never dumb down the domain. Never leave a term undefined. |
-| Warm ↔ Direct | **Direct, with respect as the warmth (7/10 direct)** | Warmth here is not friendliness — it's treating the reader as competent. No hand-holding, no "don't worry!", no exclamation points. |
+| Warm ↔ Direct | **Warm and direct (7/10 warm, and still plain-spoken)** | Both, not a trade-off. Warmth = you are glad they asked, you normalize the confusion, you never make them feel dumb for not knowing. Directness = you still give them the number and the test. Contractions always. Exclamation points allowed but rare — genuine, never salesy. |
 
 ---
 
@@ -330,6 +332,23 @@ have, and it takes one sentence.
 > cannot currently support — do not say it, in any wording, until bead `dpro-vth`
 > closes by building the protocol into the prompt. This distinction is exactly
 > the kind that becomes a public retraction.
+
+### 6. The Reassure — added 2026-08-13 at owner request
+
+Somewhere in every piece, take the embarrassment off the table. The audience's real
+fear is not the repair bill, it's looking stupid in front of a mechanic. Name that
+and dissolve it in one line.
+
+> "This one confuses everybody — the code names the cylinder, not the part."
+> "Nobody is born knowing what book time means. It's just the hours the manual says
+> the job takes."
+> "Asking this doesn't make you difficult. Any good shop expects it."
+
+**Friendly never means hypey.** These are different axes and the banned lists below
+are unchanged. Warmth is "glad you asked" and "here's what that word means" — it is
+never "game-changer", never a fake deadline, never an exclamation point doing a
+salesman's job. If a sentence got friendlier AND vaguer, you overshot: cut it and
+keep the number.
 
 ### Bonus pattern — The Flat Differentiator
 Once per post, maximum, and never with a flourish: **we don't sell parts.** Say
@@ -654,7 +673,7 @@ move, and how much domain depth the format can carry.**
 | **Instagram** | Most visual, least verbal. The photo of the part or the quote does the work. | Caption = Case Cold-Open + one actionable line. Carousels for step-by-step tests. | Caption 40–100 words | At most one functional emoji. No text-on-image shouting. No before/after savings claims. |
 | **TikTok / Shorts** | Fastest, still never hype-y. Show the actual test being done. | Open on the number or the object ("$1,850 quote, one cylinder"). Demonstrate. End on the question to ask. | 20–45 seconds | No "STOP scrolling." No "mechanics don't want you to know." No countdown/listicle bait. Show hands and parts, not a talking head over stock footage. |
 | **YouTube** | Most patient. Longest form the Order of Operations pattern gets. | Full case walkthrough: symptom → codes → differential → what the shop should test → what the quote should cost. Chapters. | 8–15 min | Title states the case, not a promise. No "you won't believe." Show the report on screen; don't describe it. |
-| **Email** | Warmest. Still zero exclamation points. | One case per send. Short paragraphs. One clear next action. | 150–300 words | No "Hey there!" No countdown timers. No fake scarcity — the product has no scarcity. |
+| **Email** | Warmest — write it like a note to a friend who asked for a favour. | One case per send. Short paragraphs. One clear next action. | 150–300 words | No "Hey there!" No countdown timers. No fake scarcity — the product has no scarcity. |
 | **Blog / SEO** | Most thorough, teacher register, same voice at length. | Headers, dash bullets, real case data throughout, price ranges cited with their basis. | 1,500–2,500 words | Every domain term defined at first use. Never publish a "top 10 signs your mechanic is scamming you" post — that exact article is the voice's failure state. |
 | **Landing page** | Most direct, benefit-first, still no hype. | Problem in the reader's own words → what you receive (name the 15 sections) → the price → what it does *not* do. | Hero 25–40 words | State the limitation on the page. "This is a second opinion, not a repair authorization." Honesty converts here better than urgency, and it keeps us out of trouble. |
 
@@ -703,7 +722,9 @@ discipline.
   DETECTION") in public copy.
 - Don't perform AI. No model names, no "powered by," no algorithm talk.
 - Don't write "I" unless the post carries a human's name.
-- Don't use exclamation points. The persona has never needed one.
+- Exclamation points: fine, sparingly, and only where a friend would actually use one
+  ("Glad you asked!" yes — "Save 80%!" never). If it is selling rather than welcoming,
+  cut it. Roughly one per piece is plenty.
 - Don't sell in a technical thread.
 - Don't round numbers up for effect or convert ranges into single figures.
 - Don't promise savings, outcomes, or that anyone will avoid a repair.
@@ -712,47 +733,68 @@ discipline.
 
 ## Calibration Samples
 
-Written in this voice, for teammates to pattern-match against. If your draft
-doesn't feel like these, adjust the draft — not the profile.
+Rewritten 2026-08-13 after owner calibration: **"make it as friendly as possible."**
+Warmer register, same guardrails — still no hype, no invented numbers, never
+anti-mechanic. If your draft doesn't feel like these, fix the draft, not the profile.
 
 ### Sample 1 — Email opening
 
-> A subscriber sent us a $1,850 quote last week. 2020 Camry, 84,500 miles, one
-> misfire code on cylinder 1. Coils, plugs, and a possible injector.
+> Someone sent us a $1,850 quote last week and asked if it was fair. 2020 Camry,
+> 84,500 miles, one misfire code on cylinder 1. The shop wanted to do coils, plugs,
+> and maybe an injector.
 >
-> The analysis came back at 88% confidence on a single failing coil — and the
-> cheapest way to prove it costs nothing. Move the cylinder 1 coil to cylinder 2
-> and drive it. If the code follows to cylinder 2, you have your answer and you
-> bought one part instead of four.
+> Here's the thing that trips everybody up: P0301 tells you which *cylinder* is
+> misfiring. It doesn't tell you which *part* failed. That's a completely reasonable
+> thing not to know.
 >
-> He asked. They ran it. It was the coil. Final bill was $340.
+> Our analysis came back at 88% confidence on a single failing coil — and the test
+> that proves it is free. Swap the coil from cylinder 1 over to cylinder 2 and drive
+> it. If the code moves to cylinder 2, the coil is your answer and you just bought
+> one part instead of four.
+>
+> He asked. They ran it. It was the coil, and the final bill was $340.
+>
+> If you've got a quote you're unsure about, that's exactly what we're here for.
 
 ### Sample 2 — X post
 
-> 2020 Camry. 84,500 miles. P0301. Shop quoted $1,850 for coils, plugs, and a
-> possible injector.
+> 2020 Camry, 84,500 miles, P0301. Shop quoted $1,850 for coils, plugs and a possible
+> injector.
 >
-> Book time on one coil is 0.4–0.8 hours. The part is under $95.
+> Quick thing worth knowing: that code names the cylinder, not the part. Everybody
+> mixes those up.
 >
-> Before you authorize four coils, ask one question: did the misfire follow when
-> you swapped the coil to another cylinder?
+> One coil is about 0.4–0.8 hours of book time and the part's under $95. So before you
+> say yes to four of them, ask this: did the misfire follow the coil when you swapped
+> it to another cylinder?
 >
-> That test is free.
+> That test costs nothing, and any good shop will happily run it.
 
 ### Sample 3 — Landing page hero
 
-> **You have a repair quote you can't evaluate.**
+> **Got a repair quote you're not sure about? Let's take a look together.**
 >
-> Describe the problem. We return a 15-section analysis: the most likely cause
-> with a stated confidence number, what the fair price range looks like, and the
-> exact questions to ask your shop before you authorize anything.
+> Tell us what's going on with it. You'll get back a 15-section analysis: the most
+> likely cause with a confidence number attached, what a fair price looks like, and
+> the exact questions to ask your shop before you say yes to anything.
 >
-> $4.99. We don't sell parts and we don't take a cut of the repair.
+> $4.99. We don't sell parts and we don't take a cut of the repair, so we've got no
+> reason to talk you into one.
 >
-> *This is a second opinion, not a repair authorization. Verify it with your
-> mechanic.*
+> *This is a second opinion, not a repair authorization — take it to your mechanic
+> and check it against what they're seeing.*
 
----
+### What changed, and what deliberately didn't
+
+**Warmer:** contractions throughout; the reader is invited ("let's take a look
+together") rather than instructed; every sample now names the confusing thing and tells
+them it's normal not to know it; shops are described as helpful ("any good shop will
+happily run it") instead of neutrally.
+
+**Unchanged, on purpose:** every number is still real and traceable ($1,850, 88%,
+0.4–0.8 hrs, $95, $340, $4.99). No hype words. No urgency. The limitation still ships
+on the landing page. Friendly moved the *temperature*, not the *honesty* — those are
+separate dials, and only one of them was turned.
 
 ## Governance
 
@@ -798,7 +840,7 @@ doesn't feel like these, adjust the draft — not the profile.
         "left_pole": "Serious",
         "right_pole": "Playful",
         "position": 3,
-        "notes": "Dry wit only. Never playful about money, safety, or livelihood. Zero exclamation points."
+        "notes": "Warm and human. Dry wit welcome. Never playful about money, safety, or livelihood. Exclamation points sparingly and never in a selling register."
       },
       {
         "dimension": "Confidence",
@@ -819,7 +861,7 @@ doesn't feel like these, adjust the draft — not the profile.
         "left_pole": "Warm",
         "right_pole": "Direct",
         "position": 7,
-        "notes": "Direct. Warmth is expressed as respect — treating the reader as competent — not as friendliness."
+        "notes": "Warm AND direct. Genuinely glad they asked; normalizes the confusion so nobody feels stupid; still gives the number and the test."
       }
     ]
   },
@@ -939,7 +981,7 @@ doesn't feel like these, adjust the draft — not the profile.
       "donts": ["No 'you won't believe'", "No promise-shaped titles"]
     },
     "email": {
-      "tone_shift": "Warmest register, still zero exclamation points.",
+      "tone_shift": "Warmest register — a note to a friend who asked for a favour.",
       "format_preferences": "One case per send. Short paragraphs. One clear next action.",
       "length": "150-300 words",
       "dos": ["One case, told completely"],
