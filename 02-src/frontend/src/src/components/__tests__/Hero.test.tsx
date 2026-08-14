@@ -13,7 +13,7 @@ describe("Hero Component", () => {
   it("displays the value proposition", () => {
     const { getByText } = render(<Hero />);
 
-    expect(getByText(/AI diagnostic second opinion for \$4\.99/)).toBeInTheDocument();
+    expect(getByText(/A second opinion on your repair, for \$4\.99/)).toBeInTheDocument();
   });
 
   it("shows the call-to-action button", () => {
@@ -27,7 +27,8 @@ describe("Hero Component", () => {
   it("displays value summary stats", () => {
     const { getByText } = render(<Hero />);
 
-    expect(getByText("2,000+ Words")).toBeInTheDocument();
+    // Deliberately NOT a word count: length reads as homework, not value.
+    expect(getByText("Questions to Ask")).toBeInTheDocument();
     expect(getByText("15 Sections")).toBeInTheDocument();
     // Price appears in CTA and stats row
     expect(getByText("Start Diagnosis - $4.99")).toBeInTheDocument();

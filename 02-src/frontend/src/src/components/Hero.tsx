@@ -65,10 +65,10 @@ const Hero = () => {
           <dl className="grid grid-cols-3 gap-4 max-w-lg mx-auto border-t border-border/80 pt-8">
             <div className="text-center">
               <dt className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground mb-1">
-                Report
+                Includes
               </dt>
-              <dd className="font-display text-lg md:text-xl font-semibold tabular-nums">
-                2,000+ Words
+              <dd className="font-display text-lg md:text-xl font-semibold">
+                Questions to Ask
               </dd>
             </div>
             <div className="text-center border-x border-border/80">
