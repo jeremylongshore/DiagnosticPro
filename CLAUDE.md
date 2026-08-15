@@ -1,320 +1,289 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance for coding agents working in the DiagnosticPro
+repository. The public setup and product overview live in [README.md](README.md);
+this file records implementation and operational facts that agents need.
 
-## Task Tracking (Beads / bd)
+## Task tracking
 
-- Use `bd` for ALL tasks/issues (no markdown TODO lists).
-- Start of session: `bd ready`
-- Create work: `bd create "Title" -p 1 --description "Context + acceptance criteria"`
-- Update status: `bd update <id> --status in_progress`
-- Finish: `bd close <id> --reason "Done"`
-- End of session: `bd sync` (flush/import/export + git sync)
-- After upgrading `bd`, run: `bd info --whats-new`
-- If `bd info` warns about hooks, run: `bd hooks install`
+Use `bd` for all task tracking. Run `bd prime` at the start of a session, then
+create or claim a bead before changing files:
 
-## What This Is
+```bash
+bd ready
+bd create --title="..." --description="..." --type=task --priority=2
+bd update <id> --claim
+bd close <id> --reason="..."
+bd dolt push
+```
 
-DiagnosticPro is a customer-facing equipment diagnostic platform. Customers submit a form describing their vehicle/equipment problem, pay $4.99 via Stripe (or free for Whop members), and receive a 2000+ word PDF report with a proprietary 15-section AI analysis via configurable OpenAI-compatible LLM (DeepSeek is the default; easily switch to Ollama or other /v1 endpoints for fully self-hosted on VPS). Production domain: `diagnosticpro.io`.
+This installation does not provide a `bd sync` command; use `bd dolt push` for
+the beads remote. Do not use markdown TODO lists or TodoWrite-style tracking.
 
-The app is being migrated to full self-host on the Intent Solutions production VPS (Stage D). Backend container behind Caddy; frontend static via Caddy or container. Current deploy, Caddy, host, and secret-boundary authority is `intent-solutions-io/intent-os/ops/` under D90. Firebase may remain for hosting/DB polling during hybrid phase; Vertex AI has been removed.
+## What this repository is
+
+DiagnosticPro is a customer-facing equipment diagnostic application. The
+current production path is:
+
+```text
+React/Vite form
+  -> Express API
+  -> SQLite pending submission
+  -> Stripe Checkout ($4.99)
+  -> verified Stripe webhook
+  -> configurable OpenAI-compatible LLM
+  -> validated 15-section analysis
+  -> PDF on local persistent storage
+  -> browser polling and download/view URL
+```
+
+The active deployment is self-hosted on the Intent Solutions VPS behind Caddy.
+The main path does not use Firebase, Firestore, Google Cloud Storage, Cloud
+Run, or Vertex AI. References to those systems in older changelog entries are
+historical migration context, not current runtime dependencies.
+
+The report prompt targets roughly 2,000–2,500 words in 15 sections. The model
+defaults to `gpt-4o`, but `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` are
+environment-driven. The current frontend's primary paid path is Stripe;
+Whop OAuth, membership, and webhook routes remain in the backend for a later or
+separate membership surface.
+
+## Runtime and package boundaries
+
+- Frontend: Node 20 in CI, pnpm 10, React 18, TypeScript, Vite, Jest, and
+  Playwright. Vite's development server is configured for port `8080`.
+- Backend: Node `>=22` by package contract; CI and the production Docker image
+  use Node 24. It is an Express service with better-sqlite3, Stripe, Multer,
+  PDFKit, and the OpenAI-compatible client.
+- Production backend: port `8080` inside Docker, published only as
+  `127.0.0.1:8089`; Caddy is the public entry point.
+- Storage: SQLite, generated reports, and private evidence uploads are on
+  persistent Docker volumes. Evidence is not served as public static content.
 
 ## Commands
 
-All frontend commands run from `02-src/frontend/` (requires Node 20):
+Run frontend commands from `02-src/frontend/`:
 
 ```bash
-# Development (port 8080, not default 5173)
+pnpm install --frozen-lockfile
+pnpm dev
+pnpm test
+pnpm run build
+pnpm run lint
+npx tsc --noEmit
+pnpm exec prettier --check "src/**/*.{ts,tsx,js,jsx,json,css,md}"
+pnpm run test:e2e
+```
+
+`pnpm run test:e2e` expects a built `dist/`; run `pnpm run build` first when
+working outside CI. Live customer journeys are separate and require an
+explicit deployed target:
+
+```bash
+PLAYWRIGHT_BASE_URL=https://test.diagnosticpro.io pnpm run test:live:test
+```
+
+Run backend commands from `02-src/backend/services/backend/`:
+
+```bash
+npm ci
+npm start
 npm run dev
-
-# Build
-npm run build
-npm run build:dev          # development mode build
-
-# Tests (Jest + React Testing Library)
-npm test                   # run all tests
-npm test -- Button.test    # single test file
-npm run test:watch         # watch mode
-npm run test:coverage      # coverage report
-
-# Lint & format
-npm run lint
-npx prettier --check "src/**/*.{ts,tsx,js,jsx,json,css,md}"
-npx prettier --write "src/**/*.{ts,tsx,js,jsx,json,css,md}"
-npx tsc --noEmit           # type checking
+npx jest --coverage
+node --check index.js
 ```
 
-Root-level Makefile (runs from repo root):
+The root Makefile contains convenience targets, but several still assume a
+root-level `package.json`; the directory-specific commands above are the
+reliable equivalents.
+
+## Local configuration
+
+Copy the root template and export it before starting the backend. The backend
+does not load `.env` automatically:
 
 ```bash
-make full-check            # lint + typecheck + format + tests
-make safe-commit           # full-check, then prints commit instructions
-make dev                   # npm run dev
+cp .env.example .env
+cd 02-src/backend/services/backend
+set -a
+. ../../../../.env
+set +a
+mkdir -p .data/reports .data/uploads
+NODE_ENV=development \
+PORT=8081 \
+DB_PATH="$PWD/.data/diagnosticpro.db" \
+REPORTS_DIR="$PWD/.data/reports" \
+EVIDENCE_UPLOADS_DIR="$PWD/.data/uploads" \
+npm run dev
 ```
 
-Backend (`02-src/backend/services/backend/`, Node >=18):
+For a frontend dev server calling that backend, use
+`VITE_API_BASE=http://localhost:8081`. For a production-style build served by
+Caddy, leave the API base empty so requests remain same-origin.
+
+Required provider settings depend on the path under test:
+
+- `LLM_API_KEY`, `LLM_BASE_URL`, and `LLM_MODEL` for real analysis;
+- `STRIPE_SECRET_KEY`, `STRIPE_PUBLISHABLE_KEY`, and
+  `STRIPE_WEBHOOK_SECRET` for Stripe Checkout and webhook handling;
+- `WHOP_API_KEY`, `WHOP_WEBHOOK_SECRET`, `WHOP_APP_ID`, and
+  `WHOP_PRODUCT_ID` for the retained Whop routes; and
+- `EVIDENCE_UPLOADS_DIR`, `EVIDENCE_ORPHAN_TTL_HOURS`, `DB_PATH`, and
+  `REPORTS_DIR` for self-hosted storage.
+
+Never commit `.env` or plaintext credentials. Production secrets are provided
+by the deployment boundary from the tracked SOPS-encrypted `.env.sops`.
+
+## Docker and production deployment
+
+`docker-compose.yml` defines two services from the same backend image:
+
+- `backend` on `127.0.0.1:8089` with the production data volume;
+- `backend-test` on `127.0.0.1:8093` with a separate test data volume and
+  optional `.env.test`.
+
+The image is built from Node 24 and includes the native build toolchain plus
+the PDF/document tools used at runtime. The normal local parity check is:
 
 ```bash
-npm start                  # production
-npm run dev                # nodemon
+docker compose up -d --build
+docker compose ps
+curl http://127.0.0.1:8089/healthz
+docker compose logs -f backend
+docker compose down
 ```
 
-## Self-host on VPS (production target - rebuilt)
-Backend + SQLite + local reports. No Firebase, no Vertex, no GCS in the main path.
+Pushing to `main` runs `.github/workflows/deploy.yml`. Its pre-deploy gate
+builds the frontend and checks backend syntax. The reusable VPS workflow then
+updates the checkout, runs the Docker deployment, builds the frontend, and
+syncs `dist/` to the Caddy static root. Post-deploy checks verify production
+health and test-surface revision/evidence-route parity. Deployment authority
+and host-specific secrets live in the Intent Solutions `intent-os/ops/`
+runbooks; do not recreate that authority in this repository.
 
-**To get it live and taking customers:**
+## Frontend routes and source layout
 
-```bash
-# 1. Backend deps
-cd 02-src/backend/services/backend && npm install
+The actual frontend source root is `02-src/frontend/src/src/`; the nested path
+is intentional because both Vite and Jest alias `@` to it.
 
-# 2. Frontend build for same-origin (Caddy will proxy APIs)
-cd 02-src/frontend && VITE_API_BASE= npm run build
-```
+| Route                                   | Purpose                                              |
+| --------------------------------------- | ---------------------------------------------------- |
+| `/`                                     | Landing page and diagnostic form/review/success flow |
+| `/equipment/:equipmentSlug`             | Equipment-specific landing page                      |
+| `/success`, `/payment-success`          | Post-payment report polling and download             |
+| `/report/:reportId`                     | Report status/download page                          |
+| `/test-monitor`                         | Internal test monitor                                |
+| `/auth/callback`                        | Retained Whop OAuth callback                         |
+| `/terms`, `/privacy`, `/acceptable-use` | Legal pages                                          |
 
-# 3. On VPS
-- Place repo at /srv/code/diagnostic-pro
-- Materialize secrets (sops) — must include DEEPSEEK_API_KEY + Stripe + Whop
-- docker compose up -d --build
-- Configure Caddy (see below)
-- systemctl reload caddy
-- DNS: diagnosticpro.io A -> 167.86.106.29
+## Backend API and data contracts
 
-**Caddy block** (put in /etc/caddy/sites/diagnosticpro.caddy or main file):
-```
-diagnosticpro.io {
-    root * /srv/static/diagnosticpro
-    file_server
+Core routes in `02-src/backend/services/backend/index.js`:
 
-    # Proxy API + report serving + webhooks to backend container
-    reverse_proxy /healthz /saveSubmission /analyzeDiagnostic /reports/* /view/* /api/* /stripeWebhookForward 127.0.0.1:8089
+| Method   | Path                                  | Contract                                                                   |
+| -------- | ------------------------------------- | -------------------------------------------------------------------------- |
+| `GET`    | `/healthz`                            | Returns `status`, service version, and build `gitSha`                      |
+| `POST`   | `/saveSubmission`                     | Saves a pending submission and returns `submissionId` plus `evidenceToken` |
+| `POST`   | `/evidence/:submissionId`             | Adds one private JPEG, PNG, or WebP photo                                  |
+| `POST`   | `/evidence/:submissionId/document`    | Adds and parses one document                                               |
+| `GET`    | `/evidence/:submissionId`             | Lists evidence metadata with `x-evidence-token`                            |
+| `DELETE` | `/evidence/:submissionId/:evidenceId` | Deletes pending evidence                                                   |
+| `POST`   | `/createCheckoutSession`              | Creates the $4.99 Stripe Checkout session                                  |
+| `POST`   | `/stripeWebhookForward`               | Verifies Stripe events and queues paid analysis                            |
+| `POST`   | `/analyzeDiagnostic`                  | Queues or re-triggers analysis                                             |
+| `POST`   | `/analysisStatus`                     | Returns analysis status                                                    |
+| `GET`    | `/reports/signed-url`                 | Returns local report URLs when ready                                       |
+| `GET`    | `/reports/download/:submissionId`     | Streams a local PDF                                                        |
+| `GET`    | `/view/:submissionId`                 | Resolves a report view request                                             |
+| `POST`   | `/api/auth/whop-exchange`             | Retained Whop OAuth exchange                                               |
+| `GET`    | `/api/auth/whop-verify`               | Retained Whop membership verification                                      |
+| `POST`   | `/api/webhooks/whop`                  | Retained Whop webhook handler                                              |
+| `POST`   | `/api/whop/analyze`                   | Retained member analysis path                                              |
 
-    header {
-        Strict-Transport-Security "max-age=31536000;"
-    }
-}
-```
+Evidence limits are three photos at 2 MiB each and five documents at 10 MiB
+each. Documents are parsed before prompt construction; extracted text is
+bounded. Scanned PDFs can be retained with `needs_ocr` status but are not
+treated as understood evidence. The evidence token is scoped to a submission,
+hashed at rest, and mutations are rejected after payment.
 
-Copy the built `02-src/frontend/dist/*` to `/srv/static/diagnosticpro` on the VPS.
+The SQLite schema and migrations are in `db.js`. Do not reintroduce Firestore
+or GCS fields into the main flow without an explicit migration decision.
 
-See docker-compose.yml for the self-contained setup (backend only; static via Caddy is preferred for prod).
+## CI and testing
 
-Env (via sops):
-- DB_PATH=/data/diagnosticpro.db
-- REPORTS_DIR=/data/diagnosticpro/reports
-- LLM_* for DeepSeek
+`.github/workflows/ci.yml` is the authoritative CI definition:
 
-This should be enough to take payments and deliver reports. Test the full form -> pay (Stripe test or Whop) -> analysis -> download flow.
+- `frontend-test`: pnpm 10 + Node 20, frontend tests, production build, and
+  advisory audit-harness run;
+- `backend-test`: Node 24, npm install, Poppler, Jest coverage, and PDF loader
+  smoke check;
+- `e2e`: local backend boot, frontend build, and Playwright browser tests; and
+- `live-journey`: manual or scheduled deployed-site journeys, with payment
+  steps gated behind an explicitly configured Stripe test surface.
 
-Old Firebase hosting / Cloud Run is dead. This is the rebuilt self-hosted version.
+Do not describe the live journey as a local unit test. It can create real
+submissions and must use the test target and test credentials.
 
-Cloud Functions (`functions/`, Node 20):
-```bash
-npm run build              # tsc compile
-npm run serve              # build + emulators
-```
+## Security invariants
 
-## Architecture Overview
+- Stripe and Whop webhook signatures must be verified in production.
+- Caddy is the only public path to the backend; the Compose mapping binds to
+  loopback.
+- Keep `app.set('trust proxy', 1)` aligned with the single Caddy hop. Do not
+  change it to `true` without a reviewed proxy topology change.
+- Preserve the general, submission, analysis, and evidence rate limiters.
+- Keep evidence outside static serving, validate file signatures, enforce size
+  limits, hash stored bytes, and preserve the orphan sweeper.
+- Do not log secrets, raw evidence tokens, payment credentials, or private file
+  contents.
+- Keep plaintext secrets out of commits and use `SECURITY.md` for reporting.
 
-### Three Codebases in One Repo (migrating to VPS self-host)
+## Key paths
 
-1. **Frontend** (`02-src/frontend/`) — React 18 + TypeScript + Vite, shadcn/ui + Tailwind CSS. Served statically via Caddy on VPS.
-2. **Backend** (`02-src/backend/services/backend/`) — Express, single `index.js` (~2000 lines). Runs in Docker container on VPS behind Caddy (127.0.0.1 only). Uses DeepSeek by default for analysis.
-3. **Cloud Functions** (legacy references only; removed from active paths) — was Firebase Functions.
-
-### Critical: Double `src` Nesting
-
-The frontend source lives at `02-src/frontend/src/src/`. Both Vite and Jest `@` aliases resolve to `./src/src`:
-
-```
-02-src/frontend/
-├── src/
-│   └── src/          ← actual source root (@ alias target)
-│       ├── components/
-│       ├── pages/
-│       ├── services/
-│       ├── config/
-│       ├── hooks/
-│       ├── integrations/
-│       ├── lib/
-│       └── data/
-```
-
-### Frontend Routes (App.tsx)
-
-All page components are lazy-loaded via `React.lazy()`.
-
-| Route | Component | Purpose |
-|-------|-----------|---------|
-| `/` | Index | Landing page + 3-step form wizard (form → review → success) |
-| `/report/:reportId` | Report | Polls Firestore for analysis status, offers PDF download |
-| `/equipment/:equipmentSlug` | EquipmentLanding | SEO landing pages per equipment type |
-| `/test-monitor` | TestMonitor | Internal ops dashboard |
-| `/success`, `/payment-success` | PaymentSuccess | Post-payment polling for report URL |
-| `/auth/callback` | AuthCallback | Whop OAuth PKCE callback handler |
-| `/terms`, `/privacy` | Terms, Privacy | Legal pages |
-
-### Frontend Services (`src/src/services/`)
-
-- **`api.ts`** — Auth-aware fetch client. Prefers `VITE_EDGE_BASE` (Functions proxy) over `VITE_API_BASE` (Cloud Run direct). Attaches Firebase ID token.
-- **`firestore.ts`** — Typed CRUD for Firestore collections: `diagnosticSubmissions`, `orders`, `emailLogs`.
-- **`diagnostics.ts`** — Submission handler. Writes to Firestore via client SDK or Cloud Functions depending on config.
-- **`reports.ts`** — Polls Firestore directly for status, reads `downloadUrl` field.
-
-### Two Firebase Init Files
-
-- `src/src/config/firebase.ts` — Has hardcoded fallback project values. Exports `db`, `auth`, `functions`.
-- `src/src/integrations/firebase.ts` — Auth wrapper (`signIn`, `signUp`, `getIdToken`, etc.). Connects to emulators in dev mode.
-
-### Whop Integration (`src/src/lib/`)
-
-Whop membership ($29/mo or one-time plans) grants free diagnostics, bypassing Stripe payment.
-
-- **`whop-auth.ts`** — OAuth PKCE flow, token exchange, membership verification, auth state management.
-- **`whop-embed.ts`** — iframe detection for Whop app embed mode, `setupWhopEmbed()`.
-- **`useWhopAuth.ts`** hook — React hook for auth state (localStorage: `whop_token`, `whop_user`, `whop_is_member`).
-- **`WhopLoginButton.tsx`** — Login/logout + PRO badge display.
-
-### Backend API Endpoints (Cloud Run `index.js`)
-
-**Core endpoints:**
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| GET | `/healthz` | Health check |
-| POST | `/saveSubmission` | Save form data to Firestore (requires: `equipmentType`, `model`, `symptoms`) |
-| POST | `/createCheckoutSession` | Stripe $4.99 checkout |
-| POST | `/analyzeDiagnostic` | Trigger/re-trigger AI analysis |
-| POST | `/analysisStatus` | Poll submission status |
-| GET | `/view/:submissionId` | 302 redirect to signed PDF URL |
-| GET | `/reports/signed-url` | Get download + view signed URLs |
-| GET | `/reports/status` | Check GCS for PDF existence |
-| POST | `/reports/ensure` | Idempotent requeue for failed reports |
-| GET | `/checkout/session` | Retrieve Stripe session details |
-| POST | `/getDownloadUrl` | Legacy: get download URL by submissionId |
-| POST | `/stripeWebhookForward` | Stripe webhook receiver (triggers analysis pipeline) |
-
-**Whop endpoints:**
-
-| Method | Path | Purpose |
-|--------|------|---------|
-| POST | `/api/auth/whop-exchange` | OAuth code → token + membership check |
-| GET | `/api/auth/whop-verify` | Verify active membership (`x-whop-token` header) |
-| POST | `/api/webhooks/whop` | `membership.went_valid/invalid` webhook handler |
-| POST | `/api/whop/analyze` | Member diagnostic submission (bypasses Stripe) |
-
-### Production Flow
-
-```
-DiagnosticForm → DiagnosticReview (saves to Firestore via client SDK)
-  → Stripe Buy Button ($4.99) OR Whop member free submit
-  → Stripe webhook / Whop analyze endpoint
-  → processAnalysis(): DeepSeek (OpenAI-compatible) → 15-section parse
-  → generateDiagnosticProPDF() (pdfkit) → GCS upload
-  → Firestore status → 'ready', downloadUrl set
-  → Customer polls Report page → signed URL → PDF download
-```
-
-### PDF Generation
-
-- **Production:** `02-src/backend/services/backend/reportPdfProduction.js` — Three classes: `PDFValidationSystem`, `TypographyManager`, `DiagnosticPDFGenerator`. Uses pdfkit with IBM Plex Mono fonts.
-- **Functions fallback:** `functions/src/utils/pdf-generator.ts` — Simpler pdfkit generator.
-
-### Firestore Collections
-
-- `diagnosticSubmissions` — Status flow: `pending → processing → ready/failed`. Firestore rules allow public `create` only (no read/update from client).
-- `orders` — Admin SDK only (all client ops denied).
-- `emailLogs` — Admin SDK only.
-- `analysis` — Stores parsed AI text and `reportPath`. Admin SDK only.
-- `whopUsers` — Stores `whopId`, `username`, `email`, `isMember`, `membershipId`, access/refresh tokens, `lastVerified`.
-
-### Overlapping Implementations
-
-The Cloud Run backend and (legacy) Firebase Cloud Functions both implement Stripe webhooks and LLM analysis. They are alternative paths, not complementary:
-- **Cloud Run** (`index.js`) — The primary production system with full endpoint set.
-- **Functions** (`functions/src/index.ts`) — Has its own `stripeWebhook` export. Region: `us-east1`.
-
-## CI/CD
-
-`.github/workflows/deploy-cloudrun.yml` — Deploys **both** backend (Cloud Run) and frontend (Firebase Hosting) on push to `main` via Workload Identity Federation. Two independent jobs: `deploy-backend` and `deploy-frontend`. Frontend build copies `06-infrastructure/firebase/firebase.json` into `02-src/frontend/` before deploying.
-
-`.github/workflows/ci.yml` — Three parallel jobs: frontend tests (Node 18), backend validation (loads `reportPdfProduction.js`), functions build (Node 18).
-
-## Mobile (Capacitor)
-
-Capacitor 8 configured for `io.diagnosticpro.app`. iOS and Android project dirs at `02-src/frontend/ios/` and `02-src/frontend/android/`. `webDir: 'dist'` wraps the Vite build output.
-
-## Git Workflow
-
-- Never commit directly to `main`. Always use feature branches.
-- Run `make safe-commit` before committing (or `make full-check`).
-- Pre-commit hook (`05-scripts/pre-commit-hooks.sh`, installed via `05-scripts/install-hooks.sh`) blocks `main`/`master` commits and runs lint, typecheck, format, and tests.
-
-## Key File Paths
-
-| What | Path |
-|------|------|
-| Frontend source root | `02-src/frontend/src/src/` |
-| Frontend package.json | `02-src/frontend/package.json` |
-| Vite config | `02-src/frontend/vite.config.ts` |
-| Jest config | `02-src/frontend/jest.config.js` |
-| Backend entry | `02-src/backend/services/backend/index.js` |
-| Backend package.json | `02-src/backend/services/backend/package.json` |
-| PDF generator (prod) | `02-src/backend/services/backend/reportPdfProduction.js` |
-| Secrets config | `02-src/backend/services/backend/config/secrets.js` |
-| Cloud Functions | `functions/src/index.ts` |
-| Firebase config | `06-infrastructure/firebase/firebase.json` |
-| Firestore rules | `06-infrastructure/firestore/firestore.rules` |
-| Cloud Run Dockerfile | `06-infrastructure/cloudrun/Dockerfile` |
-| Pre-commit hook | `05-scripts/pre-commit-hooks.sh` |
-| CI/CD workflows | `.github/workflows/` |
-| Flat docs directory | `01-docs/` (format: `NNN-abv-description.ext`) |
-
+| What                     | Path                                                               |
+| ------------------------ | ------------------------------------------------------------------ |
+| Frontend source          | `02-src/frontend/src/src/`                                         |
+| Frontend package/config  | `02-src/frontend/package.json`, `vite.config.ts`, `jest.config.js` |
+| Backend entry            | `02-src/backend/services/backend/index.js`                         |
+| Backend package          | `02-src/backend/services/backend/package.json`                     |
+| SQLite schema            | `02-src/backend/services/backend/db.js`                            |
+| Evidence handlers        | `02-src/backend/services/backend/evidence/`                        |
+| Production PDF generator | `02-src/backend/services/backend/reportPdfProduction.js`           |
+| Secret adapter           | `02-src/backend/services/backend/config/secrets.js`                |
+| Compose services         | `docker-compose.yml`                                               |
+| CI/deploy                | `.github/workflows/ci.yml`, `.github/workflows/deploy.yml`         |
+| Environment template     | `.env.example`                                                     |
+| Public docs              | `README.md`, `01-docs/`, `docs/`                                   |
 
 <!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:7510c1e2 -->
+
 ## Beads Issue Tracker
 
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
+This project uses **bd (beads)** for issue tracking. Run `bd prime` for workflow context.
 
 ### Quick Reference
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
+bd ready
+bd show <id>
+bd update <id> --claim
+bd close <id>
+bd dolt push
 ```
 
 ### Rules
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+- Use `bd` for all task tracking; do not use TodoWrite, TaskCreate, or markdown TODO lists.
+- Create or claim a bead before changing files.
+- Use `bd remember` for durable project knowledge instead of MEMORY.md files.
 
-**Architecture in one line:** issues live in a local Dolt DB; sync uses `refs/dolt/data` on your git remote; `.beads/issues.jsonl` is a passive export. See https://github.com/gastownhall/beads/blob/main/docs/SYNC_CONCEPTS.md for details and anti-patterns.
+## Session completion
 
-## Session Completion
+Before ending work:
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
-
-**MANDATORY WORKFLOW:**
-
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
-
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
+1. File beads for remaining work.
+2. Run relevant quality gates.
+3. Close completed beads and inspect `git status`.
+4. Run `git pull --rebase`, `bd dolt push`, `git push`, and verify the branch is up to date.
+5. Preserve unrelated user stashes and changes; do not reset or clean them destructively.
 <!-- END BEADS INTEGRATION -->

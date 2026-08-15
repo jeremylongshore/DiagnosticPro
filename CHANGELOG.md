@@ -5,6 +5,13 @@ All notable changes to DiagnosticPro will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> **Current repository note (2026-08-14):** The active production path is the
+> self-hosted VPS deployment documented in `README.md` and
+> `.github/workflows/deploy.yml`: Caddy, Docker Compose, Express, SQLite, local
+> report/evidence volumes, Stripe, and an OpenAI-compatible LLM. Entries below
+> that mention Firebase Hosting, Firestore, Cloud Run, GCS, or Vertex AI record
+> prior release history and are not instructions for the current runtime.
+
 ## [2.2.0] - 2026-03-27
 
 ### Added
