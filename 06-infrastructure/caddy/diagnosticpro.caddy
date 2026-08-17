@@ -1,0 +1,29 @@
+# DiagnosticPro public ingress.
+#
+# Keep the SPA fallback limited to routes that the React application actually
+# owns. Missing static files and unknown paths must remain native 404s; serving
+# index.html for every URL creates Google Search Console soft-404s.
+diagnosticpro.io, www.diagnosticpro.io {
+    @www host www.diagnosticpro.io
+    redir @www https://diagnosticpro.io{uri} permanent
+
+    @api path /healthz /saveSubmission /createCheckoutSession /analysisStatus /analyzeDiagnostic /stripeWebhookForward /getDownloadUrl /view/* /checkout/* /reports/* /api/* /evidence*
+    handle @api {
+        reverse_proxy 127.0.0.1:8089
+    }
+
+    @private path /auth/* /report/* /success /payment-success /test-monitor
+    header @private X-Robots-Tag "noindex, nofollow"
+
+    @spa path / /terms /privacy /acceptable-use /success /payment-success /test-monitor /auth/* /report/* /equipment/*
+    handle @spa {
+        root * /srv/diagnosticpro/dist
+        try_files {path} /index.html
+        file_server
+    }
+
+    handle {
+        root * /srv/diagnosticpro/dist
+        file_server
+    }
+}

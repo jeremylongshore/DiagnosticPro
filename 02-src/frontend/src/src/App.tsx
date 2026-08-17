@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import { RouteSeo } from "@/components/RouteSeo";
 
 // Lazy load all routes for better performance
 const Index = React.lazy(() => import("./pages/Index"));
@@ -35,7 +36,7 @@ const App = () => (
   <ErrorBoundary>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Sonner 
+        <Sonner
           position="top-right"
           richColors
           closeButton
@@ -44,6 +45,7 @@ const App = () => (
           }}
         />
         <BrowserRouter>
+          <RouteSeo />
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
               <Route path="/" element={<Index />} />

@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+
+# Customer-specific, transactional, and diagnostic report URLs are not public
+# search content. Keep them out of crawls while leaving the marketing and legal
+# pages available to search engines.
+Disallow: /auth/
+Disallow: /report/
+Disallow: /success
+Disallow: /payment-success
+Disallow: /test-monitor
+
+Sitemap: https://diagnosticpro.io/sitemap.xml
