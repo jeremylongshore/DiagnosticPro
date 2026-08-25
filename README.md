@@ -11,6 +11,7 @@ context, and next actions.
 [![Live site](https://img.shields.io/badge/site-diagnosticpro.io-success)](https://diagnosticpro.io)
 [![CI](https://github.com/jeremylongshore/DiagnosticPro/actions/workflows/ci.yml/badge.svg)](https://github.com/jeremylongshore/DiagnosticPro/actions/workflows/ci.yml)
 [![License: AGPL-3.0-only](https://img.shields.io/badge/license-AGPL--3.0--only-blue)](LICENSE)
+<a href="https://ko-fi.com/U5S225PTME"><img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="ko-fi"></a>
 
 </div>
 
