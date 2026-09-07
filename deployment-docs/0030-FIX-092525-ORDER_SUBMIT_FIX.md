@@ -38,7 +38,7 @@
 **Direct API Test Results:**
 ```bash
 curl -X POST "https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev/saveSubmission" \
- -H "Content-Type: application/json" -H "x-api-key: AIzaSyBy3u5KZy3VYg46lv9z3ym0VOfg7bbGujA" \
+ -H "Content-Type: application/json" -H "x-api-key: REDACTED_API_KEY" \
  -d '{"payload":{"make":"Toyota","issue":"noise"}}'
 
 Response: {"message":"PERMISSION_DENIED: Referer blocked.","code":403}
@@ -116,7 +116,7 @@ Hosting URL: https://diagnostic-pro-prod.web.app
 **Request Headers Should Include:**
 ```
 Content-Type: application/json
-x-api-key: AIzaSyBy3u5KZy3VYg46lv9z3ym0VOfg7bbGujA
+x-api-key: REDACTED_API_KEY
 ```
 
 **Response Verification:**
@@ -146,7 +146,7 @@ x-api-key: AIzaSyBy3u5KZy3VYg46lv9z3ym0VOfg7bbGujA
 ## 🔐 **SECURITY VERIFICATION**
 
 ### **API Key Restrictions: ✅ PROPERLY CONFIGURED**
-- **Key:** `AIzaSyBy3u5KZy3VYg46lv9z3ym0VOfg7bbGujA`
+- **Key:** `REDACTED_API_KEY`
 - **Allowed Referrers:**
   - `https://diagnostic-pro-prod.web.app/*`
   - `https://diagnosticpro.io/*`
