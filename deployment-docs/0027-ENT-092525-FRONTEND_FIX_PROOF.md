@@ -159,7 +159,7 @@ Response:
 5. **Monitor Network tab** for /saveSubmission request
 6. **Verify request headers** include:
    - `Content-Type: application/json`
-   - `x-api-key: REDACTED_API_KEY` (first 20 chars)
+   - `x-api-key: REDACTED_API_KEY`
 7. **Check response** for submissionId (should be HTTP 200)
 8. **Test payment flow** by clicking "Proceed to Payment ($4.99)"
 9. **Verify checkout session** creation and Stripe redirect
