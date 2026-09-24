@@ -1,6 +1,6 @@
 import { defineConfig } from '@playwright/test';
 
-const PORT = process.env.CI ? 8080 : 4173;
+const PORT = Number(process.env.PLAYWRIGHT_PORT || (process.env.CI ? 8080 : 4173));
 
 // Live-site mode: set PLAYWRIGHT_BASE_URL (e.g. https://diagnosticpro.io) to run
 // the e2e-live/ customer-journey suite against a real deployment. In that mode
