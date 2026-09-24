@@ -33,6 +33,11 @@ const PUBLIC_METADATA = {
     description:
       "Know what is wrong before you authorize repairs. Get an AI-assisted second opinion for cars, trucks, boats, HVAC, farm equipment, and more for $4.99.",
   },
+  "/about": {
+    title: "About DiagnosticPro | AI Equipment Diagnostic Second Opinions",
+    description:
+      "DiagnosticPro turns equipment symptoms and optional evidence into a documented AI-assisted diagnostic second opinion before repairs are authorized.",
+  },
   "/terms": {
     title: "Terms of Service | DiagnosticPro",
     description:

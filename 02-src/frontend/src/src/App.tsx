@@ -9,6 +9,7 @@ import { RouteSeo } from "@/components/RouteSeo";
 
 // Lazy load all routes for better performance
 const Index = React.lazy(() => import("./pages/Index"));
+const About = React.lazy(() => import("./pages/About"));
 const Terms = React.lazy(() => import("./pages/Terms"));
 const Privacy = React.lazy(() => import("./pages/Privacy"));
 const AcceptableUse = React.lazy(() => import("./pages/AcceptableUse"));
@@ -49,6 +50,7 @@ const App = () => (
           <Suspense fallback={<LoadingSpinner />}>
             <Routes>
               <Route path="/" element={<Index />} />
+              <Route path="/about" element={<About />} />
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/acceptable-use" element={<AcceptableUse />} />
