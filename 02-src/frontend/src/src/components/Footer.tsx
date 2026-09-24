@@ -26,7 +26,7 @@ const Footer = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-10 text-sm">
+          <div className="grid min-w-0 grid-cols-2 sm:grid-cols-3 gap-10 text-sm [overflow-wrap:anywhere]">
             <div>
               <p className="font-display text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground mb-3">
                 Product
