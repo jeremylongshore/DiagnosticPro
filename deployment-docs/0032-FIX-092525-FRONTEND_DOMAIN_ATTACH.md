@@ -100,7 +100,7 @@ restrictions:
 **API Functionality Test:**
 ```bash
 curl -X POST -H "Content-Type: application/json" \
-  -H "x-api-key: AIzaSyBy3u5KZy3VYg46lv9z3ym0VOfg7bbGujA" \
+  -H "x-api-key: REDACTED_API_KEY" \
   -H "Referer: https://diagnosticpro.io/" \
   "https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev/saveSubmission" \
   -d '{"payload":{"equipment_type":"Domain Test","model":"TEST-2024","symptoms":["Testing from diagnosticpro.io domain"]}}'

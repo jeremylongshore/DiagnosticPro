@@ -127,7 +127,7 @@ Response:
 ```bash
 curl -s -X POST \
   -H "Content-Type: application/json" \
-  -H "x-api-key: AIzaSyBy3u5KZy3VYg46lv9z3ym0VOfg7bbGujA" \
+  -H "x-api-key: REDACTED_API_KEY" \
   "https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev/saveSubmission" \
   -d '{"payload":{"equipment_type":"Secured Test"}}'
 
@@ -159,7 +159,7 @@ Response:
 5. **Monitor Network tab** for /saveSubmission request
 6. **Verify request headers** include:
    - `Content-Type: application/json`
-   - `x-api-key: AIzaSyBy3u5KZy3VYg46lv9z3ym0VOfg7bbGujA` (first 20 chars)
+   - `x-api-key: REDACTED_API_KEY`
 7. **Check response** for submissionId (should be HTTP 200)
 8. **Test payment flow** by clicking "Proceed to Payment ($4.99)"
 9. **Verify checkout session** creation and Stripe redirect

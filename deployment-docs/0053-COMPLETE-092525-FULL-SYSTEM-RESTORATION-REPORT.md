@@ -342,7 +342,7 @@ cat > .env.production <<EOF
 VITE_API_GATEWAY_URL=https://diagpro-gw-3tbssksx-3tbssksx.uc.gateway.dev
 VITE_API_KEY=REDACTED_API_KEY
 VITE_FIREBASE_PROJECT_ID=diagnostic-pro-prod
-VITE_FIREBASE_API_KEY=AIzaSyBmuntVKosh_EGz5yxQLlIoNXlxwYE6tMg
+VITE_FIREBASE_API_KEY=REDACTED_API_KEY
 VITE_FIREBASE_AUTH_DOMAIN=diagnostic-pro-prod.firebaseapp.com
 VITE_FIREBASE_STORAGE_BUCKET=diagnostic-pro-prod.firebasestorage.app
 EOF
