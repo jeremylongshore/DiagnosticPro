@@ -76,8 +76,15 @@ pnpm run test:e2e
 ```
 
 `pnpm run test:e2e` expects a built `dist/`; run `pnpm run build` first when
-working outside CI. Live customer journeys are separate and require an
-explicit deployed target:
+working outside CI. Use `PLAYWRIGHT_PORT` to isolate local preview runs from
+other projects.
+
+The production build also renders the existing React About component into
+`dist/about/index.html`, including its FAQ schema and shared route metadata.
+This makes the page readable without JavaScript while retaining the normal
+client app; no production SSR server or duplicate content source is introduced.
+
+Live customer journeys are separate and require an explicit deployed target:
 
 ```bash
 PLAYWRIGHT_BASE_URL=https://test.diagnosticpro.io pnpm run test:live:test
