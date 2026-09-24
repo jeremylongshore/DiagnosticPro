@@ -72,7 +72,7 @@ const About = () => {
             </p>
             <a
               href="/#diagnostic-form"
-              className="mt-8 inline-flex h-11 items-center rounded-md bg-primary px-5 font-medium text-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="mt-8 inline-flex h-11 items-center rounded-md bg-primary px-5 font-medium text-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 dark:text-primary-foreground"
             >
               Start a diagnosis
             </a>
