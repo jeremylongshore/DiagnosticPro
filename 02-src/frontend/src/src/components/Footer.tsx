@@ -33,17 +33,17 @@ const Footer = () => {
               </p>
               <ul className="space-y-2 text-muted-foreground">
                 <li>
-                  <a href="#diagnostic-form" className="hover:text-foreground transition-colors">
+                  <a href="/#diagnostic-form" className="hover:text-foreground transition-colors">
                     Start diagnosis
                   </a>
                 </li>
                 <li>
-                  <a href="#how-it-works" className="hover:text-foreground transition-colors">
+                  <a href="/#how-it-works" className="hover:text-foreground transition-colors">
                     How it works
                   </a>
                 </li>
                 <li>
-                  <a href="#pricing" className="hover:text-foreground transition-colors">
+                  <a href="/#pricing" className="hover:text-foreground transition-colors">
                     Pricing
                   </a>
                 </li>
@@ -54,6 +54,11 @@ const Footer = () => {
                 Company
               </p>
               <ul className="space-y-2 text-muted-foreground">
+                <li>
+                  <Link to="/about" className="hover:text-foreground transition-colors">
+                    About
+                  </Link>
+                </li>
                 <li>
                   <a
                     href="https://intentsolutions.io"

@@ -1,4 +1,8 @@
 const scrollToForm = () => {
+  if (!document.getElementById("diagnostic-form")) {
+    window.location.assign("/#diagnostic-form-flash");
+    return;
+  }
   window.location.hash = "#diagnostic-form-flash";
   setTimeout(() => {
     document.getElementById("diagnostic-form")?.scrollIntoView({ behavior: "smooth" });
@@ -20,22 +24,28 @@ const Header = () => {
 
         <nav className="hidden md:flex items-center gap-6 absolute left-1/2 -translate-x-1/2">
           <a
-            href="#diagnostic-form"
+            href="/#diagnostic-form"
             className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors duration-200"
           >
             Diagnosis
           </a>
           <a
-            href="#how-it-works"
+            href="/#how-it-works"
             className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors duration-200"
           >
             How it works
           </a>
           <a
-            href="#pricing"
+            href="/#pricing"
             className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors duration-200"
           >
             Pricing
+          </a>
+          <a
+            href="/about"
+            className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors duration-200"
+          >
+            About
           </a>
         </nav>
 

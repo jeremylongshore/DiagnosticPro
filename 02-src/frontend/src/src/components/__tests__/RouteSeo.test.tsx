@@ -25,6 +25,24 @@ describe("RouteSeo", () => {
     );
   });
 
+  it("sets indexable metadata and a canonical URL for the About page", async () => {
+    render(
+      <MemoryRouter initialEntries={["/about"]}>
+        <RouteSeo />
+      </MemoryRouter>
+    );
+
+    await waitFor(() => expect(document.title).toContain("About DiagnosticPro"));
+    expect(document.head.querySelector('meta[name="robots"]')).toHaveAttribute(
+      "content",
+      "index,follow"
+    );
+    expect(document.head.querySelector('link[rel="canonical"]')).toHaveAttribute(
+      "href",
+      "https://diagnosticpro.io/about"
+    );
+  });
+
   it("canonicalizes equipment aliases while keeping them indexable", async () => {
     render(
       <MemoryRouter initialEntries={["/equipment/cars"]}>
