@@ -56,7 +56,6 @@ const About = () => {
       <main>
         <header className="border-b border-border/70">
           <div className="container mx-auto max-w-5xl px-4 py-16 md:py-24">
-            <p className="section-label mb-4">Intent Solutions network / repair diagnostics</p>
             <h1 className="font-display text-4xl font-bold tracking-tight md:text-6xl">
               About DiagnosticPro
             </h1>
@@ -73,7 +72,7 @@ const About = () => {
             </p>
             <a
               href="/#diagnostic-form"
-              className="mt-8 inline-flex h-11 items-center rounded-md bg-primary px-5 font-medium text-primary-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              className="mt-8 inline-flex h-11 items-center rounded-md bg-primary px-5 font-medium text-foreground transition-colors hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 dark:text-primary-foreground"
             >
               Start a diagnosis
             </a>
@@ -313,7 +312,7 @@ const About = () => {
             </h2>
             <ol className="mt-10 divide-y divide-border border-y border-border">
               <li className="grid gap-3 py-7 md:grid-cols-[3rem_minmax(0,0.7fr)_minmax(0,1.4fr)] md:gap-6">
-                <span className="font-display text-sm font-semibold text-primary">01</span>
+                <span className="font-display text-sm font-semibold text-muted-foreground">01</span>
                 <h3 className="font-display text-lg font-semibold">Submit the problem</h3>
                 <p className="leading-relaxed text-muted-foreground">
                   Enter the equipment details, symptoms, codes, and repair context. Add optional
@@ -321,7 +320,7 @@ const About = () => {
                 </p>
               </li>
               <li className="grid gap-3 py-7 md:grid-cols-[3rem_minmax(0,0.7fr)_minmax(0,1.4fr)] md:gap-6">
-                <span className="font-display text-sm font-semibold text-primary">02</span>
+                <span className="font-display text-sm font-semibold text-muted-foreground">02</span>
                 <h3 className="font-display text-lg font-semibold">Review and pay</h3>
                 <p className="leading-relaxed text-muted-foreground">
                   Confirm the submission and pay $4.99 through Stripe. There is no subscription, and
@@ -329,7 +328,7 @@ const About = () => {
                 </p>
               </li>
               <li className="grid gap-3 py-7 md:grid-cols-[3rem_minmax(0,0.7fr)_minmax(0,1.4fr)] md:gap-6">
-                <span className="font-display text-sm font-semibold text-primary">03</span>
+                <span className="font-display text-sm font-semibold text-muted-foreground">03</span>
                 <h3 className="font-display text-lg font-semibold">Receive the report</h3>
                 <p className="leading-relaxed text-muted-foreground">
                   The browser checks analysis status until the validated PDF is ready to view or
@@ -337,7 +336,7 @@ const About = () => {
                 </p>
               </li>
               <li className="grid gap-3 py-7 md:grid-cols-[3rem_minmax(0,0.7fr)_minmax(0,1.4fr)] md:gap-6">
-                <span className="font-display text-sm font-semibold text-primary">04</span>
+                <span className="font-display text-sm font-semibold text-muted-foreground">04</span>
                 <h3 className="font-display text-lg font-semibold">Use support when needed</h3>
                 <p className="leading-relaxed text-muted-foreground">
                   Customers work with the Intent Solutions-operated product and can contact
@@ -462,13 +461,13 @@ const About = () => {
                     <th scope="row" className="py-4 pr-6 font-display font-semibold">
                       Projects Delivered
                     </th>
-                    <td className="py-4 text-muted-foreground">[[VERIFIED_REPORTS_DELIVERED]]</td>
+                    <td className="py-4 text-muted-foreground">[[VERIFIED_PROJECTS_DELIVERED]]</td>
                   </tr>
                   <tr>
                     <th scope="row" className="py-4 pr-6 font-display font-semibold">
                       Competitors
                     </th>
-                    <td className="py-4 text-muted-foreground">[[NAMED_ALTERNATIVES]]</td>
+                    <td className="py-4 text-muted-foreground">[[NAMED_ALTERNATIVE]]</td>
                   </tr>
                   <tr>
                     <th scope="row" className="py-4 pr-6 font-display font-semibold">
@@ -521,6 +520,16 @@ const About = () => {
                 </div>
               ))}
             </div>
+            <p className="mt-6 leading-relaxed">
+              Explore <a href="https://intentsolutions.io/about/">Intent Solutions</a>,{" "}
+              <a href="https://learn.intentsolutions.io/page/about-us">Learn</a>,{" "}
+              <a href="https://demos.intentsolutions.io/about/">Demos</a>,{" "}
+              <a href="https://oma.intentsolutions.io/about/">Omarchy</a>,{" "}
+              <a href="https://tonsofskills.com/about/">Tons of Skills</a>,{" "}
+              <a href="https://startaitools.com/about/">Start AI Tools</a>,{" "}
+              <a href="https://diagnosticpro.io/about/">DiagnosticPro</a>, and{" "}
+              <a href="https://hustlestats.io/about">HustleStats</a>.
+            </p>
           </div>
         </section>
       </main>
