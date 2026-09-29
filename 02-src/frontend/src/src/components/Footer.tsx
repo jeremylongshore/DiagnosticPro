@@ -61,6 +61,14 @@ const Footer = () => {
                 </li>
                 <li>
                   <a
+                    href="https://intentsolutions.io/about/#team"
+                    className="hover:text-foreground transition-colors"
+                  >
+                    Our team
+                  </a>
+                </li>
+                <li>
+                  <a
                     href="https://intentsolutions.io"
                     className="hover:text-foreground transition-colors"
                     target="_blank"
