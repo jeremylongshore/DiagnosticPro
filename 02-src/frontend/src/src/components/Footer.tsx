@@ -22,7 +22,10 @@ const Footer = () => {
                 rel="noopener noreferrer"
               >
                 Intent Solutions
-              </a>
+              </a>, an applied AI engineering company. {" "}
+              <a href="https://startaitools.com/deployment-thesis/" className="underline underline-offset-4 hover:text-foreground">
+                Engineering, evidence, and practical knowledge
+              </a>.
             </p>
           </div>
 
@@ -123,7 +126,7 @@ const Footer = () => {
         </div>
 
         <div className="max-w-5xl mx-auto mt-10 pt-6 border-t border-border/80 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 text-xs text-muted-foreground">
-          <p>© {new Date().getFullYear()} Intent Solutions Inc. All rights reserved.</p>
+          <p>© {new Date().getFullYear()} intentsolutions.io LLC. All rights reserved.</p>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <a
               href="https://intentsolutions.io"
