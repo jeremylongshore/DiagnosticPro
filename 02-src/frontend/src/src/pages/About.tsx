@@ -30,7 +30,7 @@ const faq = [
   {
     question: "How does DiagnosticPro relate to Intent Solutions?",
     answer:
-      "DiagnosticPro is built and operated by Intent Solutions. The wider network includes the company's implementation practice, public demos, practitioner learning, desktop plugins, agent skills, an implementation journal, and other focused products.",
+      "DiagnosticPro is built and operated by Intent Solutions, an applied AI engineering company. Its engineering work connects to evaluations, working demos, practical education, reusable tools, and focused products; each product keeps its own capabilities, terms, and data boundaries.",
   },
   {
     question: "Where can I inspect the evidence or source?",
@@ -232,6 +232,11 @@ const About = () => {
                   DiagnosticPro is an Intent Solutions product; the public repository identifies no
                   separate larger product team. Intent Solutions owns the software, deployment,
                   payment path, report pipeline, support process, and operating evidence.
+                </p>
+                <p className="mt-3 max-w-3xl leading-relaxed text-muted-foreground">
+                  The wider company builds, tests, demonstrates, and teaches what it creates.
+                  <a href="https://startaitools.com/deployment-thesis/" className="ml-1 underline underline-offset-4 hover:text-foreground">Read how that work connects</a>;
+                  private customer reports remain private.
                 </p>
               </div>
             </div>
