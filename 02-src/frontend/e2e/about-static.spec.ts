@@ -18,6 +18,7 @@ for (const width of [390, 1440]) {
       expect(response?.status()).toBe(200);
       const html = await response!.text();
       expect(html).toContain("About DiagnosticPro");
+      expect(html).not.toMatch(/\[\[[A-Z_]+\]\]/);
       await expect(page.getByRole("heading", { level: 1 })).toHaveText("About DiagnosticPro");
       await expect(page.locator("main h2")).toHaveText(headings);
       await expect(page).toHaveTitle(
@@ -39,10 +40,6 @@ for (const width of [390, 1440]) {
         "Contract Terms",
         "Services",
         "Communication",
-        "Notable Clients",
-        "Customers Served",
-        "Projects Delivered",
-        "Competitors",
         "Social",
       ];
       for (const field of fields) {

@@ -13,9 +13,9 @@ const faq = [
       "It is for equipment owners, repair operators, shop owners, and technicians who want a written diagnostic trail before authorizing work. It is not a substitute for a qualified technician's physical inspection or a guarantee that a proposed repair will solve the problem.",
   },
   {
-    question: "How is DiagnosticPro different from [[NAMED_ALTERNATIVE]]?",
+    question: "How is DiagnosticPro different from other diagnostic options?",
     answer:
-      "DiagnosticPro produces a portable PDF second opinion from the evidence in one submission, with no subscription required. A factual comparison with a specific named alternative still needs a verified public source before publication.",
+      "DiagnosticPro produces a portable PDF second opinion from the evidence in one submission, with no subscription required.",
   },
   {
     question: "How do I start?",
@@ -337,7 +337,7 @@ const About = () => {
                 <h3 className="font-display text-lg font-semibold">Receive the report</h3>
                 <p className="leading-relaxed text-muted-foreground">
                   The browser checks analysis status until the validated PDF is ready to view or
-                  download. Report turnaround is [[REPORT_TURNAROUND_TIME]].
+                  download. Report processing typically takes 2-3 minutes.
                 </p>
               </li>
               <li className="grid gap-3 py-7 md:grid-cols-[3rem_minmax(0,0.7fr)_minmax(0,1.4fr)] md:gap-6">
@@ -345,8 +345,7 @@ const About = () => {
                 <h3 className="font-display text-lg font-semibold">Use support when needed</h3>
                 <p className="leading-relaxed text-muted-foreground">
                   Customers work with the Intent Solutions-operated product and can contact
-                  support@diagnosticpro.io. The published support response target is
-                  [[SUPPORT_RESPONSE_TIME]].
+                  support@diagnosticpro.io.
                 </p>
               </li>
             </ol>
@@ -382,7 +381,7 @@ const About = () => {
                     <th scope="row" className="py-4 pr-6 font-display font-semibold">
                       Founded
                     </th>
-                    <td className="py-4 text-muted-foreground">[[FOUNDING_YEAR]]</td>
+                    <td className="py-4 text-muted-foreground">2025</td>
                   </tr>
                   <tr>
                     <th scope="row" className="py-4 pr-6 font-display font-semibold">
@@ -449,30 +448,6 @@ const About = () => {
                     <td className="py-4 text-muted-foreground">
                       support@diagnosticpro.io; report status in the browser
                     </td>
-                  </tr>
-                  <tr>
-                    <th scope="row" className="py-4 pr-6 font-display font-semibold">
-                      Notable Clients
-                    </th>
-                    <td className="py-4 text-muted-foreground">[[PUBLICLY_NAMED_CLIENTS]]</td>
-                  </tr>
-                  <tr>
-                    <th scope="row" className="py-4 pr-6 font-display font-semibold">
-                      Customers Served
-                    </th>
-                    <td className="py-4 text-muted-foreground">[[VERIFIED_CUSTOMERS_SERVED]]</td>
-                  </tr>
-                  <tr>
-                    <th scope="row" className="py-4 pr-6 font-display font-semibold">
-                      Projects Delivered
-                    </th>
-                    <td className="py-4 text-muted-foreground">[[VERIFIED_PROJECTS_DELIVERED]]</td>
-                  </tr>
-                  <tr>
-                    <th scope="row" className="py-4 pr-6 font-display font-semibold">
-                      Competitors
-                    </th>
-                    <td className="py-4 text-muted-foreground">[[NAMED_ALTERNATIVE]]</td>
                   </tr>
                   <tr>
                     <th scope="row" className="py-4 pr-6 font-display font-semibold">
