@@ -100,6 +100,21 @@ npx jest --coverage
 node --check index.js
 ```
 
+Single tests:
+
+```bash
+# backend (from 02-src/backend/services/backend/), tests live in __tests__/
+npx jest __tests__/routes.payments.test.js
+npx jest -t "partial test name"
+# frontend (from 02-src/frontend/)
+pnpm test -- path/to/file.test.tsx
+pnpm exec playwright test --project=chromium e2e/<spec>.ts
+```
+
+Playwright has two projects in `playwright.config.ts`: `chromium` (`e2e/`,
+local preview of `dist/`) and `live-journey` (`e2e-live/`, a deployed URL).
+Always pass `--project=chromium` locally so a bare run never hits a live site.
+
 The root Makefile contains convenience targets, but several still assume a
 root-level `package.json`; the directory-specific commands above are the
 reliable equivalents.
@@ -215,6 +230,34 @@ hashed at rest, and mutations are rejected after payment.
 
 The SQLite schema and migrations are in `db.js`. Do not reintroduce Firestore
 or GCS fields into the main flow without an explicit migration decision.
+
+## Backend analysis pipeline
+
+`index.js` is a single large module holding routes and the pipeline. All paid
+paths (Stripe webhook, `/analyzeDiagnostic`, Whop analyze) converge on
+`processAnalysis(submissionId, payload, reqId)`, fired without awaiting:
+
+1. mark the submission `processing` and upsert the `analyses` row (upsert, not
+   `INSERT OR REPLACE` — replacing wiped attribution columns such as `model`
+   and `paid_via`);
+2. optional vision pass over uploaded photos (`evidence/vision.js`), which
+   degrades to a text-only report instead of throwing;
+3. prompt build: `promptV3.js` (`V3B_SYSTEM`/`V3B_USER_TEMPLATE`) plus
+   `getEquipmentPromptContext` and parsed document/photo evidence from
+   `evidence/promptEvidence.js`;
+4. `callLLM` → `createChatCompletionAdaptive` (OpenAI-compatible client), then
+   `parseFullAnalysis` validates the 15 sections;
+5. `generatePDFReport` → `reportPdfProduction.js`, which prefers the
+   whiteglove engine (`reportWhiteglove.js`, markdown → pandoc + xelatex) and
+   falls back to PDFKit when those tools are missing — so a local PDF can look
+   different from production unless pandoc/xelatex are installed.
+
+`index.js` exports the Express `app` (plus `processAnalysis`, `callLLM`,
+`parseFullAnalysis`, `generatePDFReport`) and only starts listening and
+initializes the Stripe client under `require.main`. Route tests use supertest
+against the imported app; contracts that need a live Stripe client spawn
+`index.js` as a child process with a preloaded fake module
+(`__tests__/helpers/stripe-preload.js`).
 
 ## CI and testing
 
