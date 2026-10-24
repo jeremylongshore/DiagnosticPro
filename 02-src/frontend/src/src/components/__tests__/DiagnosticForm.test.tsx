@@ -13,11 +13,29 @@ describe("DiagnosticForm Component", () => {
 
   it("renders the diagnostic form correctly", () => {
     const mockOnSubmit = jest.fn();
-    const { getByText } = render(<DiagnosticForm onFormSubmit={mockOnSubmit} />);
+    const { getByRole, getByText } = render(<DiagnosticForm onFormSubmit={mockOnSubmit} />);
 
-    expect(getByText("Diagnosis")).toBeInTheDocument();
+    // The section is named by its heading; the old "Diagnosis" eyebrow above it was removed.
+    expect(getByRole("heading", { name: "Tell us what's going on" })).toBeInTheDocument();
     expect(getByText("What type of equipment?")).toBeInTheDocument();
     expect(getByText("Basic information")).toBeInTheDocument();
+  });
+
+  it("makes the equipment tiles keyboard-operable buttons and names each select by its label", async () => {
+    const user = userEvent.setup();
+    const mockOnSubmit = jest.fn();
+    const { getByRole } = render(<DiagnosticForm onFormSubmit={mockOnSubmit} />);
+
+    const cars = getByRole("button", { name: "Cars & SUVs" });
+    expect(cars).toHaveAttribute("type", "button");
+    expect(cars).toHaveAttribute("aria-pressed", "false");
+    cars.focus();
+    await user.keyboard("{Enter}");
+    expect(cars).toHaveAttribute("aria-pressed", "true");
+
+    for (const name of ["Make", "Model", "Year"]) {
+      expect(getByRole("combobox", { name })).toBeInTheDocument();
+    }
   });
 
   it("displays all equipment type options", () => {

@@ -16,7 +16,7 @@ const Hero = () => {
         className="pointer-events-none absolute inset-0 opacity-[0.35]"
         style={{
           backgroundImage:
-            "radial-gradient(ellipse 80% 60% at 70% -10%, hsl(24 95% 48% / 0.09), transparent 55%), linear-gradient(to bottom, transparent, hsl(var(--background)))",
+            "radial-gradient(ellipse 80% 60% at 70% -10%, hsl(var(--primary) / 0.09), transparent 55%), linear-gradient(to bottom, transparent, hsl(var(--background)))",
         }}
       />
       <div
@@ -32,11 +32,9 @@ const Hero = () => {
 
       <div className="container relative z-10 mx-auto px-4 py-16 md:py-24">
         <div className="max-w-3xl mx-auto text-center">
-          <p className="section-label mb-5">Equipment diagnostic second opinion</p>
-
           <h1 className="font-display text-4xl md:text-5xl lg:text-[3.4rem] font-bold tracking-tight text-foreground text-balance mb-5 leading-[1.08]">
             Know What&apos;s Wrong
-            <span className="block text-foreground/80 mt-1">Before You Authorize Repairs</span>
+            <span className="block mt-1">Before You Authorize Repairs</span>
           </h1>
 
           <p className="text-base md:text-lg text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed text-balance">
@@ -62,25 +60,25 @@ const Hero = () => {
             </a>
           </div>
 
-          <dl className="grid grid-cols-3 gap-4 max-w-lg mx-auto border-t border-border/80 pt-8">
-            <div className="text-center">
-              <dt className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground mb-1">
+          <dl className="grid grid-cols-3 gap-4 max-w-xl mx-auto border-t border-border/80 pt-8">
+            <div className="text-center px-2 py-2">
+              <dt className="text-xs text-muted-foreground mb-1">
                 Includes
               </dt>
-              <dd className="font-display text-lg md:text-xl font-semibold">
+              <dd className="font-display text-lg md:text-xl font-semibold text-balance">
                 Questions to Ask
               </dd>
             </div>
-            <div className="text-center border-x border-border/80">
-              <dt className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground mb-1">
+            <div className="text-center border-x border-border/80 px-2 py-2">
+              <dt className="text-xs text-muted-foreground mb-1">
                 Structure
               </dt>
               <dd className="font-display text-lg md:text-xl font-semibold tabular-nums">
                 15 Sections
               </dd>
             </div>
-            <div className="text-center">
-              <dt className="text-[0.68rem] uppercase tracking-[0.14em] text-muted-foreground mb-1">
+            <div className="text-center px-2 py-2">
+              <dt className="text-xs text-muted-foreground mb-1">
                 Price
               </dt>
               <dd className="font-display text-lg md:text-xl font-semibold tabular-nums text-primary">
