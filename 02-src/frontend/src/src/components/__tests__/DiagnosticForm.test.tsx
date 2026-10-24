@@ -75,6 +75,12 @@ describe("DiagnosticForm Component", () => {
     ]) {
       expect(getByRole("combobox", { name })).toBeInTheDocument();
     }
+
+    // The equipment-specific selects (rendered from the equipment config) are labelled too.
+    await user.click(getByRole("button", { name: "Cars & SUVs" }));
+    for (const name of ["Fuel Type", "Transmission"]) {
+      expect(getByRole("combobox", { name })).toBeInTheDocument();
+    }
   });
 
   it("displays all equipment type options", () => {
