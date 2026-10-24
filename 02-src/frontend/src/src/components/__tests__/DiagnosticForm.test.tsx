@@ -26,14 +26,53 @@ describe("DiagnosticForm Component", () => {
     const mockOnSubmit = jest.fn();
     const { getByRole } = render(<DiagnosticForm onFormSubmit={mockOnSubmit} />);
 
+    // Every equipment tile is a non-submitting toggle button.
+    const equipmentLabels = [
+      "Cars & SUVs",
+      "Gas Trucks",
+      "Diesel Trucks",
+      "Semi Trucks",
+      "Motorcycles",
+      "ATVs / UTVs",
+      "RVs",
+      "Marine",
+      "Farm & Ag",
+      "Compact Equipment",
+      "Lawn & Garden",
+      "Power Tools",
+      "HVAC",
+      "Golf Carts",
+      "Electronics",
+    ];
+    const tiles = equipmentLabels.map((name) => getByRole("button", { name }));
+    expect(tiles).toHaveLength(15);
+    for (const tile of tiles) {
+      expect(tile).toHaveAttribute("type", "button");
+      expect(tile).toHaveAttribute("aria-pressed", "false");
+    }
+
     const cars = getByRole("button", { name: "Cars & SUVs" });
-    expect(cars).toHaveAttribute("type", "button");
-    expect(cars).toHaveAttribute("aria-pressed", "false");
     cars.focus();
     await user.keyboard("{Enter}");
     expect(cars).toHaveAttribute("aria-pressed", "true");
 
+    const marine = getByRole("button", { name: "Marine" });
+    marine.focus();
+    await user.keyboard(" ");
+    expect(marine).toHaveAttribute("aria-pressed", "true");
+    expect(cars).toHaveAttribute("aria-pressed", "false");
+
+    // Every select is named by its label, including the four behind "Add Details".
     for (const name of ["Make", "Model", "Year"]) {
+      expect(getByRole("combobox", { name })).toBeInTheDocument();
+    }
+    await user.click(getByRole("button", { name: /Add Details for Better Results/ }));
+    for (const name of [
+      "When did this start?",
+      "How often does it occur?",
+      "Primary Location/Environment",
+      "Usage Pattern",
+    ]) {
       expect(getByRole("combobox", { name })).toBeInTheDocument();
     }
   });
