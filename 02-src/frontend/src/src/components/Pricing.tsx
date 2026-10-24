@@ -14,7 +14,6 @@ const Pricing = () => {
       <div className="container mx-auto px-4">
         <div className="max-w-lg mx-auto">
           <div className="text-center mb-8">
-            <p className="section-label mb-3">Pricing</p>
             <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight">
               Simple. One report.
             </h2>
@@ -25,7 +24,7 @@ const Pricing = () => {
             <p className="font-display text-5xl font-bold tracking-tight tabular-nums text-foreground mb-1">
               $4.99
             </p>
-            <p className="text-sm text-muted-foreground mb-8">Pay once · PDF delivered after analysis</p>
+            <p className="text-sm text-muted-foreground mb-8">Pay once. Your PDF is delivered after the analysis.</p>
 
             <ul className="space-y-3 text-left mb-8">
               {included.map((item) => (

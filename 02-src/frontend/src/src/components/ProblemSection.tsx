@@ -28,18 +28,17 @@ const ProblemSection = () => {
       <div className="container mx-auto px-4">
         <div className="max-w-5xl mx-auto">
           <div className="mb-10 max-w-xl">
-            <p className="section-label mb-3">Why it matters</p>
             <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight mb-3">
               Guessing is expensive. Sequencing is not.
             </h2>
             <p className="text-muted-foreground leading-relaxed">
               Shops often replace parts until something works. A second opinion helps you ask for the
-              right tests — and walk away from premature big-ticket replacements.
+              right tests and walk away from premature big-ticket replacements.
             </p>
           </div>
 
           <div className="overflow-hidden rounded-lg border border-border bg-card shadow-[var(--shadow-card)]">
-            <div className="hidden md:grid grid-cols-12 gap-0 border-b border-border bg-muted/50 px-5 py-3 text-[0.7rem] uppercase tracking-[0.12em] text-muted-foreground font-medium">
+            <div className="hidden md:grid grid-cols-12 gap-0 border-b border-border bg-muted/50 px-5 py-3 text-xs text-muted-foreground font-medium">
               <div className="col-span-3">Symptom</div>
               <div className="col-span-4">Parts-throwing path</div>
               <div className="col-span-5">Smarter first pass</div>
@@ -65,6 +64,10 @@ const ProblemSection = () => {
               </div>
             ))}
           </div>
+          <p className="mt-3 text-xs text-muted-foreground">
+            Typical cost ranges, shown for illustration. They are not a quote; your shop&apos;s price
+            depends on your equipment, parts and labor rates.
+          </p>
         </div>
       </div>
     </section>

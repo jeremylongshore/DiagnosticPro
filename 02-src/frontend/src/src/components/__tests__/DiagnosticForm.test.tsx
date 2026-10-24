@@ -13,11 +13,74 @@ describe("DiagnosticForm Component", () => {
 
   it("renders the diagnostic form correctly", () => {
     const mockOnSubmit = jest.fn();
-    const { getByText } = render(<DiagnosticForm onFormSubmit={mockOnSubmit} />);
+    const { getByRole, getByText } = render(<DiagnosticForm onFormSubmit={mockOnSubmit} />);
 
-    expect(getByText("Diagnosis")).toBeInTheDocument();
+    // The section is named by its heading; the old "Diagnosis" eyebrow above it was removed.
+    expect(getByRole("heading", { name: "Tell us what's going on" })).toBeInTheDocument();
     expect(getByText("What type of equipment?")).toBeInTheDocument();
     expect(getByText("Basic information")).toBeInTheDocument();
+  });
+
+  it("makes the equipment tiles keyboard-operable buttons and names each select by its label", async () => {
+    const user = userEvent.setup();
+    const mockOnSubmit = jest.fn();
+    const { getByRole } = render(<DiagnosticForm onFormSubmit={mockOnSubmit} />);
+
+    // Every equipment tile is a non-submitting toggle button.
+    const equipmentLabels = [
+      "Cars & SUVs",
+      "Gas Trucks",
+      "Diesel Trucks",
+      "Semi Trucks",
+      "Motorcycles",
+      "ATVs / UTVs",
+      "RVs",
+      "Marine",
+      "Farm & Ag",
+      "Compact Equipment",
+      "Lawn & Garden",
+      "Power Tools",
+      "HVAC",
+      "Golf Carts",
+      "Electronics",
+    ];
+    const tiles = equipmentLabels.map((name) => getByRole("button", { name }));
+    expect(tiles).toHaveLength(15);
+    for (const tile of tiles) {
+      expect(tile).toHaveAttribute("type", "button");
+      expect(tile).toHaveAttribute("aria-pressed", "false");
+    }
+
+    const cars = getByRole("button", { name: "Cars & SUVs" });
+    cars.focus();
+    await user.keyboard("{Enter}");
+    expect(cars).toHaveAttribute("aria-pressed", "true");
+
+    const marine = getByRole("button", { name: "Marine" });
+    marine.focus();
+    await user.keyboard(" ");
+    expect(marine).toHaveAttribute("aria-pressed", "true");
+    expect(cars).toHaveAttribute("aria-pressed", "false");
+
+    // Every select is named by its label, including the four behind "Add Details".
+    for (const name of ["Make", "Model", "Year"]) {
+      expect(getByRole("combobox", { name })).toBeInTheDocument();
+    }
+    await user.click(getByRole("button", { name: /Add Details for Better Results/ }));
+    for (const name of [
+      "When did this start?",
+      "How often does it occur?",
+      "Primary Location/Environment",
+      "Usage Pattern",
+    ]) {
+      expect(getByRole("combobox", { name })).toBeInTheDocument();
+    }
+
+    // The equipment-specific selects (rendered from the equipment config) are labelled too.
+    await user.click(getByRole("button", { name: "Cars & SUVs" }));
+    for (const name of ["Fuel Type", "Transmission"]) {
+      expect(getByRole("combobox", { name })).toBeInTheDocument();
+    }
   });
 
   it("displays all equipment type options", () => {

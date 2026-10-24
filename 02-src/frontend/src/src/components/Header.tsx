@@ -14,7 +14,7 @@ const scrollToForm = () => {
 const Header = () => {
   return (
     <>
-      <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background/85 backdrop-blur-md supports-[backdrop-filter]:bg-background/75">
+      <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background">
         <div className="container mx-auto px-4 h-14 flex items-center justify-between gap-4">
           <a href="/" className="flex items-baseline gap-0.5 shrink-0">
             <span className="font-display text-base md:text-lg font-bold tracking-tight text-foreground">
@@ -28,25 +28,25 @@ const Header = () => {
           <nav className="hidden md:flex items-center gap-6 absolute left-1/2 -translate-x-1/2">
             <a
               href="/#diagnostic-form"
-              className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors duration-200"
+              className="inline-flex min-h-11 items-center text-[0.8125rem] text-muted-foreground hover:text-foreground active:text-primary transition-colors duration-200"
             >
               Diagnosis
             </a>
             <a
               href="/#how-it-works"
-              className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors duration-200"
+              className="inline-flex min-h-11 items-center text-[0.8125rem] text-muted-foreground hover:text-foreground active:text-primary transition-colors duration-200"
             >
               How it works
             </a>
             <a
               href="/#pricing"
-              className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors duration-200"
+              className="inline-flex min-h-11 items-center text-[0.8125rem] text-muted-foreground hover:text-foreground active:text-primary transition-colors duration-200"
             >
               Pricing
             </a>
             <a
               href="/about"
-              className="text-[0.8125rem] text-muted-foreground hover:text-foreground transition-colors duration-200"
+              className="inline-flex min-h-11 items-center text-[0.8125rem] text-muted-foreground hover:text-foreground active:text-primary transition-colors duration-200"
             >
               About
             </a>
@@ -56,7 +56,7 @@ const Header = () => {
           <button
             type="button"
             onClick={scrollToForm}
-            className="inline-flex h-8 items-center rounded-md border border-border bg-background px-3 text-[0.8125rem] font-medium text-foreground shadow-none transition-colors duration-200 hover:bg-muted hover:border-border cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            className="inline-flex h-11 items-center rounded-md border border-input bg-background px-3 text-[0.8125rem] font-medium text-foreground shadow-none transition-colors duration-200 hover:bg-muted active:bg-secondary cursor-pointer whitespace-nowrap focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
           >
             Start diagnosis
           </button>
