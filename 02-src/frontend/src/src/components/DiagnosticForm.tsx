@@ -282,15 +282,15 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
   return (
     <section className="py-14 md:py-16 border-b border-border/70" id="diagnostic-form">
       <div className="container mx-auto px-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="mb-8 md:mb-10 max-w-xl">
-            <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight mb-3">
+        <div className="max-w-6xl mx-auto grid gap-8 lg:grid-cols-12 lg:gap-x-12">
+          <div className="min-w-0 lg:col-span-4 lg:sticky lg:top-20 lg:self-start">
+            <h2 className="section-title mb-4">
               Tell us what&apos;s going on
             </h2>
             <p
               className={`text-muted-foreground leading-relaxed rounded-md px-0 py-1 transition-colors duration-300 border-2 ${
                 showFlashingBorder
-                  ? 'animate-flash-border bg-primary/5 text-foreground font-medium px-4 py-3'
+                  ? 'animate-flash-border motion-reduce:animate-none bg-primary/5 text-foreground font-medium px-4 py-3'
                   : 'border-transparent'
               }`}
             >
@@ -299,6 +299,7 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
             </p>
           </div>
 
+          <div className="min-w-0 lg:col-span-8">
           <Card className={`shadow-[var(--shadow-card)] border-border transition-colors duration-300 ${
             showFlashingBorder ? 'border-primary/50 border-2' : ''
           }`}>
@@ -731,6 +732,7 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
               </div>
             </CardContent>
           </Card>
+          </div>
         </div>
       </div>
     </section>

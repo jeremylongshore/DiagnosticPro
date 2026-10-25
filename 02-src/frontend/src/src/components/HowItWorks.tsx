@@ -18,15 +18,15 @@ const steps = [
 
 const HowItWorks = () => {
   return (
-    <section id="how-it-works" className="py-16 md:py-20 border-b border-border/70">
+    <section id="how-it-works" className="py-20 md:py-28 border-b border-border/70">
       <div className="container mx-auto px-4">
-        <div className="max-w-5xl mx-auto">
-          <div className="mb-10 md:mb-12 max-w-xl">
-            <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight mb-3">
+        <div className="max-w-6xl mx-auto">
+          <div className="mb-12 md:mb-16 max-w-3xl">
+            <h2 className="section-title mb-5">
               Three steps.
               <span className="block">One clear second opinion.</span>
             </h2>
-            <p className="text-muted-foreground leading-relaxed">
+            <p className="text-[length:var(--text-lead)] text-muted-foreground leading-snug max-w-xl">
               Built for people who want signal before they authorize expensive work, not another
               vague checklist.
             </p>
@@ -36,15 +36,13 @@ const HowItWorks = () => {
             {steps.map((step) => (
               <li
                 key={step.n}
-                className="py-6 md:px-6 md:first:pl-0 md:last:pr-0 border-b last:border-b-0 md:border-b-0 md:border-l md:first:border-l-0 border-border"
+                className="py-8 md:px-8 md:first:pl-0 md:last:pr-0 border-b last:border-b-0 md:border-b-0 md:border-l md:first:border-l-0 border-border"
               >
-                <div className="flex items-baseline gap-3 mb-2">
-                  <span className="text-lg tabular-nums text-primary">{step.n}</span>
-                  <h3 className="font-display text-lg font-semibold tracking-tight">
-                    {step.title}
-                  </h3>
-                </div>
-                <p className="text-sm text-muted-foreground leading-relaxed">{step.body}</p>
+                <span className="block font-display text-[length:var(--text-section)] font-bold leading-none tabular-nums text-primary mb-6">
+                  {step.n}
+                </span>
+                <h3 className="item-title mb-3">{step.title}</h3>
+                <p className="text-base text-muted-foreground leading-relaxed">{step.body}</p>
               </li>
             ))}
           </ol>

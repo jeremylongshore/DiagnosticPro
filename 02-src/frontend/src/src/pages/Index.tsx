@@ -30,7 +30,7 @@ const Index = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header showPartner={false} />
       <Hero />
 
       {/* Product surface first — form is the product */}

@@ -11,7 +11,12 @@ const scrollToForm = () => {
   }, 80);
 };
 
-const Header = () => {
+interface HeaderProps {
+  /** The homepage sets the partner credential inside its hero instead of as a band. */
+  showPartner?: boolean;
+}
+
+const Header = ({ showPartner = true }: HeaderProps) => {
   return (
     <>
       <header className="sticky top-0 z-50 w-full border-b border-border/80 bg-background">
@@ -62,7 +67,7 @@ const Header = () => {
           </button>
         </div>
       </header>
-      <IntentPartner />
+      {showPartner && <IntentPartner />}
     </>
   );
 };
