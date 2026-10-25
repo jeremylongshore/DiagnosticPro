@@ -1,9 +1,14 @@
 import "../styles/intent-partner.css";
 
-export default function IntentPartner() {
+interface IntentPartnerProps {
+  /** "band" sits under the header; "inline" sits inside a page composition. */
+  variant?: "band" | "inline";
+}
+
+export default function IntentPartner({ variant = "band" }: IntentPartnerProps) {
   return (
     <aside
-      className="intent-partner"
+      className={variant === "inline" ? "intent-partner intent-partner--inline" : "intent-partner"}
       aria-label="Intent Solutions partner status"
       data-intent-partner
     >
