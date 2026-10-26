@@ -3,9 +3,6 @@
  */
 import { api } from './api';
 
-// Legacy type kept for compatibility (no longer used for writes)
-export interface DiagnosticSubmission { /* see backend SQLite schema */ }
-
 // Frontend form interface
 export interface DiagnosticFormData {
   fullName: string;
@@ -138,7 +135,7 @@ const ANALYZE_PENDING_STATUSES = new Set(['processing', 'queued', 'pending']);
 
 export async function startAnalysis(
   submissionId: string,
-  diagnosticData?: any
+  diagnosticData?: unknown
 ): Promise<ApiResponse<DiagnosticAnalysis>> {
   try {
     const response = await api<AnalyzeResponse>('/analyzeDiagnostic', {
