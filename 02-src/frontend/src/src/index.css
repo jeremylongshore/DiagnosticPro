@@ -3,7 +3,7 @@
  * axes: warm paper/Syne/burnt orange · posture: split · contrast: pass · fold: pass · v2.0.0 */
 /* Hallmark · pre-emit critique: P4 H5 E4 S4 R4 V3 · weakest: V, the brand and the form-first order are kept by request, so the variety comes from the hero split, the ruled examples and the footer mast */
 /* Hallmark · hero-review: fix · 5 findings · 3 resolved (1920 headline cap, ledger height, 375 orphan and fold), 2 declined (the subhead "for $4.99" and the CTA "Start Diagnosis - $4.99" are read by unit and e2e tests) */
-/* Hallmark · finish-review: subagent · 7 findings · 5 resolved (79 hero space, the close repeating the signature, counting tags on the included list, identical section openings, the hyphen break), 1 answered (69: the other $4.99 mentions are tested copy and already carry body colour), 1 for the owner (title case in the tested strings "Questions to Ask" and "15 Sections") · gap: none */
+/* Hallmark · finish-review: subagent · 7 findings · 6 resolved (79 hero space, the close repeating the signature, counting tags on the included list, identical section openings, the hyphen break), 1 answered (69: the other $4.99 mentions are tested copy and already carry body colour), 1 resolved after (the ledger strings "Questions to ask" and "15 sections" now sentence case) · gap: none */
 /* Hallmark · waive 39b · every homepage action button measures 44px or more; only the fifteen equipment picker tiles exceed 52px · each tile is an icon over its equipment label, a selection grid rather than an action button */
 /* Hallmark · reworded "Automotive — P0420" to "Automotive: P0420" · 19 names the dash */
 /* Hallmark · reworded "Marine — overheating" to "Marine: overheating" · 19 names the dash */
