@@ -73,7 +73,7 @@ export const PhotoAttachPanel = ({ submissionId, evidenceToken, transport = defa
     const accepted: PendingUpload[] = [];
     for (const file of Array.from(fileList)) {
       const v = validatePhotoFile({ type: file.type, size: file.size });
-      if (!v.ok) {
+      if ('error' in v) {
         setError(`Photo rejected: ${v.error.replace(/_/g, ' ')}`);
         continue;
       }

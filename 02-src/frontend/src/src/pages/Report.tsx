@@ -277,12 +277,6 @@ const Report = () => {
                   </div>
                 </div>
 
-                {diagnosticStatus.gcsPath && (
-                  <div className="bg-muted p-4 rounded-lg">
-                    <p className="text-sm font-medium mb-1">Storage Location:</p>
-                    <p className="text-sm font-mono text-muted-foreground">{diagnosticStatus.gcsPath}</p>
-                  </div>
-                )}
 
                 {(diagnosticStatus.status === 'processing' || diagnosticStatus.status === 'pending') && (
                   <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">

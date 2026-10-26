@@ -197,7 +197,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
         });
 
         // Store debugging info in window for verification
-        (window as any).__dp_lastPayload = {
+        window.__dp_lastPayload = {
           reqId,
           submissionId,
           payloadKeys: Object.keys(payload),
@@ -207,7 +207,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
         // Store the submission ID and request ID for payment processing
         setSubmissionId(submissionId);
         setEvidenceToken(accessToken);
-        (window as any).__dp_reqId = reqId;
+        window.__dp_reqId = reqId;
         setIsDataSaved(true);
         setSaveError(null);
 

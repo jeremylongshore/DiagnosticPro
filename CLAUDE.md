@@ -194,7 +194,6 @@ is intentional because both Vite and Jest alias `@` to it.
 | `/equipment/:equipmentSlug`             | Equipment-specific landing page                      |
 | `/success`, `/payment-success`          | Post-payment report polling and download             |
 | `/report/:reportId`                     | Report status/download page                          |
-| `/test-monitor`                         | Internal test monitor                                |
 | `/auth/callback`                        | Retained Whop OAuth callback                         |
 | `/terms`, `/privacy`, `/acceptable-use` | Legal pages                                          |
 

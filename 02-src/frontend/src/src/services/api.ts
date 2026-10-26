@@ -16,7 +16,9 @@ async function authHeader() {
   try {
     const whopToken = localStorage.getItem('whop_token');
     if (whopToken) return { 'x-whop-token': whopToken };
-  } catch {}
+  } catch {
+    // localStorage unavailable (private mode, blocked storage): fall back to the API key
+  }
   // fallback to api key if set (for some legacy paths)
   const apiKey = getEnv('VITE_API_KEY');
   return apiKey ? { 'x-api-key': apiKey } : {};
@@ -56,53 +58,3 @@ export async function apiRaw(path: string, init: RequestInit = {}): Promise<Resp
   const url = BASE ? `${BASE}${path}` : path;
   return fetch(url, { ...init, headers, credentials: "omit" });
 }
-
-// Legacy API client for backward compatibility
-interface ApiResponse<T = any> {
-  data?: T;
-  error?: string;
-  status: number;
-}
-
-class ApiClient {
-  async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-    try {
-      const data = await api<T>(endpoint);
-      return { data, status: 200 };
-    } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        status: 500
-      };
-    }
-  }
-
-  async post<T>(endpoint: string, data?: any): Promise<ApiResponse<T>> {
-    try {
-      const result = await api<T>(endpoint, {
-        method: 'POST',
-        body: data ? JSON.stringify(data) : undefined,
-      });
-      return { data: result, status: 200 };
-    } catch (error) {
-      return {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        status: 500
-      };
-    }
-  }
-
-  isUsingNewApi(): boolean {
-    return !!BASE;
-  }
-
-  getBaseUrl(): string {
-    return BASE || '';
-  }
-}
-
-// Export singleton instance for backward compatibility
-export const apiClient = new ApiClient();
-
-// Export types
-export type { ApiResponse };

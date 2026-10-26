@@ -52,7 +52,7 @@ const PUBLIC_METADATA = {
   },
 };
 
-const PRIVATE_PATHS = ["/auth/", "/report/", "/success", "/payment-success", "/test-monitor"];
+const PRIVATE_PATHS = ["/auth/", "/report/", "/success", "/payment-success"];
 
 function upsertMeta(name: string, content: string) {
   let element = document.head.querySelector<HTMLMetaElement>(`meta[name="${name}"]`);
