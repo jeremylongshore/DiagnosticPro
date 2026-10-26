@@ -13,8 +13,8 @@ const scrollToForm = () => {
 const ledger = [
   { term: "Diagnosis", detail: "The most likely cause, with a confidence number" },
   { term: "Pricing", detail: "What a fair price looks like" },
-  { term: "Includes", detail: "Questions to Ask" },
-  { term: "Structure", detail: "15 Sections" },
+  { term: "Includes", detail: "Questions to ask" },
+  { term: "Structure", detail: "15 sections" },
   { term: "Equipment", detail: "Cars, trucks, boats, HVAC, farm equipment and more" },
 ];
 
