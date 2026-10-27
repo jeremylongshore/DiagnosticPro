@@ -197,7 +197,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
         });
 
         // Store debugging info in window for verification
-        (window as any).__dp_lastPayload = {
+        window.__dp_lastPayload = {
           reqId,
           submissionId,
           payloadKeys: Object.keys(payload),
@@ -207,7 +207,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
         // Store the submission ID and request ID for payment processing
         setSubmissionId(submissionId);
         setEvidenceToken(accessToken);
-        (window as any).__dp_reqId = reqId;
+        window.__dp_reqId = reqId;
         setIsDataSaved(true);
         setSaveError(null);
 
@@ -268,8 +268,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
       <div className="container mx-auto px-4">
         <div className="max-w-3xl mx-auto">
           <div className="mb-8 md:mb-10 max-w-xl">
-            <p className="section-label mb-3">Review</p>
-            <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight mb-3">
+            <h2 className="section-title mb-4">
               Confirm your details
             </h2>
             <p className="text-muted-foreground leading-relaxed">
@@ -443,7 +442,7 @@ const DiagnosticReview = ({ formData, onEdit, onPaymentSuccess }: DiagnosticRevi
                   </div>
                 )}
                 <p className="text-xs text-muted-foreground mt-4">
-                  Secure payment processed by Stripe. After payment, you'll get instant access to download your report.
+                  Secure payment processed by Stripe. After payment, you’ll get instant access to download your report.
                 </p>
                 <div className="text-xs text-muted-foreground mt-2">
                   By purchasing, you agree to our{" "}

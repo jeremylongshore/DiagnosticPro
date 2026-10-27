@@ -220,7 +220,7 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
             onValueChange={(value) => handleInputChange(field.id, value)}
             value={(formData[field.id] as string) || ""}
           >
-            <SelectTrigger>
+            <SelectTrigger id={field.id}>
               <SelectValue placeholder={field.placeholder || `Select ${field.label.toLowerCase()}`} />
             </SelectTrigger>
             <SelectContent>
@@ -282,25 +282,25 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
   return (
     <section className="py-14 md:py-16 border-b border-border/70" id="diagnostic-form">
       <div className="container mx-auto px-4">
-        <div className="max-w-3xl mx-auto">
-          <div className="mb-8 md:mb-10 max-w-xl">
-            <p className="section-label mb-3">Diagnosis</p>
-            <h2 className="font-display text-2xl md:text-3xl font-bold tracking-tight mb-3">
+        <div className="max-w-6xl mx-auto grid gap-8 lg:grid-cols-12 lg:gap-x-12">
+          <div className="min-w-0 lg:col-span-4 lg:sticky lg:top-20 lg:self-start">
+            <h2 className="section-title mb-4">
               Tell us what&apos;s going on
             </h2>
             <p
-              className={`text-muted-foreground leading-relaxed rounded-md px-0 py-1 transition-all duration-300 border-2 ${
+              className={`text-muted-foreground leading-relaxed rounded-md px-0 py-1 transition-colors duration-300 border-2 ${
                 showFlashingBorder
-                  ? 'animate-flash-border bg-primary/5 text-foreground font-medium px-4 py-3'
+                  ? 'animate-flash-border motion-reduce:animate-none bg-primary/5 text-foreground font-medium px-4 py-3'
                   : 'border-transparent'
               }`}
             >
-              Equipment, symptoms, and codes — more detail yields a sharper report. One problem,
-              one $4.99 analysis.
+              Equipment, symptoms, and codes: more detail yields a sharper report. One problem,
+              one analysis.
             </p>
           </div>
 
-          <Card className={`shadow-[var(--shadow-card)] border-border transition-all duration-300 ${
+          <div className="min-w-0 lg:col-span-8">
+          <Card className={`shadow-[var(--shadow-card)] border-border transition-colors duration-300 ${
             showFlashingBorder ? 'border-primary/50 border-2' : ''
           }`}>
             <CardHeader>
@@ -314,18 +314,20 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
                   {equipmentTypes.map((type) => {
                     const Icon = type.icon;
                     return (
-                      <div
+                      <button
+                        type="button"
                         key={type.value}
+                        aria-pressed={equipmentType === type.value}
                         onClick={() => handleInputChange("equipmentType", type.value)}
-                        className={`p-3 border rounded-lg cursor-pointer transition-all hover:bg-primary/5 ${
+                        className={`p-3 border rounded-lg cursor-pointer transition-colors hover:bg-primary/5 active:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 ${
                           equipmentType === type.value
                             ? "border-primary bg-primary/10"
-                            : "border-border"
+                            : "border-input"
                         }`}
                       >
-                        <Icon className="h-5 w-5 mx-auto mb-1" />
-                        <p className="text-xs font-medium text-center">{type.label}</p>
-                      </div>
+                        <Icon className="h-5 w-5 mx-auto mb-1" aria-hidden />
+                        <span className="block text-xs font-medium text-center">{type.label}</span>
+                      </button>
                     );
                   })}
                 </div>
@@ -339,7 +341,7 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
                     onValueChange={(value) => handleInputChange("make", value)}
                     value={formData.make}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="make">
                       <SelectValue placeholder="Select manufacturer" />
                     </SelectTrigger>
                     <SelectContent>
@@ -359,7 +361,7 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
                     onValueChange={(value) => handleInputChange("model", value)}
                     value={formData.model}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="model">
                       <SelectValue placeholder="Select model" />
                     </SelectTrigger>
                     <SelectContent>
@@ -380,7 +382,7 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
                     onValueChange={(value) => handleInputChange("year", value)}
                     value={formData.year}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger id="year">
                       <SelectValue placeholder="Select year" />
                     </SelectTrigger>
                     <SelectContent>
@@ -397,10 +399,10 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
 
               {/* Problem Description */}
               <div className="space-y-2">
-                <Label htmlFor="description">What's the problem?</Label>
+                <Label htmlFor="description">What’s the problem?</Label>
                 <Textarea
                   id="description"
-                  placeholder="Describe the problem in detail — sounds, behaviors, conditions when it happens, etc."
+                  placeholder="Describe the problem in detail: sounds, behaviors, and the conditions when it happens."
                   className="min-h-[100px]"
                   value={formData.problemDescription}
                   onChange={(e) => handleInputChange("problemDescription", e.target.value)}
@@ -437,7 +439,7 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
                 <button
                   type="button"
                   onClick={() => setShowDetails(!showDetails)}
-                  className="flex items-center gap-2 text-primary hover:text-primary/80 font-medium transition-colors w-full justify-center"
+                  className="flex min-h-11 items-center gap-2 whitespace-nowrap text-primary hover:text-primary-hover active:text-primary-active font-medium transition-colors w-full justify-center"
                 >
                   {showDetails ? (
                     <>
@@ -528,7 +530,7 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
                           onValueChange={(value) => handleInputChange("whenStarted", value)}
                           value={formData.whenStarted}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger id="when-started">
                             <SelectValue placeholder="Select timeframe" />
                           </SelectTrigger>
                           <SelectContent>
@@ -546,7 +548,7 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
                           onValueChange={(value) => handleInputChange("frequency", value)}
                           value={formData.frequency}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger id="frequency">
                             <SelectValue placeholder="Select frequency" />
                           </SelectTrigger>
                           <SelectContent>
@@ -594,7 +596,7 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
                           onValueChange={(value) => handleInputChange("locationEnvironment", value)}
                           value={formData.locationEnvironment}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger id="location">
                             <SelectValue placeholder="Select environment" />
                           </SelectTrigger>
                           <SelectContent>
@@ -612,7 +614,7 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
                           onValueChange={(value) => handleInputChange("usagePattern", value)}
                           value={formData.usagePattern}
                         >
-                          <SelectTrigger>
+                          <SelectTrigger id="usage">
                             <SelectValue placeholder="Select usage pattern" />
                           </SelectTrigger>
                           <SelectContent>
@@ -730,6 +732,7 @@ const DiagnosticForm = ({ onFormSubmit, initialEquipmentType }: DiagnosticFormPr
               </div>
             </CardContent>
           </Card>
+          </div>
         </div>
       </div>
     </section>

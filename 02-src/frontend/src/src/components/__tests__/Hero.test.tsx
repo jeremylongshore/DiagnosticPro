@@ -28,8 +28,8 @@ describe("Hero Component", () => {
     const { getByText } = render(<Hero />);
 
     // Deliberately NOT a word count: length reads as homework, not value.
-    expect(getByText("Questions to Ask")).toBeInTheDocument();
-    expect(getByText("15 Sections")).toBeInTheDocument();
+    expect(getByText("Questions to ask")).toBeInTheDocument();
+    expect(getByText("15 sections")).toBeInTheDocument();
     // Price appears in CTA and stats row
     expect(getByText("Start Diagnosis - $4.99")).toBeInTheDocument();
   });

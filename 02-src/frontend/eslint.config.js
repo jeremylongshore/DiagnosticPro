@@ -25,5 +25,13 @@ export default tseslint.config(
       ],
       "@typescript-eslint/no-unused-vars": "off",
     },
+  },
+  {
+    // Playwright requires the fixtures argument to be a destructuring pattern,
+    // so hooks that need only testInfo must write `async ({}, testInfo)`.
+    files: ["e2e/**/*.ts", "e2e-live/**/*.ts"],
+    rules: {
+      "no-empty-pattern": ["error", { allowObjectPatternsAsParameters: true }],
+    },
   }
 );

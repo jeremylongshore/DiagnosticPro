@@ -5,7 +5,7 @@ import { api } from '../api';
 describe('API client (VPS self-host)', () => {
   beforeEach(() => {
     global.fetch = jest.fn();
-    (process.env as any).VITE_API_BASE = '';
+    process.env.VITE_API_BASE = '';
   });
 
   afterEach(() => {

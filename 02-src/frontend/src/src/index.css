@@ -1,3 +1,19 @@
+/* Hallmark · shape: kept sequence (form first), recomposed · genre: modern-minimal (inferred) · theme: brand · redesign: full
+ * paper: oklch(98.6% 0.002 85) · accent: oklch(56.2% 0.158 45) · display: Syne · body: Inter · hero: Split (head and action on columns 1 to 7, the offer ledger on 8 to 12) · nav: kept · footer: mast (the wordmark set large over one row of links) · signature: the $4.99 offer ledger, the price set huge over what one report contains
+ * axes: warm paper/Syne/burnt orange · posture: split · contrast: pass · fold: pass · v2.0.0 */
+/* Hallmark · pre-emit critique: P4 H5 E4 S4 R4 V3 · weakest: V, the brand and the form-first order are kept by request, so the variety comes from the hero split, the ruled examples and the footer mast */
+/* Hallmark · hero-review: fix · 5 findings · 3 resolved (1920 headline cap, ledger height, 375 orphan and fold), 2 declined (the subhead "for $4.99" and the CTA "Start Diagnosis - $4.99" are read by unit and e2e tests) */
+/* Hallmark · finish-review: subagent · 7 findings · 6 resolved (79 hero space, the close repeating the signature, counting tags on the included list, identical section openings, the hyphen break), 1 answered (69: the other $4.99 mentions are tested copy and already carry body colour), 1 resolved after (the ledger strings "Questions to ask" and "15 sections" now sentence case) · gap: none */
+/* Hallmark · waive 39b · every homepage action button measures 44px or more; only the fifteen equipment picker tiles exceed 52px · each tile is an icon over its equipment label, a selection grid rather than an action button */
+/* Hallmark · reworded "Automotive — P0420" to "Automotive: P0420" · 19 names the dash */
+/* Hallmark · reworded "Marine — overheating" to "Marine: overheating" · 19 names the dash */
+/* Hallmark · reworded "HVAC — short cycling" to "HVAC: short cycling" · 19 names the dash */
+/* Hallmark · reworded "Diesel — DPF / derate" to "Diesel: DPF / derate" · 19 names the dash */
+/* Hallmark · reworded "$2,000+" to "$800–$2,800" · owner-directed figure check: the AC compressor row now carries the published HomeAdvisor/Angi range (sources in ProblemSection.tsx) */
+/* Hallmark · reworded "$6,000" to "$5,000" · the diesel row now names a new DPF assembly ($3,000–$5,000), not a full aftertreatment replacement; owner-directed figure check: a full aftertreatment system runs past $10,000, the cited range is a DPF alone */
+/* Hallmark · dismissed 49 · whitespace-nowrap is set as a Tailwind utility on the Add Details button and the render tier finds no wrap at 320 */
+/* Hallmark · dismissed 19 · "All rights reserved" belongs to the intentsolutions.io LLC copyright notice, a legal line a redesign never rewords */
+/* Hallmark · answered F19 · weights 500 and 600 come from the shared form primitives (Label, CardTitle) used on every DiagnosticPro page; consolidating them is a design-system change */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -20,9 +36,13 @@
     --popover: 0 0% 100%;
     --popover-foreground: 240 6% 10%;
 
-    /* Primary = Intent Solutions orange family, dialed for light UI CTAs */
-    --primary: 24 95% 48%;
+    /* Primary = Intent Solutions orange family, dialed for light UI CTAs.
+       L38 keeps white button text at 4.92:1 and orange text on the paper at
+       4.73:1 (WCAG AA); hover and pressed step darker, never lighter. */
+    --primary: 24 95% 38%;
     --primary-foreground: 0 0% 100%;
+    --primary-hover: 24 95% 33%;
+    --primary-active: 24 95% 30%;
 
     --secondary: 40 12% 94%;
     --secondary-foreground: 240 6% 16%;
@@ -43,27 +63,39 @@
     --success-foreground: 0 0% 100%;
 
     --border: 40 10% 88%;
-    --input: 40 10% 88%;
-    --ring: 24 95% 48%;
+    /* Field edges need 3:1 against the card and the paper (3.65:1 / 3.51:1). */
+    --input: 240 4% 54%;
+    --ring: 24 95% 38%;
 
     --radius: 0.5rem;
 
+    /* Faces: Syne display, Inter body (brand bridge to Intent Solutions) */
+    --font-body: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-display: Syne, Inter, ui-sans-serif, system-ui, sans-serif;
+
+    /* Type scale for the marketing pages (Hallmark shared scale) */
+    --text-display: clamp(2.25rem, 2.6vw + 1rem, 3.35rem);
+    --text-section: clamp(2rem, 2.5vw + 1rem, 3.5rem);
+    --text-title: clamp(1.25rem, 0.75vw + 0.875rem, 1.625rem);
+    --text-lead: clamp(1.125rem, 0.35vw + 1rem, 1.375rem);
+    --text-price: clamp(4.5rem, 6vw + 1rem, 7.5rem);
+
     /* Legacy token aliases — remapped so old className usage stays coherent */
-    --trust-blue: 24 95% 48%;
+    --trust-blue: 24 95% 38%;
     --savings-green: 152 45% 32%;
     --ripoff-red: 0 72% 48%;
     --expert-gold: 32 90% 42%;
     --neutral-slate: 240 4% 40%;
 
-    --gradient-trust: linear-gradient(135deg, hsl(24 95% 48%), hsl(24 95% 42%));
+    --gradient-trust: linear-gradient(135deg, hsl(24 95% 38%), hsl(24 95% 33%));
     --gradient-success: linear-gradient(135deg, hsl(152 45% 32%), hsl(152 45% 38%));
     --gradient-hero: none;
 
-    --shadow-trust: 0 8px 24px -8px hsl(24 95% 48% / 0.28);
+    --shadow-trust: 0 8px 24px -8px hsl(240 6% 10% / 0.18);
     --shadow-success: 0 8px 24px -8px hsl(152 45% 32% / 0.2);
     --shadow-card: 0 1px 2px hsl(240 6% 10% / 0.04), 0 8px 24px -12px hsl(240 6% 10% / 0.08);
 
-    --transition-smooth: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-smooth: color 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.2s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.2s cubic-bezier(0.4, 0, 0.2, 1), transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 
     --sidebar-background: 0 0% 98%;
     --sidebar-foreground: 240 5.3% 26.1%;
@@ -72,10 +104,13 @@
     --sidebar-accent: 240 4.8% 95.9%;
     --sidebar-accent-foreground: 240 5.9% 10%;
     --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 24 95% 48%;
+    --sidebar-ring: 24 95% 38%;
   }
 
   .dark {
+    --primary-hover: 24 95% 60%;
+    --primary-active: 24 95% 64%;
+    --input: 240 4% 40%;
     --background: 240 6% 6%;
     --foreground: 40 10% 96%;
     --card: 240 5% 9%;
@@ -105,13 +140,18 @@
     @apply border-border;
   }
 
+  html,
+  body {
+    overflow-x: clip;
+  }
+
   html {
     scroll-behavior: smooth;
   }
 
   body {
     @apply bg-background text-foreground antialiased;
-    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    font-family: var(--font-body);
     font-feature-settings: "ss01" on, "cv11" on;
   }
 
@@ -120,12 +160,13 @@
   h3,
   h4,
   .font-display {
-    font-family: Syne, Inter, ui-sans-serif, system-ui, sans-serif;
+    font-family: var(--font-display);
     letter-spacing: -0.02em;
+    text-wrap: balance;
   }
 
   ::selection {
-    background: hsl(24 95% 48% / 0.18);
+    background: hsl(var(--primary) / 0.18);
   }
 }
 
@@ -138,8 +179,54 @@
     box-shadow: inset 0 0 0 1px hsl(var(--border));
   }
 
+  /* Section and item heads at the shared scale (Hallmark 78). */
+  .section-title {
+    font-family: var(--font-display);
+    font-size: var(--text-section);
+    font-weight: 700;
+    line-height: 1.04;
+    letter-spacing: -0.02em;
+    overflow-wrap: break-word;
+    min-width: 0;
+  }
+
+  .item-title {
+    font-family: var(--font-display);
+    font-size: var(--text-title);
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  /* A quiet label in the body face, sentence case and untracked (Hallmark 54/67/75). */
   .section-label {
-    @apply font-display text-[0.65rem] font-semibold uppercase tracking-[0.22em] text-primary;
+    @apply font-sans text-[0.8125rem] font-medium text-primary;
+  }
+}
+
+/* Partner credential, inline variant: the official artwork and attribution set inside
+   the homepage hero, without the band rule (the band itself lives in styles/intent-partner.css). */
+.intent-partner.intent-partner--inline {
+  border-bottom: 0;
+}
+.intent-partner--inline .intent-partner__inner {
+  justify-content: flex-start;
+  width: auto;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
+  gap: 20px;
+}
+.intent-partner--inline .intent-partner__image {
+  width: 176px;
+}
+@media (max-width: 359px) {
+  .intent-partner--inline .intent-partner__inner {
+    align-items: flex-start;
+    gap: 8px;
+    padding: 0;
+  }
+  .intent-partner--inline .intent-partner__owner {
+    text-align: left;
   }
 }
 

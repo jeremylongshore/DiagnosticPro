@@ -39,7 +39,7 @@ const AuthCallback = () => {
           <p className="text-muted-foreground mb-6">{error}</p>
           <a
             href="/"
-            className="inline-flex items-center px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+            className="inline-flex items-center px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary-hover active:bg-primary-active transition-colors"
           >
             Return Home
           </a>

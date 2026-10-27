@@ -8,6 +8,5 @@ Disallow: /auth/
 Disallow: /report/
 Disallow: /success
 Disallow: /payment-success
-Disallow: /test-monitor
 
 Sitemap: https://diagnosticpro.io/sitemap.xml

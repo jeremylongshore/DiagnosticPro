@@ -59,7 +59,7 @@ const EquipmentLanding = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <Header />
+      <Header showPartner={false} />
       <Hero />
       <ProblemSection />
       <HowItWorks />
